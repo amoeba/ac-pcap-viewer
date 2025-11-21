@@ -15,3 +15,16 @@ anyhow = "1.0"
 thiserror = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+# Optimize release builds for size (especially for WASM)
+[profile.release]
+lto = true
+opt-level = "s"
+codegen-units = 1
+strip = true
+
+# Even smaller WASM builds
+[profile.release-wasm]
+inherits = "release"
+opt-level = "z"
+panic = "abort"
