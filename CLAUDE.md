@@ -35,6 +35,7 @@ We are building a parser that matches the output of a reference implementation. 
 | Metric | Reference | Our Output | Status |
 |--------|-----------|------------|--------|
 | Message count | 2,088 | 2,088 | **EXACT MATCH** ✅ |
+| Message data | 2,088 | 2,088 | **100% MATCH** ✅ |
 
 ### Goal #1: Match Message Count - COMPLETED ✅
 
@@ -48,7 +49,8 @@ Message count now matches! The fix was handling `PcapError::Incomplete` correctl
    - `IntProperties`, `Int64Properties`, `BoolProperties`, `FloatProperties`, `StringProperties`, `DataIdProperties`
    - `SpellBook`, `ArmorProfile`, `CreatureProfile`, `WeaponProfile`, `HookProfile`
    - Property names match reference (e.g., "Dyable", "ImbuerName", "GearDamage")
-   - Key fixes: Float properties use f64, SpellBook uses u32 per spell (not u32+u16)
+   - Key fixes: Float properties use f64, SpellBook uses u16 Id + u16 Layer per spell
+   - ArmorHighlight/WeaponHighlight/ResistHighlight use bitflag decomposition (string for non-zero, 0 for zero)
 
 2. **`Movement_SetObjectMovement`** - ✅ Full InterpretedMotionState parsing
    - `State` field now populated with `Flags`, `CurrentStyle`, `ForwardCommand`, etc.
