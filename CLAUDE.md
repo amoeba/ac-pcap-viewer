@@ -17,6 +17,84 @@ The parser handles:
 
 ---
 
+## Project Goals & Current Status
+
+### Primary Objectives
+
+We are building a parser that matches the output of a reference implementation. The goal is to parse `pkt_2025-11-18_1763490291_log.pcap` and produce output matching the reference files.
+
+### Reference Files (Target Output)
+
+| File | Lines | Description |
+|------|-------|-------------|
+| `messages.json` | 2,087 | Parsed messages in JSONL format - **primary target** |
+| `fragments.json` | 631 | Packet-level output with headers, fragments, and messages |
+
+### Current Parser Output
+
+| Metric | Reference | Our Output | Gap |
+|--------|-----------|------------|-----|
+| Message count | 2,087 | 687 | **-1,400 messages** |
+
+### Goal #1: Match Message Count
+
+We are missing ~1,400 messages. Likely causes:
+- Multiple messages per fragment not being extracted (fragments.json shows packets with multiple messages in `Messages` array)
+- Some message types not being parsed at all
+
+### Goal #2: Match Message Data Quality
+
+Current data quality issues identified:
+
+1. **`Item_SetAppraiseInfo`** - Missing property dictionaries
+   - Reference has: `IntProperties`, `Int64Properties`, `BoolProperties`, `FloatProperties`, `StringProperties`, `DataIdProperties`, `SpellBook`, `ArmorProfile`, etc.
+   - We have: Only `ObjectId`, `Flags`, `Success`
+
+2. **`Movement_SetObjectMovement`** - Incomplete MovementData
+   - Reference has: Full `State` with `Flags`, `CurrentStyle`, `ForwardCommand`, `Stance`, `Commands`, etc.
+   - We have: Basic fields, wrong `MovementType` ("Invalid" instead of "InterpertedMotionState")
+
+3. **`Qualities_PrivateUpdateAttribute2ndLevel`** - Wrong key mapping
+   - Reference has: `"Key": "Health"` (human-readable)
+   - We have: `"Key": "Vital_6"` (wrong - should be 1=Health, 2=Stamina, 3=Mana)
+
+4. **`Item_ObjDescEvent`** - Missing ObjectDescription
+   - Reference has: Full `ObjectDescription` with `Palette`, `Subpalettes`, `TMChanges`, `APChanges`
+   - We have: Only basic `ObjectId` and sequences
+
+5. **`Magic_UpdateEnchantment`** - Missing enchantment details
+   - Reference has: Full `Enchantment` with `Id`, `SpellCategory`, `Duration`, `CasterId`, `StatMod`, `EquipmentSet`
+   - We have: Only basic ordered event fields
+
+6. **`Effects_SoundEvent`** - Need enum names
+   - Reference has: `"SoundType": "UnwieldObject"`
+   - We have: `"SoundType": 39` (raw number)
+
+### Priority Work Items
+
+1. **Fix multiple messages per packet** - Investigate why we only get 687 vs 2,087 messages
+2. **Implement full `Item_SetAppraiseInfo` parsing** - Parse property dictionaries
+3. **Fix `MovementData` parsing** - Parse full movement state
+4. **Implement property name mappings** - Convert numeric keys to human-readable names
+5. **Implement `ObjectDescription` parsing** - For `Item_ObjDescEvent`
+6. **Implement full enchantment parsing** - For `Magic_UpdateEnchantment`
+
+### How to Compare Output
+
+```bash
+# Generate our output
+cargo run 2>/dev/null > our_output.jsonl
+
+# Count messages
+wc -l our_output.jsonl messages.json
+
+# Compare first few messages (use jq for formatting)
+head -5 our_output.jsonl | python3 -m json.tool
+head -5 messages.json | python3 -m json.tool
+```
+
+---
+
 ## Project Structure
 
 ```
