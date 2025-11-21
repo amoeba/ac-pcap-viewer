@@ -936,6 +936,8 @@ impl CommunicationTextboxString {
 pub struct ItemObjDescEvent {
     #[serde(rename = "ObjectId")]
     pub object_id: u32,
+    #[serde(rename = "ObjectDescription")]
+    pub object_description: ObjectDescription,
     #[serde(rename = "InstanceSequence")]
     pub instance_sequence: u16,
     #[serde(rename = "VisualDescSequence")]
@@ -948,19 +950,166 @@ pub struct ItemObjDescEvent {
     pub message_direction: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ObjectDescription {
+    #[serde(rename = "Version")]
+    pub version: u8,
+    #[serde(rename = "PaletteCount")]
+    pub palette_count: u8,
+    #[serde(rename = "TextureCount")]
+    pub texture_count: u8,
+    #[serde(rename = "ModelCount")]
+    pub model_count: u8,
+    #[serde(rename = "Palette")]
+    pub palette: u32,
+    #[serde(rename = "Subpalettes")]
+    pub subpalettes: Vec<SubpaletteChange>,
+    #[serde(rename = "TMChanges")]
+    pub tm_changes: Vec<TextureMapChange>,
+    #[serde(rename = "APChanges")]
+    pub ap_changes: Vec<AnimPartChange>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SubpaletteChange {
+    #[serde(rename = "Palette")]
+    pub palette: u32,
+    #[serde(rename = "Offset")]
+    pub offset: u8,
+    #[serde(rename = "NumColors")]
+    pub num_colors: u8,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TextureMapChange {
+    #[serde(rename = "PartIndex")]
+    pub part_index: u8,
+    #[serde(rename = "OldTexId")]
+    pub old_tex_id: u32,
+    #[serde(rename = "NewTexId")]
+    pub new_tex_id: u32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AnimPartChange {
+    #[serde(rename = "PartIndex")]
+    pub part_index: u8,
+    #[serde(rename = "PartId")]
+    pub part_id: u32,
+}
+
+impl ObjectDescription {
+    pub fn read(reader: &mut BinaryReader) -> Result<Self> {
+        // Format (from raw bytes analysis):
+        // u8 version (typically 17 = 0x11)
+        // u8 palette_count
+        // u8 texture_count
+        // u8 model_count
+        // u16 base_palette (if palette_count > 0)
+        // N * (u16 palette, u8 offset, u8 num_colors) subpalettes
+        // N * (u8 part_index, u16 old_tex, u16 new_tex) texture changes
+        // N * (u8 part_index, u16 part_id) model changes
+
+        let version = reader.read_u8()?;
+        let palette_count = reader.read_u8()?;
+        let texture_count = reader.read_u8()?;
+        let model_count = reader.read_u8()?;
+
+        // Validate counts are reasonable
+        if palette_count > 100 || texture_count > 100 || model_count > 100 {
+            anyhow::bail!("Suspicious ObjDesc counts: pal={} tex={} model={}", palette_count, texture_count, model_count);
+        }
+
+        // Read base palette if palette count > 0
+        let palette = if palette_count > 0 {
+            reader.read_u16()? as u32
+        } else {
+            0
+        };
+
+        // Read subpalettes (4 bytes each)
+        let mut subpalettes = Vec::new();
+        for _ in 0..palette_count {
+            if reader.remaining() < 4 {
+                break; // Not enough data
+            }
+            let sub_palette = reader.read_u16()? as u32;
+            let offset = reader.read_u8()?;
+            let num_colors = reader.read_u8()?;
+            subpalettes.push(SubpaletteChange {
+                palette: sub_palette,
+                offset,
+                num_colors,
+            });
+        }
+
+        // Read texture map changes (5 bytes each)
+        let mut tm_changes = Vec::new();
+        for _ in 0..texture_count {
+            if reader.remaining() < 5 {
+                break; // Not enough data
+            }
+            let part_index = reader.read_u8()?;
+            let old_tex_id = reader.read_u16()? as u32;
+            let new_tex_id = reader.read_u16()? as u32;
+            tm_changes.push(TextureMapChange {
+                part_index,
+                old_tex_id,
+                new_tex_id,
+            });
+        }
+
+        // Read animation part changes (3 bytes each)
+        let mut ap_changes = Vec::new();
+        for _ in 0..model_count {
+            if reader.remaining() < 3 {
+                break; // Not enough data
+            }
+            let part_index = reader.read_u8()?;
+            let part_id = reader.read_u16()? as u32;
+            ap_changes.push(AnimPartChange {
+                part_index,
+                part_id,
+            });
+        }
+
+        Ok(Self {
+            version,
+            palette_count,
+            texture_count,
+            model_count,
+            palette,
+            subpalettes,
+            tm_changes,
+            ap_changes,
+        })
+    }
+}
+
 impl ItemObjDescEvent {
     pub fn read(reader: &mut BinaryReader) -> Result<Self> {
         let object_id = reader.read_u32()?;
-        // Skip object description for now (complex)
+        let object_description = ObjectDescription::read(reader)?;
+
+        // Read remaining bytes - format: padding(2) + instance_seq(2) + visual_desc_seq(2)
         let remaining = reader.remaining();
-        if remaining >= 4 {
-            reader.read_bytes(remaining - 4)?;
-        }
-        let instance_sequence = reader.read_u16().unwrap_or(0);
-        let visual_desc_sequence = reader.read_u16().unwrap_or(0);
+        let (instance_sequence, visual_desc_sequence) = if remaining >= 6 {
+            let _ = reader.read_u16()?; // padding
+            let inst = reader.read_u16()?;
+            let vis = reader.read_u16()?;
+            (inst, vis)
+        } else if remaining >= 4 {
+            // No padding - just sequences
+            let inst = reader.read_u16()?;
+            let vis = reader.read_u16()?;
+            (inst, vis)
+        } else {
+            (0, 0)
+        };
 
         Ok(Self {
             object_id,
+            object_description,
             instance_sequence,
             visual_desc_sequence,
             opcode: 0xF625,
