@@ -831,7 +831,7 @@ pub struct EffectsSoundEvent {
     pub object_id: u32,
     #[serde(rename = "SoundType")]
     pub sound_type: String,
-    #[serde(rename = "Volume")]
+    #[serde(rename = "Volume", serialize_with = "crate::serialization::serialize_f32")]
     pub volume: f32,
     #[serde(rename = "OpCode")]
     pub opcode: u32,
@@ -865,7 +865,7 @@ pub struct EffectsPlayScriptType {
     pub object_id: u32,
     #[serde(rename = "ScriptType")]
     pub script_type: u32,
-    #[serde(rename = "Speed")]
+    #[serde(rename = "Speed", serialize_with = "crate::serialization::serialize_f32")]
     pub speed: f32,
     #[serde(rename = "OpCode")]
     pub opcode: u32,
@@ -1505,17 +1505,17 @@ pub struct Enchantment {
     pub spell_category: String,
     #[serde(rename = "PowerLevel")]
     pub power_level: u32,
-    #[serde(rename = "StartTime")]
+    #[serde(rename = "StartTime", serialize_with = "crate::serialization::serialize_f64")]
     pub start_time: f64,
-    #[serde(rename = "Duration")]
+    #[serde(rename = "Duration", serialize_with = "crate::serialization::serialize_f64")]
     pub duration: f64,
     #[serde(rename = "CasterId")]
     pub caster_id: u32,
-    #[serde(rename = "DegradeModifier")]
+    #[serde(rename = "DegradeModifier", serialize_with = "crate::serialization::serialize_f32")]
     pub degrade_modifier: f32,
-    #[serde(rename = "DegradeLimit")]
+    #[serde(rename = "DegradeLimit", serialize_with = "crate::serialization::serialize_f32")]
     pub degrade_limit: f32,
-    #[serde(rename = "LastTimeDegraded")]
+    #[serde(rename = "LastTimeDegraded", serialize_with = "crate::serialization::serialize_f64")]
     pub last_time_degraded: f64,
     #[serde(rename = "StatMod")]
     pub stat_mod: StatMod,
@@ -1529,7 +1529,7 @@ pub struct StatMod {
     pub mod_type: String,
     #[serde(rename = "Key")]
     pub key: u32,
-    #[serde(rename = "Value")]
+    #[serde(rename = "Value", serialize_with = "crate::serialization::serialize_f32")]
     pub value: f32,
 }
 
@@ -1569,9 +1569,9 @@ impl Enchantment {
         let stat_mod_key = reader.read_u32()?;
         let stat_mod_value = reader.read_f32()?;
 
-        // Equipment set (if flag is set - check specific bit)
-        // HasEquipmentSet & 0x1 determines if equipment set ID follows
-        let equipment_set_id = if has_equipment_set & 0x1 != 0 {
+        // Equipment set (if HasEquipmentSet > 0, read equipment set ID)
+        // Per Chorizite: if (HasEquipmentSet > 0) { EquipmentSet = reader.ReadUInt32(); }
+        let equipment_set_id = if has_equipment_set > 0 {
             reader.read_u32()?
         } else {
             0
@@ -1646,36 +1646,24 @@ fn stat_mod_type_name(flags: u32) -> String {
 }
 
 fn equipment_set_name(id: u32) -> String {
-    // Equipment set IDs from AC protocol
+    // Equipment set IDs from protocol.xml
     match id {
-        0 => "None".to_string(),
-        1 => "Soldiers".to_string(),
-        2 => "Adepts".to_string(),
-        3 => "Archers".to_string(),
-        4 => "Defenders".to_string(),
-        5 => "Tinkers".to_string(),
-        6 => "Crafters".to_string(),
-        7 => "Hearty".to_string(),
-        8 => "Dexterous".to_string(),
-        9 => "Wise".to_string(),
-        10 => "Swift".to_string(),
-        11 => "Hardened".to_string(),
-        12 => "Reinforced".to_string(),
-        13 => "Interlocking".to_string(),
-        14 => "Flameproof".to_string(),
-        15 => "Acidproof".to_string(),
-        16 => "Coldproof".to_string(),
-        17 => "Lightningproof".to_string(),
-        18 => "Dedicated".to_string(),
-        19 => "Crafter".to_string(),
-        20 => "Lightningproof".to_string(),
-        21 => "Flamebane".to_string(),
-        22 => "Acidbane".to_string(),
-        23 => "Frostbane".to_string(),
-        24 => "Lightningbane".to_string(),
-        25 => "Interlocking".to_string(),  // Duplicate ID?
-        _ => format!("Set_{}", id),
-    }
+        0 => "None",
+        1 => "Test", 2 => "Test2", 3 => "Unknown3",
+        4 => "CarraidasBenediction", 5 => "NobleRelic", 6 => "AncientRelic",
+        7 => "AlduressaRelic", 8 => "Ninja", 9 => "EmpyreanRings",
+        10 => "ArmMindHeart", 11 => "ArmorPerfectLight", 12 => "ArmorPerfectLight2",
+        13 => "Soldiers", 14 => "Adepts", 15 => "Archers", 16 => "Defenders",
+        17 => "Tinkers", 18 => "Crafters", 19 => "Hearty", 20 => "Dexterous",
+        21 => "Wise", 22 => "Swift", 23 => "Hardened", 24 => "Reinforced",
+        25 => "Interlocking", 26 => "Flameproof", 27 => "Acidproof",
+        28 => "Coldproof", 29 => "Lightningproof", 30 => "SocietyArmor",
+        31 => "ColosseumClothing", 32 => "GraveyardClothing", 33 => "OlthoiClothing",
+        34 => "NoobieArmor", 35 => "AetheriaDefense", 36 => "AetheriaDestruction",
+        37 => "AetheriaFury", 38 => "AetheriaGrowth", 39 => "AetheriaVigor",
+        40 => "RareDamageResistance", 41 => "RareDamageBoost",
+        _ => return format!("Set_{}", id),
+    }.to_string()
 }
 
 impl MagicUpdateEnchantment {
