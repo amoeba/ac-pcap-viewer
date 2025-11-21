@@ -1,6 +1,6 @@
 use serde::Serialize;
 use crate::reader::BinaryReader;
-use crate::properties::{self, ArmorProfile, WeaponProfile, HookProfile, CreatureProfile, appraisal_flags};
+use crate::properties::{self, ArmorProfile, WeaponProfile, HookProfile, CreatureProfile, LayeredSpellId, appraisal_flags};
 use anyhow::Result;
 use std::collections::HashMap;
 
@@ -1431,14 +1431,6 @@ impl ItemSetAppraiseInfo {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct LayeredSpellId {
-    #[serde(rename = "Id")]
-    pub id: u32,
-    #[serde(rename = "Layer")]
-    pub layer: u16,
-}
-
-#[derive(Debug, Clone, Serialize)]
 pub struct MagicDispelEnchantment {
     #[serde(rename = "SpellId")]
     pub spell_id: LayeredSpellId,
@@ -1478,6 +1470,8 @@ impl MagicDispelEnchantment {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MagicUpdateEnchantment {
+    #[serde(rename = "Enchantment")]
+    pub enchantment: Enchantment,
     #[serde(rename = "OrderedObjectId")]
     pub ordered_object_id: u32,
     #[serde(rename = "OrderedSequence")]
@@ -1492,10 +1486,182 @@ pub struct MagicUpdateEnchantment {
     pub message_direction: String,
 }
 
-impl MagicUpdateEnchantment {
-    pub fn read(_reader: &mut BinaryReader, ordered_object_id: u32, ordered_sequence: u32) -> Result<Self> {
-        // Complex enchantment data - skip for now
+#[derive(Debug, Clone, Serialize)]
+pub struct Enchantment {
+    #[serde(rename = "Id")]
+    pub id: LayeredSpellId,
+    #[serde(rename = "HasEquipmentSet")]
+    pub has_equipment_set: u32,
+    #[serde(rename = "SpellCategory")]
+    pub spell_category: String,
+    #[serde(rename = "PowerLevel")]
+    pub power_level: u32,
+    #[serde(rename = "StartTime")]
+    pub start_time: f64,
+    #[serde(rename = "Duration")]
+    pub duration: f64,
+    #[serde(rename = "CasterId")]
+    pub caster_id: u32,
+    #[serde(rename = "DegradeModifier")]
+    pub degrade_modifier: f32,
+    #[serde(rename = "DegradeLimit")]
+    pub degrade_limit: f32,
+    #[serde(rename = "LastTimeDegraded")]
+    pub last_time_degraded: f64,
+    #[serde(rename = "StatMod")]
+    pub stat_mod: StatMod,
+    #[serde(rename = "EquipmentSet")]
+    pub equipment_set: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct StatMod {
+    #[serde(rename = "Type")]
+    pub mod_type: String,
+    #[serde(rename = "Key")]
+    pub key: u32,
+    #[serde(rename = "Value")]
+    pub value: f32,
+}
+
+impl Enchantment {
+    pub fn read(reader: &mut BinaryReader) -> Result<Self> {
+        // Structure from raw byte analysis:
+        // u16 spell_id
+        // u16 layer
+        // u16 has_equipment_set (flags)
+        // u16 spell_category
+        // u32 power_level
+        // f64 start_time
+        // f64 duration
+        // u32 caster_id
+        // f32 degrade_modifier
+        // f32 degrade_limit
+        // f64 last_time_degraded
+        // u32 stat_mod_type
+        // u32 stat_mod_key
+        // f32 stat_mod_value
+        // If has_equipment_set != 0: u32 equipment_set_id
+
+        let spell_id = reader.read_u16()? as u32;
+        let layer = reader.read_u16()?;
+        let has_equipment_set = reader.read_u16()? as u32;  // u16 not u32
+        let spell_category_id = reader.read_u16()?;         // swapped with above
+        let power_level = reader.read_u32()?;
+        let start_time = reader.read_f64()?;
+        let duration = reader.read_f64()?;
+        let caster_id = reader.read_u32()?;
+        let degrade_modifier = reader.read_f32()?;
+        let degrade_limit = reader.read_f32()?;
+        let last_time_degraded = reader.read_f64()?;
+
+        // StatMod
+        let stat_mod_type = reader.read_u32()?;
+        let stat_mod_key = reader.read_u32()?;
+        let stat_mod_value = reader.read_f32()?;
+
+        // Equipment set (if flag is set - check specific bit)
+        // HasEquipmentSet & 0x1 determines if equipment set ID follows
+        let equipment_set_id = if has_equipment_set & 0x1 != 0 {
+            reader.read_u32()?
+        } else {
+            0
+        };
+
         Ok(Self {
+            id: LayeredSpellId { id: spell_id, layer },
+            has_equipment_set,
+            spell_category: spell_category_name(spell_category_id),
+            power_level,
+            start_time,
+            duration,
+            caster_id,
+            degrade_modifier,
+            degrade_limit,
+            last_time_degraded,
+            stat_mod: StatMod {
+                mod_type: stat_mod_type_name(stat_mod_type),
+                key: stat_mod_key,
+                value: stat_mod_value,
+            },
+            equipment_set: equipment_set_name(equipment_set_id),
+        })
+    }
+}
+
+fn spell_category_name(id: u16) -> String {
+    // Common spell categories - abbreviated list
+    match id {
+        1 => "StrengthRaising".to_string(),
+        2 => "EnduranceRaising".to_string(),
+        3 => "CoordinationRaising".to_string(),
+        4 => "QuicknessRaising".to_string(),
+        5 => "FocusRaising".to_string(),
+        6 => "SelfRaising".to_string(),
+        _ => format!("Category_{}", id),
+    }
+}
+
+fn stat_mod_type_name(flags: u32) -> String {
+    // Decode stat mod type flags
+    let mut parts = Vec::new();
+
+    // Type flags
+    if flags & 0x01 != 0 { parts.push("Int"); }
+    if flags & 0x02 != 0 { parts.push("Float"); }
+    if flags & 0x04 != 0 { parts.push("SingleStat"); }
+    if flags & 0x08 != 0 { parts.push("MultiStat"); }
+    if flags & 0x10 != 0 { parts.push("Additive"); }
+    if flags & 0x20 != 0 { parts.push("Multiplicative"); }
+    if flags & 0x40 != 0 { parts.push("Beneficial"); }
+    if flags & 0x80 != 0 { parts.push("Harmful"); }
+
+    if parts.is_empty() {
+        "Unknown".to_string()
+    } else {
+        parts.join(", ")
+    }
+}
+
+fn equipment_set_name(id: u32) -> String {
+    // Equipment set IDs from AC protocol
+    match id {
+        0 => "None".to_string(),
+        1 => "Soldiers".to_string(),
+        2 => "Adepts".to_string(),
+        3 => "Archers".to_string(),
+        4 => "Defenders".to_string(),
+        5 => "Tinkers".to_string(),
+        6 => "Crafters".to_string(),
+        7 => "Hearty".to_string(),
+        8 => "Dexterous".to_string(),
+        9 => "Wise".to_string(),
+        10 => "Swift".to_string(),
+        11 => "Hardened".to_string(),
+        12 => "Reinforced".to_string(),
+        13 => "Interlocking".to_string(),
+        14 => "Flameproof".to_string(),
+        15 => "Acidproof".to_string(),
+        16 => "Coldproof".to_string(),
+        17 => "Lightningproof".to_string(),
+        18 => "Dedicated".to_string(),
+        19 => "Crafter".to_string(),
+        20 => "Lightningproof".to_string(),
+        21 => "Flamebane".to_string(),
+        22 => "Acidbane".to_string(),
+        23 => "Frostbane".to_string(),
+        24 => "Lightningbane".to_string(),
+        25 => "Interlocking".to_string(),  // Duplicate ID?
+        _ => format!("Set_{}", id),
+    }
+}
+
+impl MagicUpdateEnchantment {
+    pub fn read(reader: &mut BinaryReader, ordered_object_id: u32, ordered_sequence: u32) -> Result<Self> {
+        let enchantment = Enchantment::read(reader)?;
+
+        Ok(Self {
+            enchantment,
             ordered_object_id,
             ordered_sequence,
             event_type: "Magic_UpdateEnchantment".to_string(),
