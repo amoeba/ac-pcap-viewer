@@ -305,7 +305,14 @@ impl PacketParser {
                     *message_id += 1;
                 }
                 Err(e) => {
-                    eprintln!("Failed to parse message: {}", e);
+                    // Print full error chain
+                    let mut err_str = format!("{}", e);
+                    let mut source = e.source();
+                    while let Some(s) = source {
+                        err_str.push_str(&format!(" -> {}", s));
+                        source = s.source();
+                    }
+                    eprintln!("Failed to parse message: {}", err_str);
                 }
             }
         }

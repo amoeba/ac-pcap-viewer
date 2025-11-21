@@ -1,6 +1,6 @@
 use serde::Serialize;
 use crate::reader::BinaryReader;
-use crate::properties::{self, ArmorProfile, appraisal_flags};
+use crate::properties::{self, ArmorProfile, WeaponProfile, HookProfile, CreatureProfile, appraisal_flags};
 use anyhow::Result;
 use std::collections::HashMap;
 
@@ -1064,11 +1064,11 @@ pub struct ItemSetAppraiseInfo {
     #[serde(rename = "ArmorProfile", skip_serializing_if = "Option::is_none")]
     pub armor_profile: Option<ArmorProfile>,
     #[serde(rename = "CreatureProfile", skip_serializing_if = "Option::is_none")]
-    pub creature_profile: Option<serde_json::Value>,
+    pub creature_profile: Option<CreatureProfile>,
     #[serde(rename = "WeaponProfile", skip_serializing_if = "Option::is_none")]
-    pub weapon_profile: Option<serde_json::Value>,
+    pub weapon_profile: Option<WeaponProfile>,
     #[serde(rename = "HookProfile", skip_serializing_if = "Option::is_none")]
-    pub hook_profile: Option<serde_json::Value>,
+    pub hook_profile: Option<HookProfile>,
     #[serde(rename = "ArmorHighlight")]
     pub armor_highlight: u16,
     #[serde(rename = "ArmorColor")]
@@ -1120,99 +1120,107 @@ impl ItemSetAppraiseInfo {
         let success = reader.read_bool()?;
 
         // Parse property dictionaries based on flags
+        // Order is based on ACProtocol binary format, NOT flag bit order!
+
+        // IntProperties (0x0001)
         let int_properties = if flags & appraisal_flags::INT_PROPERTIES != 0 {
             properties::read_int_properties(reader)?
         } else {
             HashMap::new()
         };
 
+        // Int64Properties (0x2000) - comes early in binary format
         let int64_properties = if flags & appraisal_flags::INT64_PROPERTIES != 0 {
             properties::read_int64_properties(reader)?
         } else {
             HashMap::new()
         };
 
+        // BoolProperties (0x0002)
         let bool_properties = if flags & appraisal_flags::BOOL_PROPERTIES != 0 {
             properties::read_bool_properties(reader)?
         } else {
             HashMap::new()
         };
 
+        // FloatProperties (0x0004)
         let float_properties = if flags & appraisal_flags::FLOAT_PROPERTIES != 0 {
             properties::read_float_properties(reader)?
         } else {
             HashMap::new()
         };
 
+        // StringProperties (0x0008)
         let string_properties = if flags & appraisal_flags::STRING_PROPERTIES != 0 {
             properties::read_string_properties(reader)?
         } else {
             HashMap::new()
         };
 
+        // DataIdProperties (0x1000) - comes before spell book
         let dataid_properties = if flags & appraisal_flags::DATA_ID_PROPERTIES != 0 {
             properties::read_dataid_properties(reader)?
         } else {
             HashMap::new()
         };
 
+        // SpellBook (0x0010)
         let spell_book = if flags & appraisal_flags::SPELL_BOOK != 0 {
             properties::read_spell_book(reader)?
         } else {
             Vec::new()
         };
 
+        // ArmorProfile (0x0080) - comes before weapon/hook
         let armor_profile = if flags & appraisal_flags::ARMOR_PROFILE != 0 {
             Some(ArmorProfile::read(reader)?)
         } else {
             None
         };
 
-        // Skip creature profile for now (complex structure)
+        // CreatureProfile (0x0100)
         let creature_profile = if flags & appraisal_flags::CREATURE_PROFILE != 0 {
-            // Skip 48 bytes for CreatureAppraisalProfile (typical size)
-            let _ = reader.read_bytes(48).ok();
-            Some(serde_json::json!({}))
+            Some(CreatureProfile::read(reader)?)
         } else {
             None
         };
 
-        // Skip weapon profile for now (complex structure)
+        // WeaponProfile (0x0020)
         let weapon_profile = if flags & appraisal_flags::WEAPON_PROFILE != 0 {
-            // Skip 28 bytes for WeaponProfile
-            let _ = reader.read_bytes(28).ok();
-            Some(serde_json::json!({}))
+            Some(WeaponProfile::read(reader)?)
         } else {
             None
         };
 
-        // Skip hook profile for now
+        // HookProfile (0x0040)
         let hook_profile = if flags & appraisal_flags::HOOK_PROFILE != 0 {
-            // Skip 4 bytes for HookAppraisalProfile
-            let _ = reader.read_bytes(4).ok();
-            Some(serde_json::json!({}))
+            Some(HookProfile::read(reader)?)
         } else {
             None
         };
 
+        // ArmorEnchRating (0x0200)
         let (armor_highlight, armor_color) = if flags & appraisal_flags::ARMOR_ENCH_RATING != 0 {
             (reader.read_u16()?, reader.read_u16()?)
         } else {
             (0, 0)
         };
 
+        // WeaponEnchRating (0x0800)
         let (weapon_highlight, weapon_color) = if flags & appraisal_flags::WEAPON_ENCH_RATING != 0 {
             (reader.read_u16()?, reader.read_u16()?)
         } else {
             (0, 0)
         };
 
+        // ResistEnchRating (0x0400)
         let (resist_highlight, resist_color) = if flags & appraisal_flags::RESIST_ENCH_RATING != 0 {
             (reader.read_u16()?, reader.read_u16()?)
         } else {
             (0, 0)
         };
 
+        // BaseArmor (0x4000)
         let (base_armor_head, base_armor_chest, base_armor_groin,
              base_armor_bicep, base_armor_wrist, base_armor_hand,
              base_armor_thigh, base_armor_shin, base_armor_foot) =

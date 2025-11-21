@@ -58,6 +58,111 @@ impl ArmorProfile {
     }
 }
 
+/// WeaponProfile for weapon appraisal data (28 bytes)
+#[derive(Debug, Clone, Serialize)]
+pub struct WeaponProfile {
+    #[serde(rename = "DamageType")]
+    pub damage_type: u32,
+    #[serde(rename = "WeaponTime")]
+    pub weapon_time: u32,
+    #[serde(rename = "WeaponSkill")]
+    pub weapon_skill: u32,
+    #[serde(rename = "WeaponDamage")]
+    pub weapon_damage: u32,
+    #[serde(rename = "DamageVariance")]
+    pub damage_variance: f64,
+    #[serde(rename = "DamageMod")]
+    pub damage_mod: f64,
+    #[serde(rename = "WeaponLength")]
+    pub weapon_length: f64,
+    #[serde(rename = "MaxVelocity")]
+    pub max_velocity: f64,
+    #[serde(rename = "WeaponOffense")]
+    pub weapon_offense: f64,
+    #[serde(rename = "MaxVelocityEstimated")]
+    pub max_velocity_estimated: u32,
+}
+
+impl WeaponProfile {
+    pub fn read(reader: &mut BinaryReader) -> Result<Self> {
+        Ok(Self {
+            damage_type: reader.read_u32()?,
+            weapon_time: reader.read_u32()?,
+            weapon_skill: reader.read_u32()?,
+            weapon_damage: reader.read_u32()?,
+            damage_variance: reader.read_f64()?,
+            damage_mod: reader.read_f64()?,
+            weapon_length: reader.read_f64()?,
+            max_velocity: reader.read_f64()?,
+            weapon_offense: reader.read_f64()?,
+            max_velocity_estimated: reader.read_u32()?,
+        })
+    }
+}
+
+/// HookProfile for hook appraisal data (4 bytes)
+#[derive(Debug, Clone, Serialize)]
+pub struct HookProfile {
+    #[serde(rename = "Flags")]
+    pub flags: u32,
+}
+
+impl HookProfile {
+    pub fn read(reader: &mut BinaryReader) -> Result<Self> {
+        Ok(Self {
+            flags: reader.read_u32()?,
+        })
+    }
+}
+
+/// CreatureProfile for creature appraisal data
+#[derive(Debug, Clone, Serialize)]
+pub struct CreatureProfile {
+    #[serde(rename = "Health")]
+    pub health: u32,
+    #[serde(rename = "HealthMax")]
+    pub health_max: u32,
+    #[serde(rename = "Strength")]
+    pub strength: u32,
+    #[serde(rename = "Endurance")]
+    pub endurance: u32,
+    #[serde(rename = "Quickness")]
+    pub quickness: u32,
+    #[serde(rename = "Coordination")]
+    pub coordination: u32,
+    #[serde(rename = "Focus")]
+    pub focus: u32,
+    #[serde(rename = "Self")]
+    pub self_attr: u32,
+    #[serde(rename = "Stamina")]
+    pub stamina: u32,
+    #[serde(rename = "StaminaMax")]
+    pub stamina_max: u32,
+    #[serde(rename = "Mana")]
+    pub mana: u32,
+    #[serde(rename = "ManaMax")]
+    pub mana_max: u32,
+}
+
+impl CreatureProfile {
+    pub fn read(reader: &mut BinaryReader) -> Result<Self> {
+        Ok(Self {
+            health: reader.read_u32()?,
+            health_max: reader.read_u32()?,
+            strength: reader.read_u32()?,
+            endurance: reader.read_u32()?,
+            quickness: reader.read_u32()?,
+            coordination: reader.read_u32()?,
+            focus: reader.read_u32()?,
+            self_attr: reader.read_u32()?,
+            stamina: reader.read_u32()?,
+            stamina_max: reader.read_u32()?,
+            mana: reader.read_u32()?,
+            mana_max: reader.read_u32()?,
+        })
+    }
+}
+
 /// Read a PackableHashTable<u32, i32> (property int)
 pub fn read_int_properties(reader: &mut BinaryReader) -> Result<HashMap<String, i32>> {
     let count = reader.read_u16()? as usize;
@@ -84,20 +189,20 @@ pub fn read_int64_properties(reader: &mut BinaryReader) -> Result<HashMap<String
     Ok(map)
 }
 
-/// Read a PackableHashTable<u32, bool> (property bool)
+/// Read a PackableHashTable<u32, bool> (property bool) - bools stored as i32
 pub fn read_bool_properties(reader: &mut BinaryReader) -> Result<HashMap<String, bool>> {
     let count = reader.read_u16()? as usize;
     let _max_size = reader.read_u16()?;
     let mut map = HashMap::new();
     for _ in 0..count {
         let key = reader.read_u32()?;
-        let value = reader.read_bool()?;
+        let value = reader.read_i32()? != 0;
         map.insert(property_bool_name(key), value);
     }
     Ok(map)
 }
 
-/// Read a PackableHashTable<u32, f64> (property float)
+/// Read a PackableHashTable<u32, f64> (property float) - f64 in appraisal
 pub fn read_float_properties(reader: &mut BinaryReader) -> Result<HashMap<String, f64>> {
     let count = reader.read_u16()? as usize;
     let _max_size = reader.read_u16()?;
@@ -145,14 +250,19 @@ pub struct LayeredSpellId {
     pub layer: u16,
 }
 
-/// Read a PackableList<LayeredSpellId>
+/// Read a PackableList<LayeredSpellId> - u32 count, then N × u32 spell_id
 pub fn read_spell_book(reader: &mut BinaryReader) -> Result<Vec<LayeredSpellId>> {
-    let count = reader.read_u32()? as usize;
+    use anyhow::Context;
+    let count = reader.read_u32().context(format!("spell count at pos {}", reader.position()))? as usize;
+    if count > 1000 {
+        anyhow::bail!("Suspicious spell count: {} at pos {}", count, reader.position());
+    }
     let mut spells = Vec::with_capacity(count);
-    for _ in 0..count {
-        let id = reader.read_u32()?;
-        let layer = reader.read_u16()?;
-        spells.push(LayeredSpellId { id, layer });
+    for i in 0..count {
+        let id = reader.read_u32().context(format!("spell {} at pos {}", i, reader.position()))?;
+        // Layer is not stored in the binary - reference shows it as separate field
+        // For now, output just the ID
+        spells.push(LayeredSpellId { id, layer: 0 });
     }
     Ok(spells)
 }
