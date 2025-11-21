@@ -8,7 +8,7 @@ use anyhow::Result;
 pub enum GameActionType {
     ItemAppraise = 0x00C8,
     InventoryPutItemInContainer = 0x0019,
-    InventoryWieldItem = 0x001A,
+    InventoryGetAndWieldItem = 0x001A,
     Unknown = 0xFFFFFFFF,
 }
 
@@ -17,7 +17,7 @@ impl GameActionType {
         match value {
             0x00C8 => GameActionType::ItemAppraise,
             0x0019 => GameActionType::InventoryPutItemInContainer,
-            0x001A => GameActionType::InventoryWieldItem,
+            0x001A => GameActionType::InventoryGetAndWieldItem,
             _ => GameActionType::Unknown,
         }
     }
@@ -39,9 +39,9 @@ pub fn parse_game_action(
             let msg = InventoryPutItemInContainer::read(reader, sequence)?;
             Ok(("Inventory_PutItemInContainer".to_string(), serde_json::to_value(&msg)?))
         }
-        GameActionType::InventoryWieldItem => {
-            let msg = InventoryWieldItem::read(reader, sequence)?;
-            Ok(("Inventory_WieldItem".to_string(), serde_json::to_value(&msg)?))
+        GameActionType::InventoryGetAndWieldItem => {
+            let msg = InventoryGetAndWieldItem::read(reader, sequence)?;
+            Ok(("Inventory_GetAndWieldItem".to_string(), serde_json::to_value(&msg)?))
         }
         _ => {
             let remaining = reader.remaining();
@@ -136,11 +136,11 @@ impl InventoryPutItemInContainer {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct InventoryWieldItem {
+pub struct InventoryGetAndWieldItem {
     #[serde(rename = "ObjectId")]
     pub object_id: u32,
-    #[serde(rename = "WieldLocation")]
-    pub wield_location: u32,
+    #[serde(rename = "Slot")]
+    pub slot: String,
     #[serde(rename = "OrderedSequence")]
     pub ordered_sequence: u32,
     #[serde(rename = "ActionType")]
@@ -153,16 +153,17 @@ pub struct InventoryWieldItem {
     pub message_direction: String,
 }
 
-impl InventoryWieldItem {
+impl InventoryGetAndWieldItem {
     pub fn read(reader: &mut BinaryReader, sequence: u32) -> Result<Self> {
         let object_id = reader.read_u32()?;
-        let wield_location = reader.read_u32()?;
+        let slot_raw = reader.read_u32()?;
+        let slot = crate::properties::equip_mask_name(slot_raw);
 
         Ok(Self {
             object_id,
-            wield_location,
+            slot,
             ordered_sequence: sequence,
-            action_type: "Inventory_WieldItem".to_string(),
+            action_type: "Inventory_GetAndWieldItem".to_string(),
             opcode: 0xF7B1,
             message_type: "Ordered_GameAction".to_string(),
             message_direction: "ClientToServer".to_string(),
