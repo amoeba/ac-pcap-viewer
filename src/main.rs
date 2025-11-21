@@ -15,6 +15,7 @@ mod reader;
 mod enums;
 mod messages;
 mod properties;
+pub mod serialization;
 
 use packet::{PacketHeader, PacketHeaderFlags};
 use fragment::{FragmentHeader, Fragment};
