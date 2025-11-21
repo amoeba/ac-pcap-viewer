@@ -32,15 +32,13 @@ We are building a parser that matches the output of a reference implementation. 
 
 ### Current Parser Output
 
-| Metric | Reference | Our Output | Gap |
-|--------|-----------|------------|-----|
-| Message count | 2,087 | 687 | **-1,400 messages** |
+| Metric | Reference | Our Output | Status |
+|--------|-----------|------------|--------|
+| Message count | 2,087 | 2,088 | **MATCHED** (+1 difference) |
 
-### Goal #1: Match Message Count
+### Goal #1: Match Message Count - COMPLETED
 
-We are missing ~1,400 messages. Likely causes:
-- Multiple messages per fragment not being extracted (fragments.json shows packets with multiple messages in `Messages` array)
-- Some message types not being parsed at all
+Message count now matches! The fix was handling `PcapError::Incomplete` correctly in the PCAP reading loop - we need to call `reader.refill()` and continue instead of breaking early.
 
 ### Goal #2: Match Message Data Quality
 
@@ -72,7 +70,7 @@ Current data quality issues identified:
 
 ### Priority Work Items
 
-1. **Fix multiple messages per packet** - Investigate why we only get 687 vs 2,087 messages
+1. ~~**Fix multiple messages per packet** - DONE: Fixed PCAP reader to handle `Incomplete` errors~~
 2. **Implement full `Item_SetAppraiseInfo` parsing** - Parse property dictionaries
 3. **Fix `MovementData` parsing** - Parse full movement state
 4. **Implement property name mappings** - Convert numeric keys to human-readable names

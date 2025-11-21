@@ -140,7 +140,11 @@ impl PacketParser {
                     reader.consume(offset);
                 }
                 Err(PcapError::Eof) => break,
-                Err(PcapError::Incomplete(_)) => break,
+                Err(PcapError::Incomplete(_)) => {
+                    // Need more data - refill the buffer and continue
+                    reader.refill().ok();
+                    continue;
+                }
                 Err(e) => {
                     eprintln!("Error reading packet: {:?}", e);
                     break;
