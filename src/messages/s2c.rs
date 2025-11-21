@@ -1,6 +1,8 @@
 use serde::Serialize;
 use crate::reader::BinaryReader;
+use crate::properties::{self, ArmorProfile, appraisal_flags};
 use anyhow::Result;
+use std::collections::HashMap;
 
 // Game event types (for 0xF7B0 messages)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -415,7 +417,7 @@ impl QualitiesPrivateUpdateInt {
 
         Ok(Self {
             sequence,
-            key: property_int_name(key_raw),
+            key: properties::property_int_name(key_raw),
             value,
             opcode: 0x02CD,
             message_type: "Qualities_PrivateUpdateInt".to_string(),
@@ -485,7 +487,7 @@ impl QualitiesUpdateInt {
         Ok(Self {
             sequence,
             object_id,
-            key: property_int_name(key_raw),
+            key: properties::property_int_name(key_raw),
             value,
             opcode: 0x02CE,
             message_type: "Qualities_UpdateInt".to_string(),
@@ -571,41 +573,226 @@ pub struct MovementData {
     #[serde(rename = "ObjectServerControlSequence")]
     pub object_server_control_sequence: u16,
     #[serde(rename = "Autonomous")]
-    pub autonomous: u8,
+    pub autonomous: u16,  // ushort per protocol.xml
     #[serde(rename = "MovementType")]
     pub movement_type: String,
+    #[serde(rename = "OptionFlags")]
+    pub option_flags: String,
+    #[serde(rename = "Stance")]
+    pub stance: String,
+    #[serde(rename = "State", skip_serializing_if = "Option::is_none")]
+    pub state: Option<InterpretedMotionState>,
+    #[serde(rename = "StickyObject")]
+    pub sticky_object: u32,
+    #[serde(rename = "Target")]
+    pub target: u32,
+    #[serde(rename = "Origin", skip_serializing_if = "Option::is_none")]
+    pub origin: Option<serde_json::Value>,
+    #[serde(rename = "MoveToParams", skip_serializing_if = "Option::is_none")]
+    pub move_to_params: Option<serde_json::Value>,
+    #[serde(rename = "MyRunRate")]
+    pub my_run_rate: f32,
+    #[serde(rename = "TargetId")]
+    pub target_id: u32,
+    #[serde(rename = "DesiredHeading")]
+    pub desired_heading: f32,
+    #[serde(rename = "TurnToParams", skip_serializing_if = "Option::is_none")]
+    pub turn_to_params: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct InterpretedMotionState {
+    #[serde(rename = "Flags")]
+    pub flags: u32,
+    #[serde(rename = "CurrentStyle")]
+    pub current_style: String,
+    #[serde(rename = "ForwardCommand")]
+    pub forward_command: u32,
+    #[serde(rename = "SidestepCommand")]
+    pub sidestep_command: u32,
+    #[serde(rename = "TurnCommand")]
+    pub turn_command: u32,
+    #[serde(rename = "ForwardSpeed")]
+    pub forward_speed: f32,
+    #[serde(rename = "SidestepSpeed")]
+    pub sidestep_speed: f32,
+    #[serde(rename = "TurnSpeed")]
+    pub turn_speed: f32,
+    #[serde(rename = "Commands")]
+    pub commands: Vec<serde_json::Value>,
+    #[serde(rename = "CommandListLength")]
+    pub command_list_length: u32,
 }
 
 impl MovementData {
     pub fn read(reader: &mut BinaryReader) -> Result<Self> {
         let object_movement_sequence = reader.read_u16()?;
         let object_server_control_sequence = reader.read_u16()?;
-        let autonomous = reader.read_u8()?;
+        let autonomous = reader.read_u16()?;  // ushort per protocol.xml
         let movement_type_raw = reader.read_u8()?;
+        let option_flags_raw = reader.read_u8()?;
+        let stance_raw = reader.read_u16()?;
 
+        // Movement type values from ACProtocol/protocol.xml
         let movement_type = match movement_type_raw {
-            0 => "Invalid",
-            1 => "General",
-            2 => "RawCommand",
-            3 => "InterpertedMotionState",
-            4 => "StopCompletely",
-            5 => "MoveToObject",
-            6 => "MoveToPosition",
-            7 => "TurnToObject",
-            8 => "TurnToHeading",
-            9 => "Jump",
+            0x00 => "InterpertedMotionState",
+            0x06 => "MoveToObject",
+            0x07 => "MoveToPosition",
+            0x08 => "TurnToObject",
+            0x09 => "TurnToPosition",
             _ => "Unknown",
         }.to_string();
 
-        // Skip remaining movement data for now (complex parsing)
-        // This is a simplified version
+        let option_flags = match option_flags_raw {
+            0x00 => "None",
+            0x01 => "StickToObject",
+            0x02 => "StandingLongJump",
+            _ => "Unknown",
+        }.to_string();
+
+        let stance = stance_mode_name(stance_raw);
+
+        let mut state = None;
+        let mut sticky_object = 0u32;
+        let target = 0u32;
+        let origin = None;
+        let move_to_params = None;
+        let my_run_rate = 0.0f32;
+        let target_id = 0u32;
+        let desired_heading = 0.0f32;
+        let turn_to_params = None;
+
+        // Parse based on movement type
+        if movement_type_raw == 0x00 {
+            // InterpertedMotionState - try to read, but don't fail if not enough data
+            if let Ok(s) = InterpretedMotionState::read(reader) {
+                state = Some(s);
+                // Check for sticky object
+                if option_flags_raw & 0x01 != 0 {
+                    if let Ok(so) = reader.read_u32() {
+                        sticky_object = so;
+                    }
+                }
+            }
+        }
+        // TODO: Parse other movement types (MoveToObject, MoveToPosition, etc.)
 
         Ok(Self {
             object_movement_sequence,
             object_server_control_sequence,
             autonomous,
             movement_type,
+            option_flags,
+            stance,
+            state,
+            sticky_object,
+            target,
+            origin,
+            move_to_params,
+            my_run_rate,
+            target_id,
+            desired_heading,
+            turn_to_params,
         })
+    }
+}
+
+impl InterpretedMotionState {
+    pub fn read(reader: &mut BinaryReader) -> Result<Self> {
+        let flags = reader.read_u32()?;
+        let command_list_length = (flags >> 7) & 0x7F;
+
+        // CurrentStyle - default to NonCombat (0x3D) if not present
+        let current_style = if flags & 0x01 != 0 {
+            stance_mode_name(reader.read_u16()?)
+        } else {
+            "NonCombat".to_string()
+        };
+
+        // ForwardCommand - default to Ready (0x03) if not present
+        let forward_command = if flags & 0x02 != 0 {
+            reader.read_u32()?
+        } else {
+            0x03  // Ready
+        };
+
+        // SidestepCommand - default to 0 if not present
+        let sidestep_command = if flags & 0x04 != 0 {
+            reader.read_u32()?
+        } else {
+            0
+        };
+
+        // TurnCommand - default to 0 if not present
+        let turn_command = if flags & 0x08 != 0 {
+            reader.read_u32()?
+        } else {
+            0
+        };
+
+        // ForwardSpeed
+        let forward_speed = if flags & 0x10 != 0 {
+            reader.read_f32()?
+        } else {
+            0.0
+        };
+
+        // SidestepSpeed
+        let sidestep_speed = if flags & 0x20 != 0 {
+            reader.read_f32()?
+        } else {
+            0.0
+        };
+
+        // TurnSpeed
+        let turn_speed = if flags & 0x40 != 0 {
+            reader.read_f32()?
+        } else {
+            0.0
+        };
+
+        // Read command list
+        let mut commands = Vec::new();
+        for _ in 0..command_list_length {
+            // Each command is a u32 command followed by f32 speed and f32 hold_key
+            let _cmd = reader.read_u32()?;
+            let _speed = reader.read_f32()?;
+            let _hold_key = reader.read_f32()?;
+            // Skip for now - simplified
+        }
+
+        Ok(Self {
+            flags,
+            current_style,
+            forward_command,
+            sidestep_command,
+            turn_command,
+            forward_speed,
+            sidestep_speed,
+            turn_speed,
+            commands,
+            command_list_length,
+        })
+    }
+}
+
+fn stance_mode_name(value: u16) -> String {
+    match value {
+        0x003D => "NonCombat".to_string(),
+        0x003E => "Combat".to_string(),
+        0x003F => "UANoShieldAttack".to_string(),
+        0x0040 => "MeleeNoShieldAttack".to_string(),
+        0x0041 => "MeleeShieldAttack".to_string(),
+        0x0042 => "BowAttack".to_string(),
+        0x0043 => "CrossBowAttack".to_string(),
+        0x0044 => "ThrownWeaponAttack".to_string(),
+        0x0045 => "ThrownShieldAttack".to_string(),
+        0x0046 => "DualWieldAttack".to_string(),
+        0x0047 => "Magic".to_string(),
+        0x0048 => "BowNoAmmo".to_string(),
+        0x0049 => "CrossBowNoAmmo".to_string(),
+        0x0050 => "AtlatlCombat".to_string(),
+        _ => format!("Stance_{}", value),
     }
 }
 
@@ -860,6 +1047,58 @@ pub struct ItemSetAppraiseInfo {
     pub flags: u32,
     #[serde(rename = "Success")]
     pub success: bool,
+    #[serde(rename = "IntProperties")]
+    pub int_properties: HashMap<String, i32>,
+    #[serde(rename = "Int64Properties")]
+    pub int64_properties: HashMap<String, i64>,
+    #[serde(rename = "BoolProperties")]
+    pub bool_properties: HashMap<String, bool>,
+    #[serde(rename = "FloatProperties")]
+    pub float_properties: HashMap<String, f64>,
+    #[serde(rename = "StringProperties")]
+    pub string_properties: HashMap<String, String>,
+    #[serde(rename = "DataIdProperties")]
+    pub dataid_properties: HashMap<String, u32>,
+    #[serde(rename = "SpellBook")]
+    pub spell_book: Vec<properties::LayeredSpellId>,
+    #[serde(rename = "ArmorProfile", skip_serializing_if = "Option::is_none")]
+    pub armor_profile: Option<ArmorProfile>,
+    #[serde(rename = "CreatureProfile", skip_serializing_if = "Option::is_none")]
+    pub creature_profile: Option<serde_json::Value>,
+    #[serde(rename = "WeaponProfile", skip_serializing_if = "Option::is_none")]
+    pub weapon_profile: Option<serde_json::Value>,
+    #[serde(rename = "HookProfile", skip_serializing_if = "Option::is_none")]
+    pub hook_profile: Option<serde_json::Value>,
+    #[serde(rename = "ArmorHighlight")]
+    pub armor_highlight: u16,
+    #[serde(rename = "ArmorColor")]
+    pub armor_color: u16,
+    #[serde(rename = "WeaponHighlight")]
+    pub weapon_highlight: u16,
+    #[serde(rename = "WeaponColor")]
+    pub weapon_color: u16,
+    #[serde(rename = "ResistHighlight")]
+    pub resist_highlight: u16,
+    #[serde(rename = "ResistColor")]
+    pub resist_color: u16,
+    #[serde(rename = "BaseArmorHead")]
+    pub base_armor_head: u32,
+    #[serde(rename = "BaseArmorChest")]
+    pub base_armor_chest: u32,
+    #[serde(rename = "BaseArmorGroin")]
+    pub base_armor_groin: u32,
+    #[serde(rename = "BaseArmorBicep")]
+    pub base_armor_bicep: u32,
+    #[serde(rename = "BaseArmorWrist")]
+    pub base_armor_wrist: u32,
+    #[serde(rename = "BaseArmorHand")]
+    pub base_armor_hand: u32,
+    #[serde(rename = "BaseArmorThigh")]
+    pub base_armor_thigh: u32,
+    #[serde(rename = "BaseArmorShin")]
+    pub base_armor_shin: u32,
+    #[serde(rename = "BaseArmorFoot")]
+    pub base_armor_foot: u32,
     #[serde(rename = "OrderedObjectId")]
     pub ordered_object_id: u32,
     #[serde(rename = "OrderedSequence")]
@@ -880,13 +1119,149 @@ impl ItemSetAppraiseInfo {
         let flags = reader.read_u32()?;
         let success = reader.read_bool()?;
 
-        // Skip parsing complex property dictionaries for now
-        // This would require full implementation of packable hash tables
+        // Parse property dictionaries based on flags
+        let int_properties = if flags & appraisal_flags::INT_PROPERTIES != 0 {
+            properties::read_int_properties(reader)?
+        } else {
+            HashMap::new()
+        };
+
+        let int64_properties = if flags & appraisal_flags::INT64_PROPERTIES != 0 {
+            properties::read_int64_properties(reader)?
+        } else {
+            HashMap::new()
+        };
+
+        let bool_properties = if flags & appraisal_flags::BOOL_PROPERTIES != 0 {
+            properties::read_bool_properties(reader)?
+        } else {
+            HashMap::new()
+        };
+
+        let float_properties = if flags & appraisal_flags::FLOAT_PROPERTIES != 0 {
+            properties::read_float_properties(reader)?
+        } else {
+            HashMap::new()
+        };
+
+        let string_properties = if flags & appraisal_flags::STRING_PROPERTIES != 0 {
+            properties::read_string_properties(reader)?
+        } else {
+            HashMap::new()
+        };
+
+        let dataid_properties = if flags & appraisal_flags::DATA_ID_PROPERTIES != 0 {
+            properties::read_dataid_properties(reader)?
+        } else {
+            HashMap::new()
+        };
+
+        let spell_book = if flags & appraisal_flags::SPELL_BOOK != 0 {
+            properties::read_spell_book(reader)?
+        } else {
+            Vec::new()
+        };
+
+        let armor_profile = if flags & appraisal_flags::ARMOR_PROFILE != 0 {
+            Some(ArmorProfile::read(reader)?)
+        } else {
+            None
+        };
+
+        // Skip creature profile for now (complex structure)
+        let creature_profile = if flags & appraisal_flags::CREATURE_PROFILE != 0 {
+            // Skip 48 bytes for CreatureAppraisalProfile (typical size)
+            let _ = reader.read_bytes(48).ok();
+            Some(serde_json::json!({}))
+        } else {
+            None
+        };
+
+        // Skip weapon profile for now (complex structure)
+        let weapon_profile = if flags & appraisal_flags::WEAPON_PROFILE != 0 {
+            // Skip 28 bytes for WeaponProfile
+            let _ = reader.read_bytes(28).ok();
+            Some(serde_json::json!({}))
+        } else {
+            None
+        };
+
+        // Skip hook profile for now
+        let hook_profile = if flags & appraisal_flags::HOOK_PROFILE != 0 {
+            // Skip 4 bytes for HookAppraisalProfile
+            let _ = reader.read_bytes(4).ok();
+            Some(serde_json::json!({}))
+        } else {
+            None
+        };
+
+        let (armor_highlight, armor_color) = if flags & appraisal_flags::ARMOR_ENCH_RATING != 0 {
+            (reader.read_u16()?, reader.read_u16()?)
+        } else {
+            (0, 0)
+        };
+
+        let (weapon_highlight, weapon_color) = if flags & appraisal_flags::WEAPON_ENCH_RATING != 0 {
+            (reader.read_u16()?, reader.read_u16()?)
+        } else {
+            (0, 0)
+        };
+
+        let (resist_highlight, resist_color) = if flags & appraisal_flags::RESIST_ENCH_RATING != 0 {
+            (reader.read_u16()?, reader.read_u16()?)
+        } else {
+            (0, 0)
+        };
+
+        let (base_armor_head, base_armor_chest, base_armor_groin,
+             base_armor_bicep, base_armor_wrist, base_armor_hand,
+             base_armor_thigh, base_armor_shin, base_armor_foot) =
+        if flags & appraisal_flags::BASE_ARMOR != 0 {
+            (
+                reader.read_u32()?,
+                reader.read_u32()?,
+                reader.read_u32()?,
+                reader.read_u32()?,
+                reader.read_u32()?,
+                reader.read_u32()?,
+                reader.read_u32()?,
+                reader.read_u32()?,
+                reader.read_u32()?,
+            )
+        } else {
+            (0, 0, 0, 0, 0, 0, 0, 0, 0)
+        };
 
         Ok(Self {
             object_id,
             flags,
             success,
+            int_properties,
+            int64_properties,
+            bool_properties,
+            float_properties,
+            string_properties,
+            dataid_properties,
+            spell_book,
+            armor_profile,
+            creature_profile,
+            weapon_profile,
+            hook_profile,
+            armor_highlight,
+            armor_color,
+            weapon_highlight,
+            weapon_color,
+            resist_highlight,
+            resist_color,
+            base_armor_head,
+            base_armor_chest,
+            base_armor_groin,
+            base_armor_bicep,
+            base_armor_wrist,
+            base_armor_hand,
+            base_armor_thigh,
+            base_armor_shin,
+            base_armor_foot,
             ordered_object_id,
             ordered_sequence,
             event_type: "Item_SetAppraiseInfo".to_string(),
@@ -1019,16 +1394,7 @@ impl ItemServerSaysContainId {
     }
 }
 
-// Helper functions for property names
-fn property_int_name(key: u32) -> String {
-    match key {
-        0x05 => "Age",
-        0x10 => "ArmorLevel",
-        0x11 => "Level",
-        0x6F => "Value",
-        _ => return format!("PropertyInt_{}", key),
-    }.to_string()
-}
+// Helper functions for property names - use properties::property_int_name from properties.rs
 
 fn vital_name(key: u32) -> String {
     match key {

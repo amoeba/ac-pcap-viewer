@@ -14,6 +14,7 @@ mod message;
 mod reader;
 mod enums;
 mod messages;
+mod properties;
 
 use packet::{PacketHeader, PacketHeaderFlags};
 use fragment::{FragmentHeader, Fragment};

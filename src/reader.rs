@@ -127,4 +127,43 @@ impl<'a> BinaryReader<'a> {
             Ok(((first & 0x3F) << 24) | (b2 << 16) | (b3 << 8) | b4)
         }
     }
+
+    /// Read a string with 16-bit length prefix where -1 indicates 32-bit length
+    pub fn read_string16l_ex(&mut self) -> Result<String> {
+        let start = self.position();
+        let len = self.read_i16()?;
+
+        let actual_len = if len == -1 {
+            self.read_i32()? as usize
+        } else {
+            len as usize
+        };
+
+        if actual_len == 0 {
+            // Align to 4 bytes from start
+            let total = (self.position() - start) as usize;
+            let padding = (4 - (total % 4)) % 4;
+            if padding > 0 {
+                self.read_bytes(padding)?;
+            }
+            return Ok(String::new());
+        }
+
+        let bytes = self.read_bytes(actual_len)?;
+
+        // Align to 4 bytes from start
+        let total = (self.position() - start) as usize;
+        let padding = (4 - (total % 4)) % 4;
+        if padding > 0 {
+            self.read_bytes(padding)?;
+        }
+
+        Ok(String::from_utf8_lossy(&bytes).to_string())
+    }
+
+    pub fn read_i16(&mut self) -> Result<i16> {
+        let mut buf = [0u8; 2];
+        self.cursor.read_exact(&mut buf)?;
+        Ok(i16::from_le_bytes(buf))
+    }
 }
