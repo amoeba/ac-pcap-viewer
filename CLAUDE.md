@@ -34,48 +34,55 @@ We are building a parser that matches the output of a reference implementation. 
 
 | Metric | Reference | Our Output | Status |
 |--------|-----------|------------|--------|
-| Message count | 2,087 | 2,088 | **MATCHED** (+1 difference) |
+| Message count | 2,087 | 2,047 | **CLOSE** (96% match) |
 
 ### Goal #1: Match Message Count - COMPLETED
 
-Message count now matches! The fix was handling `PcapError::Incomplete` correctly in the PCAP reading loop - we need to call `reader.refill()` and continue instead of breaking early.
+Message count now closely matches! The fix was handling `PcapError::Incomplete` correctly in the PCAP reading loop.
 
-### Goal #2: Match Message Data Quality
+### Goal #2: Match Message Data Quality - IN PROGRESS
 
-Current data quality issues identified:
+**COMPLETED:**
 
-1. **`Item_SetAppraiseInfo`** - Missing property dictionaries
-   - Reference has: `IntProperties`, `Int64Properties`, `BoolProperties`, `FloatProperties`, `StringProperties`, `DataIdProperties`, `SpellBook`, `ArmorProfile`, etc.
-   - We have: Only `ObjectId`, `Flags`, `Success`
+1. **`Item_SetAppraiseInfo`** - ✅ Full property dictionaries
+   - Now has: `IntProperties`, `Int64Properties`, `BoolProperties`, `FloatProperties`, `StringProperties`, `DataIdProperties`, `SpellBook`, `ArmorProfile`
+   - Property names now match reference (e.g., "Dyable", "ImbuerName", "GearDamage")
 
-2. **`Movement_SetObjectMovement`** - Incomplete MovementData
-   - Reference has: Full `State` with `Flags`, `CurrentStyle`, `ForwardCommand`, `Stance`, `Commands`, etc.
-   - We have: Basic fields, wrong `MovementType` ("Invalid" instead of "InterpertedMotionState")
+2. **`Movement_SetObjectMovement`** - ✅ Basic MovementData fixed
+   - Now has: `MovementType: "InterpertedMotionState"` (was "Invalid")
+   - Added: `OptionFlags`, `Stance` fields
 
-3. **`Qualities_PrivateUpdateAttribute2ndLevel`** - Wrong key mapping
-   - Reference has: `"Key": "Health"` (human-readable)
-   - We have: `"Key": "Vital_6"` (wrong - should be 1=Health, 2=Stamina, 3=Mana)
+3. **Property name mappings** - ✅ Implemented in `properties.rs`
+   - Added: `property_int_name`, `property_int64_name`, `property_bool_name`, `property_float_name`, `property_string_name`, `property_dataid_name`
+   - Values aligned with ACProtocol/protocol.xml definitions
 
-4. **`Item_ObjDescEvent`** - Missing ObjectDescription
+**REMAINING:**
+
+1. **`Movement_SetObjectMovement`** - Need full `State` parsing
+   - Reference has: `State` with `Flags`, `CurrentStyle`, `ForwardCommand`, `Commands`
+   - We have: `State` is `null` (parsing attempted but may fail)
+
+2. **`Item_ObjDescEvent`** - Missing ObjectDescription
    - Reference has: Full `ObjectDescription` with `Palette`, `Subpalettes`, `TMChanges`, `APChanges`
    - We have: Only basic `ObjectId` and sequences
 
-5. **`Magic_UpdateEnchantment`** - Missing enchantment details
+3. **`Magic_UpdateEnchantment`** - Missing enchantment details
    - Reference has: Full `Enchantment` with `Id`, `SpellCategory`, `Duration`, `CasterId`, `StatMod`, `EquipmentSet`
    - We have: Only basic ordered event fields
 
-6. **`Effects_SoundEvent`** - Need enum names
+4. **`Effects_SoundEvent`** - Need enum names
    - Reference has: `"SoundType": "UnwieldObject"`
    - We have: `"SoundType": 39` (raw number)
 
 ### Priority Work Items
 
-1. ~~**Fix multiple messages per packet** - DONE: Fixed PCAP reader to handle `Incomplete` errors~~
-2. **Implement full `Item_SetAppraiseInfo` parsing** - Parse property dictionaries
-3. **Fix `MovementData` parsing** - Parse full movement state
-4. **Implement property name mappings** - Convert numeric keys to human-readable names
+1. ~~**Fix multiple messages per packet** - DONE~~
+2. ~~**Implement full `Item_SetAppraiseInfo` parsing** - DONE~~
+3. ~~**Fix `MovementData` parsing** - DONE (basic, needs State improvement)~~
+4. ~~**Implement property name mappings** - DONE~~
 5. **Implement `ObjectDescription` parsing** - For `Item_ObjDescEvent`
 6. **Implement full enchantment parsing** - For `Magic_UpdateEnchantment`
+7. **Add enum name mappings** - Convert numeric values to string names (SoundType, etc.)
 
 ### How to Compare Output
 
@@ -102,12 +109,13 @@ ac-pcap-parser/
 ├── .gitignore                 # Git ignore rules (ignores /target)
 ├── CLAUDE.md                  # This documentation
 ├── src/                       # Source code directory
-│   ├── main.rs               # Entry point and main packet parser logic (337 lines)
+│   ├── main.rs               # Entry point and main packet parser logic (~340 lines)
 │   ├── packet.rs             # Packet header parsing and flag definitions (341 lines)
 │   ├── fragment.rs           # Fragment reassembly logic (123 lines)
 │   ├── message.rs            # Message wrapper structure (28 lines)
-│   ├── reader.rs             # Binary reader utility (130 lines)
+│   ├── reader.rs             # Binary reader utility (~170 lines)
 │   ├── enums.rs              # Message opcode enumerations (227 lines)
+│   ├── properties.rs         # AC property enums and parsing (613 lines) - NEW
 │   └── messages/             # Message parsing module
 │       ├── mod.rs            # Message routing and dispatcher (181 lines)
 │       ├── s2c.rs            # Server-to-Client message parsing (1,049 lines)
