@@ -66,11 +66,9 @@ Message count now matches! The fix was handling `PcapError::Incomplete` correctl
 
 5. **Property name mappings** - ✅ Implemented in `properties.rs`
 
-**MINOR REMAINING:**
-
-1. **Enum name mappings** - Some numeric values shown as raw numbers
-   - `Effects_SoundEvent`: `"SoundType": 39` instead of `"UnwieldObject"`
-   - Could add `sound_type_name()` function for string conversion
+6. **Enum name mappings** - ✅ Sound types now output as string names
+   - `Effects_SoundEvent`: Now shows `"SoundType": "UnwieldObject"` instead of raw numbers
+   - Implemented `sound_type_name()` function in `properties.rs`
 
 ### Priority Work Items - ALL COMPLETED
 
@@ -80,7 +78,26 @@ Message count now matches! The fix was handling `PcapError::Incomplete` correctl
 4. ~~**Implement property name mappings** - DONE~~
 5. ~~**Implement `ObjectDescription` parsing** - DONE~~
 6. ~~**Implement full enchantment parsing** - DONE~~
-7. **Add enum name mappings** - Optional enhancement
+7. ~~**Add enum name mappings** - DONE~~
+
+### Enum Reference Sources
+
+**Primary Reference:** https://github.com/ACClientLib/ACProtocol/blob/main/protocol.xml
+
+| Enum | In protocol.xml | Notes |
+|------|-----------------|-------|
+| Sound | ✅ Yes | Full enum with 200+ values |
+| PropertyInt | ❌ No | Used ACEmulator/ACE as reference |
+| PropertyBool | ❌ No | Used ACEmulator/ACE as reference |
+| PropertyFloat | ❌ No | Used ACEmulator/ACE as reference |
+| PropertyString | ❌ No | Used ACEmulator/ACE as reference |
+| PropertyDataId | ❌ No | Used ACEmulator/ACE as reference |
+| PropertyInt64 | ❌ No | Used ACEmulator/ACE as reference |
+| SpellCategory | ❌ No | Basic mapping in s2c.rs |
+| EquipmentSet | ❌ No | Basic mapping in s2c.rs |
+| StatModType | ❌ No | Basic mapping in s2c.rs |
+
+**ACE Reference:** https://github.com/ACEmulator/ACE/tree/master/Source/ACE.Entity/Enum/Properties
 
 ### How to Compare Output
 

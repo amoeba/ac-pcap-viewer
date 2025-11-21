@@ -835,7 +835,7 @@ pub struct EffectsSoundEvent {
     #[serde(rename = "ObjectId")]
     pub object_id: u32,
     #[serde(rename = "SoundType")]
-    pub sound_type: u32,
+    pub sound_type: String,
     #[serde(rename = "Volume")]
     pub volume: f32,
     #[serde(rename = "OpCode")]
@@ -848,13 +848,14 @@ pub struct EffectsSoundEvent {
 
 impl EffectsSoundEvent {
     pub fn read(reader: &mut BinaryReader) -> Result<Self> {
+        use crate::properties::sound_type_name;
         let object_id = reader.read_u32()?;
-        let sound_type = reader.read_u32()?;
+        let sound_type_raw = reader.read_u32()?;
         let volume = reader.read_f32()?;
 
         Ok(Self {
             object_id,
-            sound_type,
+            sound_type: sound_type_name(sound_type_raw),
             volume,
             opcode: 0xF750,
             message_type: "Effects_SoundEvent".to_string(),
