@@ -27,14 +27,14 @@ We are building a parser that matches the output of a reference implementation. 
 
 | File | Lines | Description |
 |------|-------|-------------|
-| `messages.json` | 2,087 | Parsed messages in JSONL format - **primary target** |
+| `messages.json` | 2,088 | Parsed messages in JSONL format - **primary target** |
 | `fragments.json` | 631 | Packet-level output with headers, fragments, and messages |
 
 ### Current Parser Output
 
 | Metric | Reference | Our Output | Status |
 |--------|-----------|------------|--------|
-| Message count | 2,087 | 2,088 | **MATCH** (99.95%) |
+| Message count | 2,088 | 2,088 | **EXACT MATCH** ✅ |
 
 ### Goal #1: Match Message Count - COMPLETED ✅
 
@@ -69,6 +69,14 @@ Message count now matches! The fix was handling `PcapError::Incomplete` correctl
 6. **Enum name mappings** - ✅ Sound types now output as string names
    - `Effects_SoundEvent`: Now shows `"SoundType": "UnwieldObject"` instead of raw numbers
    - Implemented `sound_type_name()` function in `properties.rs`
+
+7. **`Character_CharacterOptionsEvent` (C2S)** - ✅ Full PlayerModule parsing (1/1 message)
+   - `Options` flags-based conditional parsing
+   - `Shortcuts` list with ShortCutData (Index, ObjectId, SpellId)
+   - `Tab1Spells` through `Tab8Spells` spell lists
+   - `FillComps` hash table, `SpellBookFilters`, `OptionFlags`
+   - `GameplayOptions` with OptionProperties, WindowOptions, WindowProperties
+   - Key fix: LayeredSpellId uses u16 for Id (not u32)
 
 ### Priority Work Items - ALL COMPLETED
 
