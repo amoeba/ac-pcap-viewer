@@ -29,7 +29,7 @@ pub enum GameEventType {
     Writing_BookPageDataResponse = 0x00B8,
     Item_GetInscriptionResponse = 0x00C3,
     Item_SetAppraiseInfo = 0x00C9,
-    Character_CharacterOptionsEvent = 0x00F7,
+    // Note: 0x01A1 Character_CharacterOptionsEvent is a C2S action, not S2C event
     Communication_ChannelBroadcast = 0x0147,
     Communication_ChannelList = 0x0148,
     Communication_ChannelIndex = 0x0149,
@@ -136,7 +136,7 @@ impl GameEventType {
             0x00B8 => GameEventType::Writing_BookPageDataResponse,
             0x00C3 => GameEventType::Item_GetInscriptionResponse,
             0x00C9 => GameEventType::Item_SetAppraiseInfo,
-            0x00F7 => GameEventType::Character_CharacterOptionsEvent,
+            // 0x01A1 is a C2S action (Character_CharacterOptionsEvent), handled in c2s.rs
             0x0147 => GameEventType::Communication_ChannelBroadcast,
             0x0148 => GameEventType::Communication_ChannelList,
             0x0149 => GameEventType::Communication_ChannelIndex,
@@ -243,7 +243,6 @@ impl GameEventType {
             GameEventType::Writing_BookPageDataResponse => "Writing_BookPageDataResponse",
             GameEventType::Item_GetInscriptionResponse => "Item_GetInscriptionResponse",
             GameEventType::Item_SetAppraiseInfo => "Item_SetAppraiseInfo",
-            GameEventType::Character_CharacterOptionsEvent => "Character_CharacterOptionsEvent",
             GameEventType::Communication_ChannelBroadcast => "Communication_ChannelBroadcast",
             GameEventType::Communication_ChannelList => "Communication_ChannelList",
             GameEventType::Communication_ChannelIndex => "Communication_ChannelIndex",
@@ -338,10 +337,6 @@ pub fn parse_game_event(
     let evt_type = GameEventType::from_u32(event_type);
 
     match evt_type {
-        GameEventType::Character_CharacterOptionsEvent => {
-            let msg = CharacterCharacterOptionsEvent::read(reader, object_id, sequence)?;
-            Ok(("Character_CharacterOptionsEvent".to_string(), serde_json::to_value(&msg)?))
-        }
         GameEventType::Item_SetAppraiseInfo => {
             let msg = ItemSetAppraiseInfo::read(reader, object_id, sequence)?;
             Ok(("Item_SetAppraiseInfo".to_string(), serde_json::to_value(&msg)?))

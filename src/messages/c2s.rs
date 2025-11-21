@@ -9,6 +9,7 @@ pub enum GameActionType {
     ItemAppraise = 0x00C8,
     InventoryPutItemInContainer = 0x0019,
     InventoryGetAndWieldItem = 0x001A,
+    CharacterCharacterOptionsEvent = 0x01A1,
     Unknown = 0xFFFFFFFF,
 }
 
@@ -18,6 +19,7 @@ impl GameActionType {
             0x00C8 => GameActionType::ItemAppraise,
             0x0019 => GameActionType::InventoryPutItemInContainer,
             0x001A => GameActionType::InventoryGetAndWieldItem,
+            0x01A1 => GameActionType::CharacterCharacterOptionsEvent,
             _ => GameActionType::Unknown,
         }
     }
@@ -42,6 +44,28 @@ pub fn parse_game_action(
         GameActionType::InventoryGetAndWieldItem => {
             let msg = InventoryGetAndWieldItem::read(reader, sequence)?;
             Ok(("Inventory_GetAndWieldItem".to_string(), serde_json::to_value(&msg)?))
+        }
+        GameActionType::CharacterCharacterOptionsEvent => {
+            // PlayerModule is complex - output basic info for now
+            let remaining = reader.remaining();
+            let raw_data = if remaining > 0 {
+                reader.read_bytes(remaining)?
+            } else {
+                vec![]
+            };
+            Ok((
+                "Character_CharacterOptionsEvent".to_string(),
+                serde_json::json!({
+                    "Options": {
+                        "RawData": hex::encode(&raw_data),
+                    },
+                    "OrderedSequence": sequence,
+                    "ActionType": "Character_CharacterOptionsEvent",
+                    "OpCode": 0xF7B1u32,
+                    "MessageType": "Ordered_GameAction",
+                    "MessageDirection": "ClientToServer",
+                })
+            ))
         }
         _ => {
             let remaining = reader.remaining();
