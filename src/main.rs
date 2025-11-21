@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use clap::Parser;
 use pcap_parser::*;
 use pcap_parser::traits::PcapReaderIterator;
 use serde::Serialize;
@@ -13,13 +14,16 @@ mod fragment;
 mod message;
 mod reader;
 mod enums;
-mod messages;
+pub mod messages;
 mod properties;
 pub mod serialization;
+mod cli;
+mod tui;
 
 use packet::{PacketHeader, PacketHeaderFlags};
 use fragment::{FragmentHeader, Fragment};
 use reader::BinaryReader;
+use cli::{Cli, Commands, DirectionFilter, OutputFormat, SortField, FragmentSortField};
 
 /// Direction of packet flow
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,8 +120,6 @@ impl PacketParser {
                                 let udp_payload = &data[42..];
 
                                 // Determine direction from port
-                                // AC server port is typically 9000-9013
-                                // In the pcap, source port tells us direction
                                 let src_port = u16::from_be_bytes([data[34], data[35]]);
                                 let direction = if src_port >= 9000 && src_port <= 9013 {
                                     Direction::Recv // From server
@@ -143,7 +145,6 @@ impl PacketParser {
                 }
                 Err(PcapError::Eof) => break,
                 Err(PcapError::Incomplete(_)) => {
-                    // Need more data - refill the buffer and continue
                     reader.refill().ok();
                     continue;
                 }
@@ -190,7 +191,6 @@ impl PacketParser {
             };
             *packet_id += 1;
 
-            // Calculate where this packet's data ends
             let packet_end = start_pos + PacketHeader::BASE_SIZE + header.size as usize;
 
             if header.flags.contains(PacketHeaderFlags::BLOB_FRAGMENTS) {
@@ -211,7 +211,6 @@ impl PacketParser {
                 }
             }
 
-            // Ensure we're at the right position for the next packet
             let current_pos = reader.position() as usize;
             if current_pos < packet_end {
                 reader.set_position(packet_end as u64);
@@ -231,7 +230,6 @@ impl PacketParser {
     ) -> Result<(FragmentInfo, Vec<messages::ParsedMessage>)> {
         let mut parsed_messages = Vec::new();
 
-        // Read fragment header
         let sequence = reader.read_u32()?;
         let id = reader.read_u32()?;
         let count = reader.read_u16()?;
@@ -255,14 +253,12 @@ impl PacketParser {
 
         let bytes = reader.read_bytes(frag_length)?;
 
-        // Get or create fragment for reassembly
         let fragment = self.pending_fragments
             .entry(sequence)
             .or_insert_with(|| Fragment::new(sequence, count));
 
         fragment.add_chunk(&bytes, index as usize);
 
-        // Update fragment header info
         fragment.header = FragmentHeader {
             sequence,
             id,
@@ -274,11 +270,10 @@ impl PacketParser {
 
         let is_complete = fragment.is_complete();
         let frag_data = fragment.data[..fragment.length].to_vec();
-        let frag_count = fragment.count;
+        let _frag_count = fragment.count;
         let frag_received = fragment.received;
         let frag_length = fragment.length;
 
-        // Build fragment info for output
         let frag_info = FragmentInfo {
             data: BASE64.encode(&frag_data),
             count,
@@ -290,8 +285,7 @@ impl PacketParser {
         if is_complete {
             self.pending_fragments.remove(&sequence);
 
-            // Parse the complete message
-            let dir_str = match direction {
+            let _dir_str = match direction {
                 Direction::Send => "ClientToServer",
                 Direction::Recv => "ServerToClient",
             };
@@ -306,7 +300,6 @@ impl PacketParser {
                     *message_id += 1;
                 }
                 Err(e) => {
-                    // Print full error chain
                     let mut err_str = format!("{}", e);
                     let mut source = e.source();
                     while let Some(s) = source {
@@ -322,28 +315,204 @@ impl PacketParser {
     }
 }
 
-fn main() -> Result<()> {
-    let mut parser = PacketParser::new();
+fn print_summary(packets: &[ParsedPacket], messages: &[messages::ParsedMessage]) {
+    println!("=== PCAP Summary ===\n");
 
-    let pcap_file = "pkt_2025-11-18_1763490291_log.pcap";
+    println!("Packets: {}", packets.len());
+    println!("Messages: {}", messages.len());
 
-    eprintln!("Parsing PCAP file: {}", pcap_file);
+    // Direction breakdown
+    let send_packets = packets.iter().filter(|p| matches!(p.direction, Direction::Send)).count();
+    let recv_packets = packets.iter().filter(|p| matches!(p.direction, Direction::Recv)).count();
+    println!("\nPackets by Direction:");
+    println!("  Send (C→S): {}", send_packets);
+    println!("  Recv (S→C): {}", recv_packets);
 
-    let (packets, messages) = parser.parse_pcap_file(pcap_file)
-        .context("Failed to parse pcap file")?;
+    let send_msgs = messages.iter().filter(|m| m.direction == "Send").count();
+    let recv_msgs = messages.iter().filter(|m| m.direction == "Recv").count();
+    println!("\nMessages by Direction:");
+    println!("  Send (C→S): {}", send_msgs);
+    println!("  Recv (S→C): {}", recv_msgs);
 
-    eprintln!("Found {} packets", packets.len());
-    eprintln!("Found {} messages", messages.len());
-
-    // Output packets as JSONL to fragments.json equivalent
-    for packet in &packets {
-        // This would be fragments.json output
-        // println!("{}", serde_json::to_string(&packet)?);
+    // Message type breakdown
+    let mut type_counts: HashMap<&str, usize> = HashMap::new();
+    for msg in messages {
+        *type_counts.entry(&msg.message_type).or_insert(0) += 1;
     }
 
-    // Output messages as JSONL
-    for message in &messages {
-        println!("{}", serde_json::to_string(&message)?);
+    let mut sorted_types: Vec<_> = type_counts.iter().collect();
+    sorted_types.sort_by(|a, b| b.1.cmp(a.1));
+
+    println!("\nMessage Types (top 20):");
+    for (t, count) in sorted_types.iter().take(20) {
+        println!("  {:40} {:>5}", t, count);
+    }
+
+    if sorted_types.len() > 20 {
+        println!("  ... and {} more types", sorted_types.len() - 20);
+    }
+}
+
+fn output_messages(
+    messages: &[messages::ParsedMessage],
+    filter_type: Option<&str>,
+    direction: Option<DirectionFilter>,
+    sort: SortField,
+    reverse: bool,
+    limit: Option<usize>,
+    output: OutputFormat,
+) {
+    let mut filtered: Vec<&messages::ParsedMessage> = messages.iter()
+        .filter(|m| {
+            if let Some(ft) = filter_type {
+                if !m.message_type.to_lowercase().contains(&ft.to_lowercase()) {
+                    return false;
+                }
+            }
+            if let Some(d) = direction {
+                match d {
+                    DirectionFilter::Send => if m.direction != "Send" { return false; }
+                    DirectionFilter::Recv => if m.direction != "Recv" { return false; }
+                }
+            }
+            true
+        })
+        .collect();
+
+    filtered.sort_by(|a, b| {
+        let cmp = match sort {
+            SortField::Id => a.id.cmp(&b.id),
+            SortField::Type => a.message_type.cmp(&b.message_type),
+            SortField::Direction => a.direction.cmp(&b.direction),
+        };
+        if reverse { cmp.reverse() } else { cmp }
+    });
+
+    if let Some(lim) = limit {
+        filtered.truncate(lim);
+    }
+
+    match output {
+        OutputFormat::Jsonl => {
+            for msg in filtered {
+                println!("{}", serde_json::to_string(&msg).unwrap());
+            }
+        }
+        OutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&filtered).unwrap());
+        }
+        OutputFormat::Table => {
+            println!("{:>6}  {:40}  {:>6}  {:>10}", "ID", "Type", "Dir", "OpCode");
+            println!("{}", "-".repeat(70));
+            for msg in filtered {
+                println!("{:>6}  {:40}  {:>6}  {:>10}",
+                    msg.id,
+                    truncate(&msg.message_type, 40),
+                    msg.direction,
+                    msg.opcode
+                );
+            }
+        }
+    }
+}
+
+fn output_fragments(
+    packets: &[ParsedPacket],
+    direction: Option<DirectionFilter>,
+    sort: FragmentSortField,
+    reverse: bool,
+    limit: Option<usize>,
+    output: OutputFormat,
+) {
+    let mut filtered: Vec<&ParsedPacket> = packets.iter()
+        .filter(|p| {
+            if let Some(d) = direction {
+                match d {
+                    DirectionFilter::Send => if !matches!(p.direction, Direction::Send) { return false; }
+                    DirectionFilter::Recv => if !matches!(p.direction, Direction::Recv) { return false; }
+                }
+            }
+            true
+        })
+        .collect();
+
+    filtered.sort_by(|a, b| {
+        let cmp = match sort {
+            FragmentSortField::Id => a.id.cmp(&b.id),
+            FragmentSortField::Sequence => a.header.sequence.cmp(&b.header.sequence),
+            FragmentSortField::Direction => format!("{:?}", a.direction).cmp(&format!("{:?}", b.direction)),
+        };
+        if reverse { cmp.reverse() } else { cmp }
+    });
+
+    if let Some(lim) = limit {
+        filtered.truncate(lim);
+    }
+
+    match output {
+        OutputFormat::Jsonl => {
+            for pkt in filtered {
+                println!("{}", serde_json::to_string(&pkt).unwrap());
+            }
+        }
+        OutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&filtered).unwrap());
+        }
+        OutputFormat::Table => {
+            println!("{:>6}  {:>10}  {:>6}  {:>12}  {:>6}", "ID", "Seq", "Dir", "Flags", "Size");
+            println!("{}", "-".repeat(50));
+            for pkt in filtered {
+                println!("{:>6}  {:>10}  {:>6}  {:>12}  {:>6}",
+                    pkt.id,
+                    pkt.header.sequence,
+                    format!("{:?}", pkt.direction),
+                    format!("{:08X}", pkt.header.flags.bits()),
+                    pkt.header.size
+                );
+            }
+        }
+    }
+}
+
+fn truncate(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else {
+        format!("{}...", &s[..max_len-3])
+    }
+}
+
+fn main() -> Result<()> {
+    let cli = Cli::parse();
+
+    let mut parser = PacketParser::new();
+
+    eprintln!("Parsing PCAP file: {}", cli.file);
+
+    let (packets, messages) = parser.parse_pcap_file(&cli.file)
+        .context("Failed to parse pcap file")?;
+
+    eprintln!("Found {} packets, {} messages", packets.len(), messages.len());
+
+    match cli.command {
+        Some(Commands::Messages { filter_type, direction, sort, reverse, limit, output }) => {
+            output_messages(&messages, filter_type.as_deref(), direction, sort, reverse, limit, output);
+        }
+        Some(Commands::Fragments { direction, sort, reverse, limit, output }) => {
+            output_fragments(&packets, direction, sort, reverse, limit, output);
+        }
+        Some(Commands::Summary) => {
+            print_summary(&packets, &messages);
+        }
+        Some(Commands::Tui) => {
+            tui::run_tui(messages, packets)?;
+        }
+        None => {
+            // Default: output messages as JSONL (backwards compatible)
+            for message in &messages {
+                println!("{}", serde_json::to_string(&message)?);
+            }
+        }
     }
 
     Ok(())
