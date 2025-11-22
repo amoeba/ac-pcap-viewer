@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build and Deploy
 
 on:
   push:
@@ -14,13 +14,10 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build:
+  build-wasm:
     runs-on: ubuntu-latest
     # Skip build on PR close - we only need cleanup
     if: github.event.action != 'closed'
-    permissions:
-      contents: read
-      packages: write
 
     steps:
       - name: Checkout
@@ -28,11 +25,68 @@ jobs:
         with:
           fetch-depth: 0  # Full history for git SHA in build.rs
 
+      - name: Setup Rust
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install wasm-bindgen-cli
+        run: |
+          if ! command -v wasm-bindgen &> /dev/null; then
+            cargo install wasm-bindgen-cli
+          fi
+
+      - name: Build WASM
+        run: cargo build -p web --release --target wasm32-unknown-unknown
+
+      - name: Generate JS bindings
+        run: |
+          mkdir -p pkg
+          wasm-bindgen \
+            --target web \
+            --out-dir pkg \
+            --no-typescript \
+            target/wasm32-unknown-unknown/release/web.wasm
+          cp crates/web/index.html pkg/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-pkg
+          path: pkg/
+          retention-days: 1
+
+  build-image:
+    runs-on: ubuntu-latest
+    needs: build-wasm
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-pkg
+          path: pkg/
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -57,7 +111,7 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -65,7 +119,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: build
+    needs: build-image
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - name: Setup SSH for Dokku
@@ -84,7 +138,9 @@ jobs:
   # Preview deployment for claude/** branches and PRs
   deploy-preview:
     runs-on: ubuntu-latest
-    needs: build
+    needs: build-image
+    permissions:
+      pull-requests: write
     if: |
       github.event_name == 'push' && startsWith(github.ref, 'refs/heads/claude/') ||
       github.event_name == 'pull_request' && github.event.action != 'closed'
@@ -97,8 +153,8 @@ jobs:
           else
             # Extract branch name and sanitize for Dokku app name
             BRANCH="${{ github.ref_name }}"
-            # Remove claude/ prefix and replace invalid chars with dashes
-            APP_SUFFIX=$(echo "$BRANCH" | sed 's|^claude/||' | sed 's/[^a-zA-Z0-9-]/-/g' | cut -c1-30)
+            # Remove claude/ prefix, lowercase, replace invalid chars with dashes, truncate
+            APP_SUFFIX=$(echo "$BRANCH" | sed 's|^claude/||' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | cut -c1-30)
           fi
           echo "app_name=${{ secrets.DOKKU_APP_NAME }}-${APP_SUFFIX}" >> $GITHUB_OUTPUT
           echo "Preview app name: ${{ secrets.DOKKU_APP_NAME }}-${APP_SUFFIX}"
@@ -134,16 +190,24 @@ jobs:
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
             apps:create "$APP_NAME"
 
-          # Deploy the image
+          # Deploy the image (allow "no changes" to succeed, rebuild if needed)
+          if ! ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            git:from-image "$APP_NAME" "$IMAGE" 2>&1; then
+            echo "git:from-image returned non-zero, triggering rebuild..."
+            ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+              ps:rebuild "$APP_NAME"
+          fi
+
+          # Enable SSL via Let's Encrypt (skip if already enabled)
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            git:from-image "$APP_NAME" "$IMAGE"
+            letsencrypt:enable "$APP_NAME" 2>/dev/null || true
 
       - name: Get preview URL
         id: preview-url
         run: |
           APP_NAME="${{ steps.app-name.outputs.app_name }}"
           URL=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            urls "$APP_NAME" 2>/dev/null | head -1 || echo "")
+            urls "$APP_NAME" 2>/dev/null | grep https | head -1 || echo "")
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "Preview URL: $URL"
 
