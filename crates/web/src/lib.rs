@@ -512,7 +512,51 @@ impl eframe::App for PcapViewerApp {
     }
 }
 
+/// Column definition for mobile table
+struct MobileColumn {
+    header: &'static str,
+    width_pct: f32,
+    right_align: bool,
+}
+
 impl PcapViewerApp {
+    /// Render a mobile-optimized table row cell
+    fn mobile_cell(
+        ui: &mut egui::Ui,
+        width: f32,
+        right_align: bool,
+        is_selected: bool,
+        text: impl Into<egui::WidgetText>,
+    ) -> egui::Response {
+        let layout = if right_align {
+            egui::Layout::right_to_left(egui::Align::Center)
+        } else {
+            egui::Layout::left_to_right(egui::Align::Center)
+        };
+        ui.allocate_ui_with_layout(egui::vec2(width, 20.0), layout, |ui| {
+            ui.selectable_label(is_selected, text)
+        }).inner
+    }
+
+    /// Render mobile table header
+    fn mobile_header(ui: &mut egui::Ui, columns: &[MobileColumn], available_width: f32) {
+        let widths: Vec<f32> = columns.iter()
+            .map(|c| available_width * c.width_pct)
+            .collect();
+
+        for (i, col) in columns.iter().enumerate() {
+            let layout = if col.right_align {
+                egui::Layout::right_to_left(egui::Align::Center)
+            } else {
+                egui::Layout::left_to_right(egui::Align::Center)
+            };
+            ui.allocate_ui_with_layout(egui::vec2(widths[i], 20.0), layout, |ui| {
+                ui.strong(col.header);
+            });
+        }
+        ui.end_row();
+    }
+
     /// Show the detail panel content (shared between bottom and side panel)
     fn show_detail_content(&self, ui: &mut egui::Ui) {
         match self.current_tab {
@@ -611,126 +655,93 @@ impl PcapViewerApp {
         ui.separator();
 
         egui::ScrollArea::vertical().show(ui, |ui| {
-            // Get available width inside the scroll area
             let available_width = ui.available_width();
 
-            // On mobile, use fewer columns and calculate widths to fill space
-            let num_columns = if is_mobile { 3 } else { 4 };
-
-            // Calculate column widths for mobile to fill available space
-            // Mobile: ID (12%), Type (76%), Dir (12%)
-            let (id_width, type_width, dir_width) = if is_mobile {
-                let id_w = available_width * 0.12;
-                let dir_w = available_width * 0.12;
-                let type_w = available_width - id_w - dir_w - 16.0; // spacing
-                (id_w, type_w, dir_w)
-            } else {
-                (50.0, 0.0, 80.0)
-            };
-
-            // On mobile, set the UI to fill available width
             if is_mobile {
                 ui.set_min_width(available_width);
-            }
+                let columns = [
+                    MobileColumn { header: "ID", width_pct: 0.12, right_align: false },
+                    MobileColumn { header: "Type", width_pct: 0.76, right_align: false },
+                    MobileColumn { header: "Dir", width_pct: 0.12, right_align: true },
+                ];
+                let widths: Vec<f32> = columns.iter().map(|c| available_width * c.width_pct).collect();
 
-            egui::Grid::new("messages_grid")
-                .num_columns(num_columns)
-                .striped(true)
-                .min_col_width(if is_mobile { 30.0 } else { 50.0 })
-                .spacing(if is_mobile { egui::vec2(4.0, 4.0) } else { egui::vec2(8.0, 4.0) })
-                .show(ui, |ui| {
-                    // Header row
-                    if is_mobile {
-                        ui.allocate_ui_with_layout(egui::vec2(id_width, 20.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                            ui.strong("ID");
-                        });
-                        ui.allocate_ui_with_layout(egui::vec2(type_width, 20.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                            ui.strong("Type");
-                        });
-                        ui.allocate_ui_with_layout(egui::vec2(dir_width, 20.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.strong("Dir");
-                        });
-                    } else {
+                egui::Grid::new("messages_grid")
+                    .num_columns(3)
+                    .striped(true)
+                    .spacing(egui::vec2(4.0, 4.0))
+                    .show(ui, |ui| {
+                        Self::mobile_header(ui, &columns, available_width);
+
+                        for (original_idx, id, msg_type, direction, _opcode) in &filtered {
+                            let is_selected = self.selected_message == Some(*original_idx);
+
+                            if Self::mobile_cell(ui, widths[0], false, is_selected, id.to_string()).clicked() {
+                                self.selected_message = Some(*original_idx);
+                                self.show_detail_panel = true;
+                            }
+
+                            let display_type = if msg_type.len() > 25 {
+                                format!("{}…", &msg_type[..24])
+                            } else {
+                                msg_type.clone()
+                            };
+                            if Self::mobile_cell(ui, widths[1], false, is_selected, display_type).clicked() {
+                                self.selected_message = Some(*original_idx);
+                                self.show_detail_panel = true;
+                            }
+
+                            let dir_color = if direction == "Send" {
+                                egui::Color32::from_rgb(100, 200, 255)
+                            } else {
+                                egui::Color32::from_rgb(100, 255, 150)
+                            };
+                            let dir_text = if direction == "Send" { "S" } else { "R" };
+                            if Self::mobile_cell(ui, widths[2], true, is_selected, egui::RichText::new(dir_text).color(dir_color)).clicked() {
+                                self.selected_message = Some(*original_idx);
+                                self.show_detail_panel = true;
+                            }
+
+                            ui.end_row();
+                        }
+                    });
+            } else {
+                // Desktop layout
+                egui::Grid::new("messages_grid")
+                    .num_columns(4)
+                    .striped(true)
+                    .min_col_width(50.0)
+                    .show(ui, |ui| {
                         ui.strong("ID");
                         ui.strong("Type");
                         ui.strong("Dir");
                         ui.strong("OpCode");
-                    }
-                    ui.end_row();
+                        ui.end_row();
 
-                    for (original_idx, id, msg_type, direction, opcode) in &filtered {
-                        let is_selected = self.selected_message == Some(*original_idx);
+                        for (original_idx, id, msg_type, direction, opcode) in &filtered {
+                            let is_selected = self.selected_message == Some(*original_idx);
 
-                        // ID column (left-aligned)
-                        let id_response = if is_mobile {
-                            ui.allocate_ui_with_layout(egui::vec2(id_width, 20.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                ui.selectable_label(is_selected, id.to_string())
-                            }).inner
-                        } else {
-                            ui.selectable_label(is_selected, id.to_string())
-                        };
-                        if id_response.clicked() {
-                            self.selected_message = Some(*original_idx);
-                            if is_mobile {
-                                self.show_detail_panel = true;
+                            if ui.selectable_label(is_selected, id.to_string()).clicked() {
+                                self.selected_message = Some(*original_idx);
                             }
-                        }
-
-                        // Type column (left-aligned) - truncate on mobile
-                        let display_type = if is_mobile && msg_type.len() > 25 {
-                            format!("{}…", &msg_type[..24])
-                        } else {
-                            msg_type.clone()
-                        };
-                        let type_response = if is_mobile {
-                            ui.allocate_ui_with_layout(egui::vec2(type_width, 20.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                ui.selectable_label(is_selected, &display_type)
-                            }).inner
-                        } else {
-                            ui.selectable_label(is_selected, &display_type)
-                        };
-                        if type_response.clicked() {
-                            self.selected_message = Some(*original_idx);
-                            if is_mobile {
-                                self.show_detail_panel = true;
+                            if ui.selectable_label(is_selected, msg_type).clicked() {
+                                self.selected_message = Some(*original_idx);
                             }
-                        }
-
-                        // Direction column (right-aligned on mobile)
-                        let dir_color = if direction == "Send" {
-                            egui::Color32::from_rgb(100, 200, 255)
-                        } else {
-                            egui::Color32::from_rgb(100, 255, 150)
-                        };
-                        let dir_text = if is_mobile {
-                            if direction == "Send" { "S" } else { "R" }
-                        } else {
-                            direction.as_str()
-                        };
-                        let dir_response = if is_mobile {
-                            ui.allocate_ui_with_layout(egui::vec2(dir_width, 20.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                ui.selectable_label(is_selected, egui::RichText::new(dir_text).color(dir_color))
-                            }).inner
-                        } else {
-                            ui.selectable_label(is_selected, egui::RichText::new(dir_text).color(dir_color))
-                        };
-                        if dir_response.clicked() {
-                            self.selected_message = Some(*original_idx);
-                            if is_mobile {
-                                self.show_detail_panel = true;
+                            let dir_color = if direction == "Send" {
+                                egui::Color32::from_rgb(100, 200, 255)
+                            } else {
+                                egui::Color32::from_rgb(100, 255, 150)
+                            };
+                            if ui.selectable_label(is_selected, egui::RichText::new(direction).color(dir_color)).clicked() {
+                                self.selected_message = Some(*original_idx);
                             }
-                        }
-
-                        // OpCode column (desktop only)
-                        if !is_mobile {
                             if ui.selectable_label(is_selected, opcode).clicked() {
                                 self.selected_message = Some(*original_idx);
                             }
+                            ui.end_row();
                         }
-
-                        ui.end_row();
-                    }
-                });
+                    });
+            }
         });
     }
 
@@ -767,126 +778,93 @@ impl PcapViewerApp {
         ui.separator();
 
         egui::ScrollArea::vertical().show(ui, |ui| {
-            // Get available width inside the scroll area
             let available_width = ui.available_width();
 
-            // On mobile, use fewer columns and calculate widths to fill space
-            let num_columns = if is_mobile { 3 } else { 5 };
-
-            // Calculate column widths for mobile to fill available space
-            // Mobile: ID (15%), Seq (70%), Dir (15%)
-            let (id_width, seq_width, dir_width) = if is_mobile {
-                let id_w = available_width * 0.15;
-                let dir_w = available_width * 0.15;
-                let seq_w = available_width - id_w - dir_w - 16.0; // spacing
-                (id_w, seq_w, dir_w)
-            } else {
-                (50.0, 100.0, 80.0)
-            };
-
-            // On mobile, set the UI to fill available width
             if is_mobile {
                 ui.set_min_width(available_width);
-            }
+                let columns = [
+                    MobileColumn { header: "ID", width_pct: 0.15, right_align: false },
+                    MobileColumn { header: "Seq", width_pct: 0.70, right_align: false },
+                    MobileColumn { header: "Dir", width_pct: 0.15, right_align: true },
+                ];
+                let widths: Vec<f32> = columns.iter().map(|c| available_width * c.width_pct).collect();
 
-            egui::Grid::new("packets_grid")
-                .num_columns(num_columns)
-                .striped(true)
-                .min_col_width(if is_mobile { 30.0 } else { 50.0 })
-                .spacing(if is_mobile { egui::vec2(4.0, 4.0) } else { egui::vec2(8.0, 4.0) })
-                .show(ui, |ui| {
-                    // Header row
-                    if is_mobile {
-                        ui.allocate_ui_with_layout(egui::vec2(id_width, 20.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                            ui.strong("ID");
-                        });
-                        ui.allocate_ui_with_layout(egui::vec2(seq_width, 20.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                            ui.strong("Seq");
-                        });
-                        ui.allocate_ui_with_layout(egui::vec2(dir_width, 20.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.strong("Dir");
-                        });
-                    } else {
+                egui::Grid::new("packets_grid")
+                    .num_columns(3)
+                    .striped(true)
+                    .spacing(egui::vec2(4.0, 4.0))
+                    .show(ui, |ui| {
+                        Self::mobile_header(ui, &columns, available_width);
+
+                        for (original_idx, id, sequence, direction, _flags, _size) in &filtered {
+                            let is_selected = self.selected_packet == Some(*original_idx);
+
+                            if Self::mobile_cell(ui, widths[0], false, is_selected, id.to_string()).clicked() {
+                                self.selected_packet = Some(*original_idx);
+                                self.show_detail_panel = true;
+                            }
+
+                            if Self::mobile_cell(ui, widths[1], false, is_selected, sequence.to_string()).clicked() {
+                                self.selected_packet = Some(*original_idx);
+                                self.show_detail_panel = true;
+                            }
+
+                            let dir_color = if direction == "Send" {
+                                egui::Color32::from_rgb(100, 200, 255)
+                            } else {
+                                egui::Color32::from_rgb(100, 255, 150)
+                            };
+                            let dir_text = if direction == "Send" { "S" } else { "R" };
+                            if Self::mobile_cell(ui, widths[2], true, is_selected, egui::RichText::new(dir_text).color(dir_color)).clicked() {
+                                self.selected_packet = Some(*original_idx);
+                                self.show_detail_panel = true;
+                            }
+
+                            ui.end_row();
+                        }
+                    });
+            } else {
+                // Desktop layout
+                egui::Grid::new("packets_grid")
+                    .num_columns(5)
+                    .striped(true)
+                    .min_col_width(50.0)
+                    .spacing(egui::vec2(8.0, 4.0))
+                    .show(ui, |ui| {
                         ui.strong("ID");
                         ui.strong("Seq");
                         ui.strong("Dir");
                         ui.strong("Flags");
                         ui.strong("Size");
-                    }
-                    ui.end_row();
+                        ui.end_row();
 
-                    for (original_idx, id, sequence, direction, flags, size) in &filtered {
-                        let is_selected = self.selected_packet == Some(*original_idx);
+                        for (original_idx, id, sequence, direction, flags, size) in &filtered {
+                            let is_selected = self.selected_packet == Some(*original_idx);
 
-                        // ID column (left-aligned)
-                        let id_response = if is_mobile {
-                            ui.allocate_ui_with_layout(egui::vec2(id_width, 20.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                ui.selectable_label(is_selected, id.to_string())
-                            }).inner
-                        } else {
-                            ui.selectable_label(is_selected, id.to_string())
-                        };
-                        if id_response.clicked() {
-                            self.selected_packet = Some(*original_idx);
-                            if is_mobile {
-                                self.show_detail_panel = true;
+                            if ui.selectable_label(is_selected, id.to_string()).clicked() {
+                                self.selected_packet = Some(*original_idx);
                             }
-                        }
-
-                        // Sequence column (left-aligned)
-                        let seq_response = if is_mobile {
-                            ui.allocate_ui_with_layout(egui::vec2(seq_width, 20.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                ui.selectable_label(is_selected, sequence.to_string())
-                            }).inner
-                        } else {
-                            ui.selectable_label(is_selected, sequence.to_string())
-                        };
-                        if seq_response.clicked() {
-                            self.selected_packet = Some(*original_idx);
-                            if is_mobile {
-                                self.show_detail_panel = true;
+                            if ui.selectable_label(is_selected, sequence.to_string()).clicked() {
+                                self.selected_packet = Some(*original_idx);
                             }
-                        }
-
-                        // Direction column (right-aligned on mobile)
-                        let dir_color = if direction == "Send" {
-                            egui::Color32::from_rgb(100, 200, 255)
-                        } else {
-                            egui::Color32::from_rgb(100, 255, 150)
-                        };
-                        let dir_text = if is_mobile {
-                            if direction == "Send" { "S" } else { "R" }
-                        } else {
-                            direction.as_str()
-                        };
-                        let dir_response = if is_mobile {
-                            ui.allocate_ui_with_layout(egui::vec2(dir_width, 20.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                ui.selectable_label(is_selected, egui::RichText::new(dir_text).color(dir_color))
-                            }).inner
-                        } else {
-                            ui.selectable_label(is_selected, egui::RichText::new(dir_text).color(dir_color))
-                        };
-                        if dir_response.clicked() {
-                            self.selected_packet = Some(*original_idx);
-                            if is_mobile {
-                                self.show_detail_panel = true;
+                            let dir_color = if direction == "Send" {
+                                egui::Color32::from_rgb(100, 200, 255)
+                            } else {
+                                egui::Color32::from_rgb(100, 255, 150)
+                            };
+                            if ui.selectable_label(is_selected, egui::RichText::new(direction).color(dir_color)).clicked() {
+                                self.selected_packet = Some(*original_idx);
                             }
-                        }
-
-                        // Flags and Size columns (desktop only)
-                        if !is_mobile {
                             if ui.selectable_label(is_selected, format!("{:08X}", flags)).clicked() {
                                 self.selected_packet = Some(*original_idx);
                             }
-
                             if ui.selectable_label(is_selected, size.to_string()).clicked() {
                                 self.selected_packet = Some(*original_idx);
                             }
+                            ui.end_row();
                         }
-
-                        ui.end_row();
-                    }
-                });
+                    });
+            }
         });
     }
 }
