@@ -22,6 +22,10 @@ enum SortField {
     Direction,
 }
 
+// Responsive breakpoints
+const MOBILE_BREAKPOINT: f32 = 768.0;
+const TABLET_BREAKPOINT: f32 = 1024.0;
+
 // Shared state for async loading
 type SharedData = Arc<Mutex<Option<Vec<u8>>>>;
 
@@ -45,6 +49,9 @@ pub struct PcapViewerApp {
     // Theme
     dark_mode: bool,
 
+    // Responsive layout state
+    show_detail_panel: bool,
+
     // Dropped file data
     dropped_file_data: Option<Vec<u8>>,
 
@@ -66,6 +73,7 @@ impl Default for PcapViewerApp {
             status_message: "Drag & drop a PCAP file or click 'Load Example'".to_string(),
             is_loading: false,
             dark_mode: true,
+            show_detail_panel: false,
             dropped_file_data: None,
             fetched_data: Arc::new(Mutex::new(None)),
         }
@@ -216,182 +224,261 @@ impl eframe::App for PcapViewerApp {
             egui::Visuals::light()
         });
 
-        // Top panel with tabs and controls
+        // Determine responsive layout mode
+        let screen_rect = ctx.screen_rect();
+        let screen_width = screen_rect.width();
+        let screen_height = screen_rect.height();
+        let is_mobile = screen_width < MOBILE_BREAKPOINT;
+        let is_tablet = screen_width >= MOBILE_BREAKPOINT && screen_width < TABLET_BREAKPOINT;
+        let has_data = !self.messages.is_empty() || !self.packets.is_empty();
+
+        // Debug mode string
+        let mode_str = if is_mobile { "M" } else if is_tablet { "T" } else { "D" };
+
+        // Top panel with tabs and controls - responsive
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.heading("AC PCAP Parser");
-                ui.separator();
+            if is_mobile {
+                // Mobile: Two-row compact layout
+                ui.vertical(|ui| {
+                    // First row: Title + theme toggle
+                    ui.horizontal(|ui| {
+                        ui.heading("AC PCAP");
 
-                // Tab buttons
-                if ui.selectable_label(self.current_tab == Tab::Messages, "Messages").clicked() {
-                    self.current_tab = Tab::Messages;
-                }
-                if ui.selectable_label(self.current_tab == Tab::Fragments, "Fragments").clicked() {
-                    self.current_tab = Tab::Fragments;
-                }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            // Theme toggle
+                            self.draw_theme_toggle(ui);
 
-                ui.separator();
-
-                // Search box
-                ui.label("Search:");
-                ui.text_edit_singleline(&mut self.search_query);
-
-                ui.separator();
-
-                // Sort controls
-                ui.label("Sort:");
-                egui::ComboBox::from_label("")
-                    .selected_text(match self.sort_field {
-                        SortField::Id => "ID",
-                        SortField::Type => "Type/Seq",
-                        SortField::Direction => "Direction",
-                    })
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.sort_field, SortField::Id, "ID");
-                        ui.selectable_value(&mut self.sort_field, SortField::Type, "Type/Seq");
-                        ui.selectable_value(&mut self.sort_field, SortField::Direction, "Direction");
+                            // Detail panel toggle (only when we have data)
+                            if has_data {
+                                ui.separator();
+                                let detail_icon = if self.show_detail_panel { "×" } else { "≡" };
+                                if ui.button(detail_icon).on_hover_text("Toggle detail panel").clicked() {
+                                    self.show_detail_panel = !self.show_detail_panel;
+                                }
+                            }
+                        });
                     });
 
-                if ui.button(if self.sort_ascending { "↑" } else { "↓" }).clicked() {
-                    self.sort_ascending = !self.sort_ascending;
-                }
-
-                // Theme toggle on far right
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let (rect, response) = ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::click());
-                    if response.clicked() {
-                        self.dark_mode = !self.dark_mode;
-                    }
-                    response.on_hover_text("Toggle dark/light mode");
-
-                    let painter = ui.painter();
-                    let center = rect.center();
-
-                    if self.dark_mode {
-                        // Draw sun icon (switch to light mode)
-                        let sun_color = egui::Color32::from_rgb(255, 200, 50);
-                        painter.circle_filled(center, 6.0, sun_color);
-                        // Draw rays
-                        for i in 0..8 {
-                            let angle = i as f32 * std::f32::consts::PI / 4.0;
-                            let inner = 7.5;
-                            let outer = 9.5;
-                            let start = center + egui::vec2(angle.cos() * inner, angle.sin() * inner);
-                            let end = center + egui::vec2(angle.cos() * outer, angle.sin() * outer);
-                            painter.line_segment([start, end], egui::Stroke::new(1.5, sun_color));
+                    // Second row: Tabs + minimal controls
+                    ui.horizontal(|ui| {
+                        if ui.selectable_label(self.current_tab == Tab::Messages, "Msg").clicked() {
+                            self.current_tab = Tab::Messages;
                         }
-                    } else {
-                        // Draw moon icon (switch to dark mode)
-                        let moon_color = egui::Color32::from_rgb(100, 150, 255);
-                        painter.circle_filled(center, 7.0, moon_color);
-                        // Cut out crescent with background color
-                        let bg_color = ui.visuals().panel_fill;
-                        painter.circle_filled(center + egui::vec2(4.0, -3.0), 5.5, bg_color);
-                    }
+                        if ui.selectable_label(self.current_tab == Tab::Fragments, "Frag").clicked() {
+                            self.current_tab = Tab::Fragments;
+                        }
+
+                        ui.separator();
+
+                        // Compact search
+                        ui.add(egui::TextEdit::singleline(&mut self.search_query)
+                            .hint_text("Search...")
+                            .desired_width(ui.available_width() - 40.0));
+
+                        // Sort direction only
+                        if ui.button(if self.sort_ascending { "↑" } else { "↓" }).clicked() {
+                            self.sort_ascending = !self.sort_ascending;
+                        }
+                    });
                 });
-            });
+            } else {
+                // Desktop/Tablet: Single row layout
+                ui.horizontal(|ui| {
+                    ui.heading(if is_tablet { "AC PCAP" } else { "AC PCAP Parser" });
+                    ui.separator();
+
+                    // Tab buttons
+                    if ui.selectable_label(self.current_tab == Tab::Messages, "Messages").clicked() {
+                        self.current_tab = Tab::Messages;
+                    }
+                    if ui.selectable_label(self.current_tab == Tab::Fragments, "Fragments").clicked() {
+                        self.current_tab = Tab::Fragments;
+                    }
+
+                    ui.separator();
+
+                    // Search box
+                    if !is_tablet {
+                        ui.label("Search:");
+                    }
+                    ui.add(egui::TextEdit::singleline(&mut self.search_query)
+                        .hint_text("Search...")
+                        .desired_width(if is_tablet { 120.0 } else { 150.0 }));
+
+                    ui.separator();
+
+                    // Sort controls
+                    if !is_tablet {
+                        ui.label("Sort:");
+                    }
+                    egui::ComboBox::from_label("")
+                        .selected_text(match self.sort_field {
+                            SortField::Id => "ID",
+                            SortField::Type => if is_tablet { "Type" } else { "Type/Seq" },
+                            SortField::Direction => "Dir",
+                        })
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.sort_field, SortField::Id, "ID");
+                            ui.selectable_value(&mut self.sort_field, SortField::Type, "Type/Seq");
+                            ui.selectable_value(&mut self.sort_field, SortField::Direction, "Direction");
+                        });
+
+                    if ui.button(if self.sort_ascending { "↑" } else { "↓" }).clicked() {
+                        self.sort_ascending = !self.sort_ascending;
+                    }
+
+                    // Theme toggle on far right
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        self.draw_theme_toggle(ui);
+                    });
+                });
+            }
         });
 
-        // Bottom panel with status
+        // Bottom panel with status - responsive
         egui::TopBottomPanel::bottom("status_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 if self.is_loading {
                     ui.spinner();
                 }
-                ui.label(&self.status_message);
+
+                // Debug info: mode, width x height, show_detail state
+                let debug_info = format!(
+                    "[{}:{}x{} d:{}]",
+                    mode_str,
+                    screen_width as i32,
+                    screen_height as i32,
+                    if self.show_detail_panel { "1" } else { "0" }
+                );
+
+                if is_mobile {
+                    ui.label(format!("{} msgs {}", self.messages.len(), debug_info));
+                } else {
+                    ui.label(format!("{} {}", &self.status_message, debug_info));
+                }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     // "Made with Claude" badge with logo
                     let claude_color = egui::Color32::from_rgb(217, 119, 87);
-                    ui.hyperlink_to(
-                        egui::RichText::new("Made with Claude")
-                            .color(claude_color),
-                        "https://claude.ai",
-                    );
-                    // Claude logo (painted orange circle)
-                    let (rect, _response) = ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
-                    ui.painter().circle_filled(rect.center(), 6.0, claude_color);
-                    ui.separator();
+                    if is_mobile {
+                        // Mobile: Just the logo
+                        let (rect, response) = ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::click());
+                        ui.painter().circle_filled(rect.center(), 6.0, claude_color);
+                        if response.clicked() {
+                            ui.ctx().open_url(egui::OpenUrl::new_tab("https://claude.ai"));
+                        }
+                    } else {
+                        ui.hyperlink_to(
+                            egui::RichText::new("Made with Claude")
+                                .color(claude_color),
+                            "https://claude.ai",
+                        );
+                        // Claude logo (painted orange circle)
+                        let (rect, _response) = ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
+                        ui.painter().circle_filled(rect.center(), 6.0, claude_color);
+                        ui.separator();
 
-                    // Git info
-                    let git_sha = option_env!("GIT_SHA").unwrap_or("dev");
-                    let short_sha = if git_sha.len() > 7 { &git_sha[..7] } else { git_sha };
-                    ui.hyperlink_to(
-                        egui::RichText::new(format!("#{}", short_sha)).small(),
-                        format!("https://github.com/amoeba/ac-pcap-parser/commit/{}", git_sha),
-                    );
-                    ui.hyperlink_to(
-                        egui::RichText::new("GitHub").small(),
-                        "https://github.com/amoeba/ac-pcap-parser",
-                    );
-                    ui.separator();
+                        // Git info
+                        let git_sha = option_env!("GIT_SHA").unwrap_or("dev");
+                        let short_sha = if git_sha.len() > 7 { &git_sha[..7] } else { git_sha };
+                        ui.hyperlink_to(
+                            egui::RichText::new(format!("#{}", short_sha)).small(),
+                            format!("https://github.com/amoeba/ac-pcap-parser/commit/{}", git_sha),
+                        );
+                        ui.hyperlink_to(
+                            egui::RichText::new("GitHub").small(),
+                            "https://github.com/amoeba/ac-pcap-parser",
+                        );
+                        ui.separator();
 
-                    ui.label(format!(
-                        "Messages: {} | Packets: {}",
-                        self.messages.len(),
-                        self.packets.len()
-                    ));
+                        ui.label(format!(
+                            "Messages: {} | Packets: {}",
+                            self.messages.len(),
+                            self.packets.len()
+                        ));
+                    }
                 });
             });
         });
 
-        // Right panel with detail view
-        egui::SidePanel::right("detail_panel")
-            .default_width(400.0)
-            .show(ctx, |ui| {
-                ui.heading("Detail");
-                ui.separator();
+        // Detail panel - responsive layout:
+        // Mobile: Bottom panel (stacked vertically below list)
+        // Desktop/Tablet: Right side panel (side by side)
+        let show_detail = if is_mobile {
+            self.show_detail_panel && has_data
+        } else {
+            has_data
+        };
 
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    match self.current_tab {
-                        Tab::Messages => {
-                            if let Some(idx) = self.selected_message {
-                                if idx < self.messages.len() {
-                                    // Use JsonTree to display the message data
-                                    let tree_id = format!("message_tree_{}", idx);
-                                    JsonTree::new(&tree_id, &self.messages[idx].data)
-                                        .show(ui);
-                                } else {
-                                    ui.label("No message selected");
-                                }
-                            } else {
-                                ui.label("No message selected");
-                            }
-                        }
-                        Tab::Fragments => {
-                            if let Some(idx) = self.selected_packet {
-                                if idx < self.packets.len() {
-                                    // Convert packet to serde_json::Value for tree display
-                                    if let Ok(value) = serde_json::to_value(&self.packets[idx]) {
-                                        let tree_id = format!("packet_tree_{}", idx);
-                                        JsonTree::new(&tree_id, &value)
-                                            .show(ui);
-                                    } else {
-                                        ui.label("Error displaying packet");
-                                    }
-                                } else {
-                                    ui.label("No packet selected");
-                                }
-                            } else {
-                                ui.label("No packet selected");
-                            }
-                        }
-                    }
-                });
-            });
+        if show_detail {
+            if is_mobile {
+                // Mobile: Bottom panel (stacked layout)
+                let panel_height = (screen_height * 0.45).max(200.0);
 
-        // Central panel with list
+                egui::TopBottomPanel::bottom("detail_panel_bottom")
+                    .default_height(panel_height)
+                    .height_range(panel_height..=panel_height)
+                    .resizable(false)
+                    .show(ctx, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.heading("Detail");
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                if ui.button("×").clicked() {
+                                    self.show_detail_panel = false;
+                                }
+                            });
+                        });
+                        ui.separator();
+
+                        egui::ScrollArea::vertical()
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                self.show_detail_content(ui);
+                            });
+                    });
+            } else {
+                // Desktop/Tablet: Right side panel
+                let panel_width = if is_tablet {
+                    (screen_width * 0.35).max(200.0)
+                } else {
+                    (screen_width * 0.35).clamp(300.0, 500.0)
+                };
+
+                egui::SidePanel::right("detail_panel_right")
+                    .default_width(panel_width)
+                    .width_range(panel_width..=panel_width)
+                    .resizable(false)
+                    .show(ctx, |ui| {
+                        ui.heading("Detail");
+                        ui.separator();
+
+                        egui::ScrollArea::vertical()
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                self.show_detail_content(ui);
+                            });
+                    });
+            }
+        }
+
+        // Central panel with list - responsive
         let mut should_load_example = false;
         egui::CentralPanel::default().show(ctx, |ui| {
             if self.messages.is_empty() && self.packets.is_empty() {
-                // Show drop zone with Load Example button
+                // Show drop zone with Load Example button - responsive
                 ui.vertical_centered(|ui| {
                     ui.add_space(ui.available_height() / 3.0);
 
                     let rect = ui.available_rect_before_wrap();
+                    // Responsive drop zone size
+                    let drop_size = if is_mobile {
+                        egui::vec2(rect.width() * 0.9, 150.0)
+                    } else {
+                        egui::vec2(400.0, 200.0)
+                    };
                     let drop_rect = egui::Rect::from_center_size(
                         rect.center(),
-                        egui::vec2(400.0, 200.0),
+                        drop_size,
                     );
                     ui.painter().rect_stroke(
                         drop_rect,
@@ -399,24 +486,26 @@ impl eframe::App for PcapViewerApp {
                         egui::Stroke::new(2.0, egui::Color32::GRAY),
                     );
 
-                    ui.heading("Drop PCAP file here");
-                    ui.add_space(20.0);
+                    ui.heading(if is_mobile { "Drop PCAP here" } else { "Drop PCAP file here" });
+                    ui.add_space(if is_mobile { 10.0 } else { 20.0 });
                     ui.label("or");
-                    ui.add_space(20.0);
+                    ui.add_space(if is_mobile { 10.0 } else { 20.0 });
 
-                    if ui.add_sized([200.0, 40.0], egui::Button::new("Load Example")).clicked() {
+                    let button_size = if is_mobile { [150.0, 35.0] } else { [200.0, 40.0] };
+                    if ui.add_sized(button_size, egui::Button::new("Load Example")).clicked() {
                         should_load_example = true;
                     }
 
                     if self.is_loading {
-                        ui.add_space(20.0);
+                        ui.add_space(if is_mobile { 10.0 } else { 20.0 });
                         ui.spinner();
                     }
                 });
             } else {
+                // On mobile, auto-show detail when selecting an item
                 match self.current_tab {
-                    Tab::Messages => self.show_messages_list(ui),
-                    Tab::Fragments => self.show_packets_list(ui),
+                    Tab::Messages => self.show_messages_list(ui, is_mobile),
+                    Tab::Fragments => self.show_packets_list(ui, is_mobile),
                 }
             }
         });
@@ -427,8 +516,122 @@ impl eframe::App for PcapViewerApp {
     }
 }
 
+/// Column definition for mobile table
+struct MobileColumn {
+    header: &'static str,
+    width_pct: f32,
+    right_align: bool,
+}
+
 impl PcapViewerApp {
-    fn show_messages_list(&mut self, ui: &mut egui::Ui) {
+    /// Render a mobile-optimized table row cell
+    fn mobile_cell(
+        ui: &mut egui::Ui,
+        width: f32,
+        right_align: bool,
+        is_selected: bool,
+        text: impl Into<egui::WidgetText>,
+    ) -> egui::Response {
+        let layout = if right_align {
+            egui::Layout::right_to_left(egui::Align::Center)
+        } else {
+            egui::Layout::left_to_right(egui::Align::Center)
+        };
+        ui.allocate_ui_with_layout(egui::vec2(width, 20.0), layout, |ui| {
+            ui.selectable_label(is_selected, text)
+        }).inner
+    }
+
+    /// Render mobile table header
+    fn mobile_header(ui: &mut egui::Ui, columns: &[MobileColumn], available_width: f32) {
+        let widths: Vec<f32> = columns.iter()
+            .map(|c| available_width * c.width_pct)
+            .collect();
+
+        for (i, col) in columns.iter().enumerate() {
+            let layout = if col.right_align {
+                egui::Layout::right_to_left(egui::Align::Center)
+            } else {
+                egui::Layout::left_to_right(egui::Align::Center)
+            };
+            ui.allocate_ui_with_layout(egui::vec2(widths[i], 20.0), layout, |ui| {
+                ui.strong(col.header);
+            });
+        }
+        ui.end_row();
+    }
+
+    /// Show the detail panel content (shared between bottom and side panel)
+    fn show_detail_content(&self, ui: &mut egui::Ui) {
+        match self.current_tab {
+            Tab::Messages => {
+                if let Some(idx) = self.selected_message {
+                    if idx < self.messages.len() {
+                        let tree_id = format!("message_tree_{}", idx);
+                        JsonTree::new(&tree_id, &self.messages[idx].data)
+                            .show(ui);
+                    } else {
+                        ui.label("No message selected");
+                    }
+                } else {
+                    ui.label("No message selected");
+                }
+            }
+            Tab::Fragments => {
+                if let Some(idx) = self.selected_packet {
+                    if idx < self.packets.len() {
+                        if let Ok(value) = serde_json::to_value(&self.packets[idx]) {
+                            let tree_id = format!("packet_tree_{}", idx);
+                            JsonTree::new(&tree_id, &value)
+                                .show(ui);
+                        } else {
+                            ui.label("Error displaying packet");
+                        }
+                    } else {
+                        ui.label("No packet selected");
+                    }
+                } else {
+                    ui.label("No packet selected");
+                }
+            }
+        }
+    }
+
+    /// Draw the theme toggle (sun/moon icon)
+    fn draw_theme_toggle(&mut self, ui: &mut egui::Ui) {
+        let (rect, response) = ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::click());
+        if response.clicked() {
+            self.dark_mode = !self.dark_mode;
+        }
+        response.on_hover_text("Toggle dark/light mode");
+
+        let painter = ui.painter();
+        let center = rect.center();
+
+        if self.dark_mode {
+            // Draw sun icon (switch to light mode)
+            let sun_color = egui::Color32::from_rgb(255, 200, 50);
+            painter.circle_filled(center, 6.0, sun_color);
+            // Draw rays
+            for i in 0..8 {
+                let angle = i as f32 * std::f32::consts::PI / 4.0;
+                let inner = 7.5;
+                let outer = 9.5;
+                let start = center + egui::vec2(angle.cos() * inner, angle.sin() * inner);
+                let end = center + egui::vec2(angle.cos() * outer, angle.sin() * outer);
+                painter.line_segment([start, end], egui::Stroke::new(1.5, sun_color));
+            }
+        } else {
+            // Draw moon icon (switch to dark mode)
+            let moon_color = egui::Color32::from_rgb(100, 150, 255);
+            painter.circle_filled(center, 7.0, moon_color);
+            // Cut out crescent with background color
+            let bg_color = ui.visuals().panel_fill;
+            painter.circle_filled(center + egui::vec2(4.0, -3.0), 5.5, bg_color);
+        }
+    }
+
+    fn show_messages_list(&mut self, ui: &mut egui::Ui, is_mobile: bool) {
         // Pre-collect data to avoid borrow issues
         let search = self.search_query.to_lowercase();
         let sort_field = self.sort_field;
@@ -451,53 +654,102 @@ impl PcapViewerApp {
         });
 
         ui.horizontal(|ui| {
-            ui.label(format!("Showing {} of {} messages", filtered.len(), total));
+            ui.label(format!("{}/{} messages", filtered.len(), total));
         });
         ui.separator();
 
         egui::ScrollArea::vertical().show(ui, |ui| {
-            egui::Grid::new("messages_grid")
-                .num_columns(4)
-                .striped(true)
-                .min_col_width(50.0)
-                .show(ui, |ui| {
-                    ui.strong("ID");
-                    ui.strong("Type");
-                    ui.strong("Dir");
-                    ui.strong("OpCode");
-                    ui.end_row();
+            let available_width = ui.available_width();
 
-                    for (original_idx, id, msg_type, direction, opcode) in &filtered {
-                        let is_selected = self.selected_message == Some(*original_idx);
+            if is_mobile {
+                ui.set_min_width(available_width);
+                let columns = [
+                    MobileColumn { header: "ID", width_pct: 0.12, right_align: false },
+                    MobileColumn { header: "Type", width_pct: 0.76, right_align: false },
+                    MobileColumn { header: "Dir", width_pct: 0.12, right_align: true },
+                ];
+                let widths: Vec<f32> = columns.iter().map(|c| available_width * c.width_pct).collect();
 
-                        if ui.selectable_label(is_selected, id.to_string()).clicked() {
-                            self.selected_message = Some(*original_idx);
+                egui::Grid::new("messages_grid")
+                    .num_columns(3)
+                    .striped(true)
+                    .spacing(egui::vec2(4.0, 4.0))
+                    .show(ui, |ui| {
+                        Self::mobile_header(ui, &columns, available_width);
+
+                        for (original_idx, id, msg_type, direction, _opcode) in &filtered {
+                            let is_selected = self.selected_message == Some(*original_idx);
+
+                            if Self::mobile_cell(ui, widths[0], false, is_selected, id.to_string()).clicked() {
+                                self.selected_message = Some(*original_idx);
+                                self.show_detail_panel = true;
+                            }
+
+                            let display_type = if msg_type.len() > 25 {
+                                format!("{}…", &msg_type[..24])
+                            } else {
+                                msg_type.clone()
+                            };
+                            if Self::mobile_cell(ui, widths[1], false, is_selected, display_type).clicked() {
+                                self.selected_message = Some(*original_idx);
+                                self.show_detail_panel = true;
+                            }
+
+                            let dir_color = if direction == "Send" {
+                                egui::Color32::from_rgb(100, 200, 255)
+                            } else {
+                                egui::Color32::from_rgb(100, 255, 150)
+                            };
+                            let dir_text = if direction == "Send" { "S" } else { "R" };
+                            if Self::mobile_cell(ui, widths[2], true, is_selected, egui::RichText::new(dir_text).color(dir_color)).clicked() {
+                                self.selected_message = Some(*original_idx);
+                                self.show_detail_panel = true;
+                            }
+
+                            ui.end_row();
                         }
-
-                        if ui.selectable_label(is_selected, msg_type).clicked() {
-                            self.selected_message = Some(*original_idx);
-                        }
-
-                        let dir_color = if direction == "Send" {
-                            egui::Color32::from_rgb(100, 200, 255)
-                        } else {
-                            egui::Color32::from_rgb(100, 255, 150)
-                        };
-                        if ui.selectable_label(is_selected, egui::RichText::new(direction).color(dir_color)).clicked() {
-                            self.selected_message = Some(*original_idx);
-                        }
-
-                        if ui.selectable_label(is_selected, opcode).clicked() {
-                            self.selected_message = Some(*original_idx);
-                        }
-
+                    });
+            } else {
+                // Desktop layout
+                egui::Grid::new("messages_grid")
+                    .num_columns(4)
+                    .striped(true)
+                    .min_col_width(50.0)
+                    .show(ui, |ui| {
+                        ui.strong("ID");
+                        ui.strong("Type");
+                        ui.strong("Dir");
+                        ui.strong("OpCode");
                         ui.end_row();
-                    }
-                });
+
+                        for (original_idx, id, msg_type, direction, opcode) in &filtered {
+                            let is_selected = self.selected_message == Some(*original_idx);
+
+                            if ui.selectable_label(is_selected, id.to_string()).clicked() {
+                                self.selected_message = Some(*original_idx);
+                            }
+                            if ui.selectable_label(is_selected, msg_type).clicked() {
+                                self.selected_message = Some(*original_idx);
+                            }
+                            let dir_color = if direction == "Send" {
+                                egui::Color32::from_rgb(100, 200, 255)
+                            } else {
+                                egui::Color32::from_rgb(100, 255, 150)
+                            };
+                            if ui.selectable_label(is_selected, egui::RichText::new(direction).color(dir_color)).clicked() {
+                                self.selected_message = Some(*original_idx);
+                            }
+                            if ui.selectable_label(is_selected, opcode).clicked() {
+                                self.selected_message = Some(*original_idx);
+                            }
+                            ui.end_row();
+                        }
+                    });
+            }
         });
     }
 
-    fn show_packets_list(&mut self, ui: &mut egui::Ui) {
+    fn show_packets_list(&mut self, ui: &mut egui::Ui, is_mobile: bool) {
         // Pre-collect data to avoid borrow issues
         let sort_field = self.sort_field;
         let sort_ascending = self.sort_ascending;
@@ -525,55 +777,98 @@ impl PcapViewerApp {
         });
 
         ui.horizontal(|ui| {
-            ui.label(format!("Showing {} of {} packets", filtered.len(), total));
+            ui.label(format!("{}/{} packets", filtered.len(), total));
         });
         ui.separator();
 
         egui::ScrollArea::vertical().show(ui, |ui| {
-            egui::Grid::new("packets_grid")
-                .num_columns(5)
-                .striped(true)
-                .min_col_width(50.0)
-                .show(ui, |ui| {
-                    // Header
-                    ui.strong("ID");
-                    ui.strong("Sequence");
-                    ui.strong("Dir");
-                    ui.strong("Flags");
-                    ui.strong("Size");
-                    ui.end_row();
+            let available_width = ui.available_width();
 
-                    for (original_idx, id, sequence, direction, flags, size) in &filtered {
-                        let is_selected = self.selected_packet == Some(*original_idx);
+            if is_mobile {
+                ui.set_min_width(available_width);
+                let columns = [
+                    MobileColumn { header: "ID", width_pct: 0.15, right_align: false },
+                    MobileColumn { header: "Seq", width_pct: 0.70, right_align: false },
+                    MobileColumn { header: "Dir", width_pct: 0.15, right_align: true },
+                ];
+                let widths: Vec<f32> = columns.iter().map(|c| available_width * c.width_pct).collect();
 
-                        if ui.selectable_label(is_selected, id.to_string()).clicked() {
-                            self.selected_packet = Some(*original_idx);
+                egui::Grid::new("packets_grid")
+                    .num_columns(3)
+                    .striped(true)
+                    .spacing(egui::vec2(4.0, 4.0))
+                    .show(ui, |ui| {
+                        Self::mobile_header(ui, &columns, available_width);
+
+                        for (original_idx, id, sequence, direction, _flags, _size) in &filtered {
+                            let is_selected = self.selected_packet == Some(*original_idx);
+
+                            if Self::mobile_cell(ui, widths[0], false, is_selected, id.to_string()).clicked() {
+                                self.selected_packet = Some(*original_idx);
+                                self.show_detail_panel = true;
+                            }
+
+                            if Self::mobile_cell(ui, widths[1], false, is_selected, sequence.to_string()).clicked() {
+                                self.selected_packet = Some(*original_idx);
+                                self.show_detail_panel = true;
+                            }
+
+                            let dir_color = if direction == "Send" {
+                                egui::Color32::from_rgb(100, 200, 255)
+                            } else {
+                                egui::Color32::from_rgb(100, 255, 150)
+                            };
+                            let dir_text = if direction == "Send" { "S" } else { "R" };
+                            if Self::mobile_cell(ui, widths[2], true, is_selected, egui::RichText::new(dir_text).color(dir_color)).clicked() {
+                                self.selected_packet = Some(*original_idx);
+                                self.show_detail_panel = true;
+                            }
+
+                            ui.end_row();
                         }
-
-                        if ui.selectable_label(is_selected, sequence.to_string()).clicked() {
-                            self.selected_packet = Some(*original_idx);
-                        }
-
-                        let dir_color = if direction == "Send" {
-                            egui::Color32::from_rgb(100, 200, 255)
-                        } else {
-                            egui::Color32::from_rgb(100, 255, 150)
-                        };
-                        if ui.selectable_label(is_selected, egui::RichText::new(direction).color(dir_color)).clicked() {
-                            self.selected_packet = Some(*original_idx);
-                        }
-
-                        if ui.selectable_label(is_selected, format!("{:08X}", flags)).clicked() {
-                            self.selected_packet = Some(*original_idx);
-                        }
-
-                        if ui.selectable_label(is_selected, size.to_string()).clicked() {
-                            self.selected_packet = Some(*original_idx);
-                        }
-
+                    });
+            } else {
+                // Desktop layout
+                egui::Grid::new("packets_grid")
+                    .num_columns(5)
+                    .striped(true)
+                    .min_col_width(50.0)
+                    .spacing(egui::vec2(8.0, 4.0))
+                    .show(ui, |ui| {
+                        ui.strong("ID");
+                        ui.strong("Seq");
+                        ui.strong("Dir");
+                        ui.strong("Flags");
+                        ui.strong("Size");
                         ui.end_row();
-                    }
-                });
+
+                        for (original_idx, id, sequence, direction, flags, size) in &filtered {
+                            let is_selected = self.selected_packet == Some(*original_idx);
+
+                            if ui.selectable_label(is_selected, id.to_string()).clicked() {
+                                self.selected_packet = Some(*original_idx);
+                            }
+                            if ui.selectable_label(is_selected, sequence.to_string()).clicked() {
+                                self.selected_packet = Some(*original_idx);
+                            }
+                            let dir_color = if direction == "Send" {
+                                egui::Color32::from_rgb(100, 200, 255)
+                            } else {
+                                egui::Color32::from_rgb(100, 255, 150)
+                            };
+                            if ui.selectable_label(is_selected, egui::RichText::new(direction).color(dir_color)).clicked() {
+                                self.selected_packet = Some(*original_idx);
+                            }
+                            if ui.selectable_label(is_selected, format!("{:08X}", flags)).clicked() {
+                                self.selected_packet = Some(*original_idx);
+                            }
+                            if ui.selectable_label(is_selected, size.to_string()).clicked() {
+                                self.selected_packet = Some(*original_idx);
+                            }
+                            ui.end_row();
+                        }
+                    });
+            }
         });
     }
 }
