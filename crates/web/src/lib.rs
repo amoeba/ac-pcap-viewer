@@ -73,24 +73,8 @@ impl Default for PcapViewerApp {
 }
 
 impl PcapViewerApp {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // Configure fonts with emoji support
-        let mut fonts = egui::FontDefinitions::default();
-
-        // Add Noto Emoji as fallback font
-        fonts.font_data.insert(
-            "noto_emoji".to_owned(),
-            egui::FontData::from_static(include_bytes!("../assets/NotoEmoji-Regular.ttf")).into(),
-        );
-
-        // Add emoji font as fallback for proportional text
-        fonts.families
-            .entry(egui::FontFamily::Proportional)
-            .or_default()
-            .push("noto_emoji".to_owned());
-
-        cc.egui_ctx.set_fonts(fonts);
-
+    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+        // Use default fonts (no custom emoji font needed)
         Self::default()
     }
 
@@ -274,9 +258,35 @@ impl eframe::App for PcapViewerApp {
 
                 // Theme toggle on far right
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let theme_icon = if self.dark_mode { "☀️" } else { "🌙" };
-                    if ui.button(theme_icon).on_hover_text("Toggle dark/light mode").clicked() {
+                    let (rect, response) = ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::click());
+                    if response.clicked() {
                         self.dark_mode = !self.dark_mode;
+                    }
+                    response.on_hover_text("Toggle dark/light mode");
+
+                    let painter = ui.painter();
+                    let center = rect.center();
+
+                    if self.dark_mode {
+                        // Draw sun icon (switch to light mode)
+                        let sun_color = egui::Color32::from_rgb(255, 200, 50);
+                        painter.circle_filled(center, 6.0, sun_color);
+                        // Draw rays
+                        for i in 0..8 {
+                            let angle = i as f32 * std::f32::consts::PI / 4.0;
+                            let inner = 7.5;
+                            let outer = 9.5;
+                            let start = center + egui::vec2(angle.cos() * inner, angle.sin() * inner);
+                            let end = center + egui::vec2(angle.cos() * outer, angle.sin() * outer);
+                            painter.line_segment([start, end], egui::Stroke::new(1.5, sun_color));
+                        }
+                    } else {
+                        // Draw moon icon (switch to dark mode)
+                        let moon_color = egui::Color32::from_rgb(100, 150, 255);
+                        painter.circle_filled(center, 7.0, moon_color);
+                        // Cut out crescent with background color
+                        let bg_color = ui.visuals().panel_fill;
+                        painter.circle_filled(center + egui::vec2(4.0, -3.0), 5.5, bg_color);
                     }
                 });
             });
