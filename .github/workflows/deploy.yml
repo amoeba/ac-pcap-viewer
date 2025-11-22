@@ -198,12 +198,16 @@ jobs:
               ps:rebuild "$APP_NAME"
           fi
 
+          # Enable SSL via Let's Encrypt (skip if already enabled)
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            letsencrypt:enable "$APP_NAME" 2>/dev/null || true
+
       - name: Get preview URL
         id: preview-url
         run: |
           APP_NAME="${{ steps.app-name.outputs.app_name }}"
           URL=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            urls "$APP_NAME" 2>/dev/null | head -1 || echo "")
+            urls "$APP_NAME" 2>/dev/null | grep https | head -1 || echo "")
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "Preview URL: $URL"
 
