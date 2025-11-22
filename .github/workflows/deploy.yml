@@ -196,13 +196,14 @@ jobs:
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
             apps:create "$APP_NAME"
 
-          # Deploy the image (allow "no changes" to succeed, rebuild if needed)
-          if ! ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            git:from-image "$APP_NAME" "$IMAGE" 2>&1; then
-            echo "git:from-image returned non-zero, triggering rebuild..."
-            ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-              ps:rebuild "$APP_NAME"
-          fi
+          # Deploy the image and always rebuild to pick up changes
+          # (git:from-image may return 0 with "no changes" even when image content changed)
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            git:from-image "$APP_NAME" "$IMAGE" || true
+
+          echo "Triggering rebuild to ensure latest image is deployed..."
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            ps:rebuild "$APP_NAME"
 
           # Enable SSL via Let's Encrypt (skip if already enabled)
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
