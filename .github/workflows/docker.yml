@@ -6,6 +6,7 @@ on:
     tags: ['v*']
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
 
 env:
@@ -15,6 +16,8 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Skip build on PR close - we only need cleanup
+    if: github.event.action != 'closed'
     permissions:
       contents: read
       packages: write
@@ -77,3 +80,135 @@ jobs:
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
             git:from-image ${{ secrets.DOKKU_APP_NAME }} \
             ghcr.io/${{ github.repository }}:latest
+
+  # Preview deployment for claude/** branches and PRs
+  deploy-preview:
+    runs-on: ubuntu-latest
+    needs: build
+    if: |
+      github.event_name == 'push' && startsWith(github.ref, 'refs/heads/claude/') ||
+      github.event_name == 'pull_request' && github.event.action != 'closed'
+    steps:
+      - name: Generate preview app name
+        id: app-name
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            APP_SUFFIX="pr-${{ github.event.pull_request.number }}"
+          else
+            # Extract branch name and sanitize for Dokku app name
+            BRANCH="${{ github.ref_name }}"
+            # Remove claude/ prefix and replace invalid chars with dashes
+            APP_SUFFIX=$(echo "$BRANCH" | sed 's|^claude/||' | sed 's/[^a-zA-Z0-9-]/-/g' | cut -c1-30)
+          fi
+          echo "app_name=${{ secrets.DOKKU_APP_NAME }}-${APP_SUFFIX}" >> $GITHUB_OUTPUT
+          echo "Preview app name: ${{ secrets.DOKKU_APP_NAME }}-${APP_SUFFIX}"
+
+      - name: Generate image tag
+        id: image-tag
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "tag=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          else
+            # Sanitize branch name for docker tag
+            TAG=$(echo "${{ github.ref_name }}" | sed 's/[^a-zA-Z0-9._-]/-/g')
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup SSH for Dokku
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create or update preview app
+        run: |
+          APP_NAME="${{ steps.app-name.outputs.app_name }}"
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.image-tag.outputs.tag }}"
+
+          echo "Deploying $IMAGE to $APP_NAME"
+
+          # Check if app exists, create if not
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            apps:exists "$APP_NAME" 2>/dev/null || \
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            apps:create "$APP_NAME"
+
+          # Deploy the image
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            git:from-image "$APP_NAME" "$IMAGE"
+
+      - name: Get preview URL
+        id: preview-url
+        run: |
+          APP_NAME="${{ steps.app-name.outputs.app_name }}"
+          URL=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            urls "$APP_NAME" 2>/dev/null | head -1 || echo "")
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "Preview URL: $URL"
+
+      - name: Comment preview URL on PR
+        if: github.event_name == 'pull_request' && steps.preview-url.outputs.url != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = '${{ steps.preview-url.outputs.url }}';
+            const appName = '${{ steps.app-name.outputs.app_name }}';
+            const body = `## 🚀 Preview Deployment\n\n**App:** \`${appName}\`\n**URL:** ${url}\n\nThis preview will be destroyed when the PR is closed.`;
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const botComment = comments.find(c => c.body.includes('Preview Deployment'));
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+  # Cleanup preview deployments when PRs are closed
+  cleanup-preview:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    steps:
+      - name: Generate preview app name
+        id: app-name
+        run: |
+          APP_NAME="${{ secrets.DOKKU_APP_NAME }}-pr-${{ github.event.pull_request.number }}"
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+
+      - name: Setup SSH for Dokku
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Destroy preview app
+        run: |
+          APP_NAME="${{ steps.app-name.outputs.app_name }}"
+          echo "Destroying preview app: $APP_NAME"
+
+          # Check if app exists before destroying
+          if ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            apps:exists "$APP_NAME" 2>/dev/null; then
+            ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+              apps:destroy "$APP_NAME" --force
+            echo "Preview app $APP_NAME destroyed"
+          else
+            echo "Preview app $APP_NAME does not exist, skipping"
+          fi
