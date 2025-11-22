@@ -232,6 +232,35 @@ cd ac-pcap-parser
 cargo build --release
 ```
 
+## Web UI
+
+A browser-based version is available using WebAssembly.
+
+### Prerequisites
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli
+```
+
+### Building
+
+```bash
+# Build the web UI
+cargo xtask web
+
+# Build and start a local dev server
+cargo xtask web --serve
+
+# Build with smaller WASM output (opt-level z)
+cargo xtask web --small
+
+# Custom port
+cargo xtask web --serve --port=3000
+```
+
+Output files are placed in `crates/web/pkg/`.
+
 ## Dependencies
 
 - `pcap-parser` - PCAP file parsing
