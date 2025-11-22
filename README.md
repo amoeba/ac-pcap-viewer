@@ -309,6 +309,50 @@ fn main() -> Result<()> {
 }
 ```
 
+## Deployment
+
+The web UI can be deployed using Docker. A GitHub Actions workflow automatically builds and pushes images to GitHub Container Registry (GHCR) on every push to `main`.
+
+### Docker Image
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/amoeba/ac-pcap-parser:latest
+
+# Run locally
+docker run -p 8080:80 ghcr.io/amoeba/ac-pcap-parser:latest
+```
+
+### Dokku Deployment
+
+Deploy to [Dokku](https://dokku.com) using a pre-built image (no Rust compilation on your server):
+
+```bash
+# On your Dokku server
+dokku apps:create ac-pcap-parser
+
+# Deploy from GHCR image
+dokku git:from-image ac-pcap-parser ghcr.io/amoeba/ac-pcap-parser:latest
+
+# Optional: Set up domain
+dokku domains:set ac-pcap-parser pcap.yourdomain.com
+
+# Optional: Enable HTTPS with Let's Encrypt
+dokku letsencrypt:enable ac-pcap-parser
+```
+
+To update to a new version:
+```bash
+dokku git:from-image ac-pcap-parser ghcr.io/amoeba/ac-pcap-parser:latest
+```
+
+### Building Docker Image Locally
+
+```bash
+docker build -t ac-pcap-parser .
+docker run -p 8080:80 ac-pcap-parser
+```
+
 ## Dependencies
 
 - `pcap-parser` - PCAP file parsing
