@@ -42,6 +42,9 @@ pub struct PcapViewerApp {
     status_message: String,
     is_loading: bool,
 
+    // Theme
+    dark_mode: bool,
+
     // Dropped file data
     dropped_file_data: Option<Vec<u8>>,
 
@@ -62,6 +65,7 @@ impl Default for PcapViewerApp {
             sort_ascending: true,
             status_message: "Drag & drop a PCAP file or click 'Load Example'".to_string(),
             is_loading: false,
+            dark_mode: true,
             dropped_file_data: None,
             fetched_data: Arc::new(Mutex::new(None)),
         }
@@ -204,10 +208,24 @@ impl eframe::App for PcapViewerApp {
         // Preview dropped files
         preview_files_being_dropped(ctx);
 
+        // Apply theme
+        ctx.set_visuals(if self.dark_mode {
+            egui::Visuals::dark()
+        } else {
+            egui::Visuals::light()
+        });
+
         // Top panel with tabs and controls
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("AC PCAP Parser");
+                ui.separator();
+
+                // Theme toggle
+                let theme_icon = if self.dark_mode { "☀" } else { "🌙" };
+                if ui.button(theme_icon).on_hover_text("Toggle dark/light mode").clicked() {
+                    self.dark_mode = !self.dark_mode;
+                }
                 ui.separator();
 
                 // Tab buttons
@@ -255,13 +273,15 @@ impl eframe::App for PcapViewerApp {
                 ui.label(&self.status_message);
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // "Made with Claude" badge
+                    // "Made with Claude" badge with logo
+                    let claude_color = egui::Color32::from_rgb(217, 119, 87);
                     ui.hyperlink_to(
                         egui::RichText::new("Made with Claude")
-                            .small()
-                            .color(egui::Color32::from_rgb(217, 119, 87)),
+                            .color(claude_color),
                         "https://claude.ai",
                     );
+                    // Claude logo (orange circle)
+                    ui.label(egui::RichText::new("●").color(claude_color).size(14.0));
                     ui.separator();
 
                     // Git info
