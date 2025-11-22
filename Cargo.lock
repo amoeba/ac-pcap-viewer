@@ -741,6 +741,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui_json_tree"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef3b2a7696ccb992eb7a4e657bd13b147505e0f6e42a44e8de7f0359e301b0fa"
+dependencies = [
+ "egui",
+ "serde_json",
+]
+
+[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2723,6 +2733,7 @@ dependencies = [
  "anyhow",
  "console_error_panic_hook",
  "eframe",
+ "egui_json_tree",
  "js-sys",
  "log",
  "serde",

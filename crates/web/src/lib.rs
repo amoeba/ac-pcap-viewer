@@ -3,6 +3,7 @@
 //! A drag-and-drop web interface built with egui for parsing AC PCAP files.
 
 use eframe::egui;
+use egui_json_tree::JsonTree;
 use ac_parser::{PacketParser, ParsedPacket, messages::ParsedMessage};
 use std::sync::{Arc, Mutex};
 
@@ -293,38 +294,40 @@ impl eframe::App for PcapViewerApp {
                 ui.separator();
 
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    let json = match self.current_tab {
+                    match self.current_tab {
                         Tab::Messages => {
                             if let Some(idx) = self.selected_message {
                                 if idx < self.messages.len() {
-                                    serde_json::to_string_pretty(&self.messages[idx].data)
-                                        .unwrap_or_else(|_| "Error".to_string())
+                                    // Use JsonTree to display the message data
+                                    let tree_id = format!("message_tree_{}", idx);
+                                    JsonTree::new(&tree_id, &self.messages[idx].data)
+                                        .show(ui);
                                 } else {
-                                    "No message selected".to_string()
+                                    ui.label("No message selected");
                                 }
                             } else {
-                                "No message selected".to_string()
+                                ui.label("No message selected");
                             }
                         }
                         Tab::Fragments => {
                             if let Some(idx) = self.selected_packet {
                                 if idx < self.packets.len() {
-                                    serde_json::to_string_pretty(&self.packets[idx])
-                                        .unwrap_or_else(|_| "Error".to_string())
+                                    // Convert packet to serde_json::Value for tree display
+                                    if let Ok(value) = serde_json::to_value(&self.packets[idx]) {
+                                        let tree_id = format!("packet_tree_{}", idx);
+                                        JsonTree::new(&tree_id, &value)
+                                            .show(ui);
+                                    } else {
+                                        ui.label("Error displaying packet");
+                                    }
                                 } else {
-                                    "No packet selected".to_string()
+                                    ui.label("No packet selected");
                                 }
                             } else {
-                                "No packet selected".to_string()
+                                ui.label("No packet selected");
                             }
                         }
-                    };
-
-                    ui.add(
-                        egui::TextEdit::multiline(&mut json.as_str())
-                            .font(egui::TextStyle::Monospace)
-                            .desired_width(f32::INFINITY)
-                    );
+                    }
                 });
             });
 
