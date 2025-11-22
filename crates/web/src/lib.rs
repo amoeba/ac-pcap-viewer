@@ -430,9 +430,11 @@ impl eframe::App for PcapViewerApp {
                         });
                         ui.separator();
 
-                        egui::ScrollArea::vertical().show(ui, |ui| {
-                            self.show_detail_content(ui);
-                        });
+                        egui::ScrollArea::vertical()
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                self.show_detail_content(ui);
+                            });
                     });
             } else {
                 // Desktop/Tablet: Right side panel
@@ -450,9 +452,11 @@ impl eframe::App for PcapViewerApp {
                         ui.heading("Detail");
                         ui.separator();
 
-                        egui::ScrollArea::vertical().show(ui, |ui| {
-                            self.show_detail_content(ui);
-                        });
+                        egui::ScrollArea::vertical()
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                self.show_detail_content(ui);
+                            });
                     });
             }
         }
