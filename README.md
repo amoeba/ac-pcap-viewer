@@ -261,6 +261,54 @@ cargo xtask web --serve --port=3000
 
 Output files are placed in `crates/web/pkg/`.
 
+## Build Tasks (xtask)
+
+This project uses the [xtask pattern](https://github.com/matklad/cargo-xtask) for build automation. Instead of shell scripts or external tools like `make`, build tasks are implemented as a Rust binary in `crates/xtask/`.
+
+### Why xtask?
+
+- **No external dependencies** - works on any machine with Rust installed
+- **Cross-platform** - no shell script compatibility issues
+- **Type-safe** - build logic is checked by the compiler
+- **IDE support** - full autocomplete and refactoring
+
+### Available Tasks
+
+```bash
+cargo xtask --help           # List all tasks
+cargo xtask web --help       # Help for a specific task
+```
+
+| Task | Description |
+|------|-------------|
+| `cargo xtask web` | Build the WebAssembly UI |
+
+### Adding New Tasks
+
+1. Add a new variant to the `Commands` enum in `crates/xtask/src/main.rs`
+2. Implement the task as a function
+3. Add the match arm in `main()`
+
+Example:
+```rust
+#[derive(Subcommand)]
+enum Commands {
+    Web { /* ... */ },
+    /// New task description
+    NewTask {
+        #[arg(long)]
+        some_flag: bool,
+    },
+}
+
+fn main() -> Result<()> {
+    match cli.command {
+        Commands::Web { .. } => build_web(..),
+        Commands::NewTask { some_flag } => do_new_task(some_flag),
+    }
+}
+```
+
 ## Dependencies
 
 - `pcap-parser` - PCAP file parsing
