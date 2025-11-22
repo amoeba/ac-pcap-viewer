@@ -152,8 +152,8 @@ jobs:
           else
             # Extract branch name and sanitize for Dokku app name
             BRANCH="${{ github.ref_name }}"
-            # Remove claude/ prefix and replace invalid chars with dashes
-            APP_SUFFIX=$(echo "$BRANCH" | sed 's|^claude/||' | sed 's/[^a-zA-Z0-9-]/-/g' | cut -c1-30)
+            # Remove claude/ prefix, lowercase, replace invalid chars with dashes, truncate
+            APP_SUFFIX=$(echo "$BRANCH" | sed 's|^claude/||' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | cut -c1-30)
           fi
           echo "app_name=${{ secrets.DOKKU_APP_NAME }}-${APP_SUFFIX}" >> $GITHUB_OUTPUT
           echo "Preview app name: ${{ secrets.DOKKU_APP_NAME }}-${APP_SUFFIX}"
