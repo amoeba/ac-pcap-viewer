@@ -232,6 +232,127 @@ cd ac-pcap-parser
 cargo build --release
 ```
 
+## Web UI
+
+A browser-based version is available using WebAssembly.
+
+### Prerequisites
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli
+```
+
+### Building
+
+```bash
+# Build the web UI
+cargo xtask web
+
+# Build and start a local dev server
+cargo xtask web --serve
+
+# Build with smaller WASM output (opt-level z)
+cargo xtask web --small
+
+# Custom port
+cargo xtask web --serve --port=3000
+```
+
+Output files are placed in `crates/web/pkg/`.
+
+## Build Tasks (xtask)
+
+This project uses the [xtask pattern](https://github.com/matklad/cargo-xtask) for build automation. Instead of shell scripts or external tools like `make`, build tasks are implemented as a Rust binary in `crates/xtask/`.
+
+### Why xtask?
+
+- **No external dependencies** - works on any machine with Rust installed
+- **Cross-platform** - no shell script compatibility issues
+- **Type-safe** - build logic is checked by the compiler
+- **IDE support** - full autocomplete and refactoring
+
+### Available Tasks
+
+```bash
+cargo xtask --help           # List all tasks
+cargo xtask web --help       # Help for a specific task
+```
+
+| Task | Description |
+|------|-------------|
+| `cargo xtask web` | Build the WebAssembly UI |
+
+### Adding New Tasks
+
+1. Add a new variant to the `Commands` enum in `crates/xtask/src/main.rs`
+2. Implement the task as a function
+3. Add the match arm in `main()`
+
+Example:
+```rust
+#[derive(Subcommand)]
+enum Commands {
+    Web { /* ... */ },
+    /// New task description
+    NewTask {
+        #[arg(long)]
+        some_flag: bool,
+    },
+}
+
+fn main() -> Result<()> {
+    match cli.command {
+        Commands::Web { .. } => build_web(..),
+        Commands::NewTask { some_flag } => do_new_task(some_flag),
+    }
+}
+```
+
+## Deployment
+
+The web UI can be deployed using Docker. A GitHub Actions workflow automatically builds and pushes images to GitHub Container Registry (GHCR) on every push to `main`.
+
+### Docker Image
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/amoeba/ac-pcap-parser:latest
+
+# Run locally
+docker run -p 8080:80 ghcr.io/amoeba/ac-pcap-parser:latest
+```
+
+### Dokku Deployment
+
+Deploy to [Dokku](https://dokku.com) using a pre-built image (no Rust compilation on your server):
+
+```bash
+# On your Dokku server
+dokku apps:create ac-pcap-parser
+
+# Deploy from GHCR image
+dokku git:from-image ac-pcap-parser ghcr.io/amoeba/ac-pcap-parser:latest
+
+# Optional: Set up domain
+dokku domains:set ac-pcap-parser pcap.yourdomain.com
+
+# Optional: Enable HTTPS with Let's Encrypt
+dokku letsencrypt:enable ac-pcap-parser
+```
+
+To update to a new version:
+```bash
+dokku git:from-image ac-pcap-parser ghcr.io/amoeba/ac-pcap-parser:latest
+```
+
+### Building Docker Image Locally
+
+```bash
+docker build -t ac-pcap-parser .
+docker run -p 8080:80 ac-pcap-parser
+```
+
 ## Dependencies
 
 - `pcap-parser` - PCAP file parsing

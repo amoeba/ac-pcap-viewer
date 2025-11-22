@@ -254,6 +254,28 @@ impl eframe::App for PcapViewerApp {
                 ui.label(&self.status_message);
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // "Made with Claude" badge
+                    ui.hyperlink_to(
+                        egui::RichText::new("Made with Claude")
+                            .small()
+                            .color(egui::Color32::from_rgb(217, 119, 87)),
+                        "https://claude.ai",
+                    );
+                    ui.separator();
+
+                    // Git info
+                    let git_sha = option_env!("GIT_SHA").unwrap_or("dev");
+                    let short_sha = if git_sha.len() > 7 { &git_sha[..7] } else { git_sha };
+                    ui.hyperlink_to(
+                        egui::RichText::new(format!("#{}", short_sha)).small(),
+                        format!("https://github.com/amoeba/ac-pcap-parser/commit/{}", git_sha),
+                    );
+                    ui.hyperlink_to(
+                        egui::RichText::new("GitHub").small(),
+                        "https://github.com/amoeba/ac-pcap-parser",
+                    );
+                    ui.separator();
+
                     ui.label(format!(
                         "Messages: {} | Packets: {}",
                         self.messages.len(),

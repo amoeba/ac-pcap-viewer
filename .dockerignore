@@ -1,0 +1,8 @@
+target/
+*.pcap
+*.json
+*.jsonl
+*.js
+.github/
+*.md
+!crates/web/README.md
