@@ -254,6 +254,14 @@ impl eframe::App for PcapViewerApp {
                 ui.label(&self.status_message);
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // "Made with Claude" badge
+                    ui.hyperlink_to(
+                        egui::RichText::new("Made with Claude")
+                            .small()
+                            .color(egui::Color32::from_rgb(217, 119, 87)),
+                        "https://claude.ai",
+                    );
+                    ui.separator();
                     ui.label(format!(
                         "Messages: {} | Packets: {}",
                         self.messages.len(),
