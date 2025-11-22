@@ -104,7 +104,7 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=
+            type=sha,prefix=sha-,format=long
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
@@ -159,7 +159,8 @@ jobs:
       - name: Generate image tag
         id: image-tag
         run: |
-          echo "tag=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          # Use commit SHA for unique tags (avoids caching issues)
+          echo "tag=sha-${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
 
       - name: Setup SSH for Dokku
         run: |
@@ -181,17 +182,9 @@ jobs:
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
             apps:create "$APP_NAME"
 
-          # Force pull the latest image from registry (avoids using cached version)
+          # Deploy the image (SHA-based tags ensure each commit gets a fresh image)
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            "docker pull $IMAGE"
-
-          # Deploy the image
-          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            git:from-image "$APP_NAME" "$IMAGE" || true
-
-          echo "Triggering rebuild to ensure latest image is deployed..."
-          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            ps:rebuild "$APP_NAME"
+            git:from-image "$APP_NAME" "$IMAGE"
 
           # Enable SSL via Let's Encrypt (skip if already enabled)
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
