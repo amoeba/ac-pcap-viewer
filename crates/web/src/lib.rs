@@ -338,10 +338,14 @@ impl eframe::App for PcapViewerApp {
                 }
 
                 if is_mobile {
-                    // Mobile: Minimal status
-                    ui.label(format!("{} msgs", self.messages.len()));
+                    // Mobile: Minimal status with debug info
+                    ui.label(format!("{} msgs [M:{}px]", self.messages.len(), screen_width as i32));
+                } else if is_tablet {
+                    // Tablet: status with debug info
+                    ui.label(format!("{} [T:{}px]", &self.status_message, screen_width as i32));
                 } else {
-                    ui.label(&self.status_message);
+                    // Desktop: full status with debug info
+                    ui.label(format!("{} [D:{}px]", &self.status_message, screen_width as i32));
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -401,19 +405,20 @@ impl eframe::App for PcapViewerApp {
         if show_detail {
             let panel_width = if is_mobile {
                 // Mobile: nearly full width overlay
-                screen_width * 0.85
+                (screen_width * 0.85).max(200.0)
             } else if is_tablet {
                 // Tablet: 35% of screen
-                screen_width * 0.35
+                (screen_width * 0.35).max(200.0)
             } else {
                 // Desktop: 35% with min/max constraints
                 (screen_width * 0.35).clamp(300.0, 500.0)
             };
 
+            // Use width_range with same min/max to force exact width
             egui::SidePanel::right("detail_panel")
                 .default_width(panel_width)
-                .min_width(if is_mobile { panel_width } else { 200.0 })
-                .max_width(if is_mobile { panel_width } else { 600.0 })
+                .width_range(panel_width..=panel_width)
+                .resizable(false)
                 .show(ctx, |ui| {
                     ui.horizontal(|ui| {
                         ui.heading("Detail");
