@@ -42,9 +42,9 @@ jobs:
 
       - name: Install wasm-bindgen-cli
         run: |
-          if ! command -v wasm-bindgen &> /dev/null; then
-            cargo install wasm-bindgen-cli
-          fi
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.cargo/bin:$PATH"
+          wasm-bindgen --version || cargo install wasm-bindgen-cli
 
       - name: Build WASM
         run: cargo build -p web --release --target wasm32-unknown-unknown
