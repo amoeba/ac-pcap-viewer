@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.4
+
 # Stage 1: Build WASM
 FROM rust:1.83-slim-bookworm AS builder
 
@@ -16,15 +18,19 @@ WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 
-# Build WASM (release profile with LTO for smaller output)
-RUN cargo build -p web --release --target wasm32-unknown-unknown
+# Build WASM with cargo cache mounts for faster rebuilds
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cargo build -p web --release --target wasm32-unknown-unknown && \
+    cp /app/target/wasm32-unknown-unknown/release/web.wasm /app/web.wasm
 
 # Generate JS bindings
 RUN wasm-bindgen \
     --target web \
     --out-dir /app/pkg \
     --no-typescript \
-    /app/target/wasm32-unknown-unknown/release/web.wasm
+    /app/web.wasm
 
 # Copy static assets
 RUN cp crates/web/index.html /app/pkg/
