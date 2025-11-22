@@ -185,16 +185,23 @@ jobs:
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
             git:from-image "$APP_NAME" "$IMAGE"
 
-          # Enable SSL via Let's Encrypt (skip if already enabled)
+          # Enable SSL via Let's Encrypt and wait for it to complete
+          echo "Enabling SSL certificate..."
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            letsencrypt:enable "$APP_NAME" 2>/dev/null || true
+            letsencrypt:enable "$APP_NAME" || echo "SSL setup may still be in progress"
+
+          # Wait a moment for SSL to propagate
+          sleep 5
 
       - name: Get preview URL
         id: preview-url
         run: |
           APP_NAME="${{ steps.app-name.outputs.app_name }}"
+          # Try https first, fall back to http
           URL=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            urls "$APP_NAME" 2>/dev/null | grep https | head -1 || echo "")
+            urls "$APP_NAME" 2>/dev/null | grep https | head -1 || \
+            ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            urls "$APP_NAME" 2>/dev/null | grep http | head -1 || echo "")
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "Preview URL: $URL"
 
