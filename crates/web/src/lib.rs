@@ -221,13 +221,6 @@ impl eframe::App for PcapViewerApp {
                 ui.heading("AC PCAP Parser");
                 ui.separator();
 
-                // Theme toggle
-                let theme_icon = if self.dark_mode { "☀" } else { "🌙" };
-                if ui.button(theme_icon).on_hover_text("Toggle dark/light mode").clicked() {
-                    self.dark_mode = !self.dark_mode;
-                }
-                ui.separator();
-
                 // Tab buttons
                 if ui.selectable_label(self.current_tab == Tab::Messages, "Messages").clicked() {
                     self.current_tab = Tab::Messages;
@@ -261,6 +254,14 @@ impl eframe::App for PcapViewerApp {
                 if ui.button(if self.sort_ascending { "↑" } else { "↓" }).clicked() {
                     self.sort_ascending = !self.sort_ascending;
                 }
+
+                // Theme toggle on far right
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let theme_icon = if self.dark_mode { "Light" } else { "Dark" };
+                    if ui.button(theme_icon).on_hover_text("Toggle dark/light mode").clicked() {
+                        self.dark_mode = !self.dark_mode;
+                    }
+                });
             });
         });
 
@@ -280,8 +281,9 @@ impl eframe::App for PcapViewerApp {
                             .color(claude_color),
                         "https://claude.ai",
                     );
-                    // Claude logo (orange circle)
-                    ui.label(egui::RichText::new("●").color(claude_color).size(14.0));
+                    // Claude logo (painted orange circle)
+                    let (rect, _response) = ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
+                    ui.painter().circle_filled(rect.center(), 6.0, claude_color);
                     ui.separator();
 
                     // Git info
