@@ -131,9 +131,14 @@ jobs:
 
       - name: Deploy to Dokku
         run: |
-          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+          # Deploy the image (allow "no changes" to succeed, rebuild if needed)
+          if ! ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
             git:from-image ${{ secrets.DOKKU_APP_NAME }} \
-            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:latest 2>&1; then
+            echo "git:from-image returned non-zero, triggering rebuild..."
+            ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+              ps:rebuild ${{ secrets.DOKKU_APP_NAME }}
+          fi
 
   # Preview deployment for claude/** branches and PRs
   deploy-preview:
