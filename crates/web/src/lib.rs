@@ -77,6 +77,7 @@ impl PcapViewerApp {
         // Configure fonts with emoji support
         let mut fonts = egui::FontDefinitions::default();
 
+        // TEST COMMIT - trigger rebuild test
         // Add Noto Emoji as fallback font
         fonts.font_data.insert(
             "noto_emoji".to_owned(),
