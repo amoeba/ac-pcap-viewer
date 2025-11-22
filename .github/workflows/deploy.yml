@@ -210,7 +210,19 @@ jobs:
           script: |
             const url = '${{ steps.preview-url.outputs.url }}';
             const appName = '${{ steps.app-name.outputs.app_name }}';
-            const body = `## 🚀 Preview Deployment\n\n**App:** \`${appName}\`\n**URL:** ${url}\n\nThis preview will be destroyed when the PR is closed.`;
+            const sha = '${{ github.event.pull_request.head.sha }}';
+            const shortSha = sha.substring(0, 7);
+            const commitUrl = `https://github.com/${{ github.repository }}/commit/${sha}`;
+
+            const body = `## 🚀 Preview Deployment
+
+**URL:** ${url}
+**App:** \`${appName}\`
+**Commit:** [\`${shortSha}\`](${commitUrl})
+
+_Updated: ${new Date().toISOString()}_
+
+This preview will be destroyed when the PR is closed.`;
 
             // Find existing comment
             const { data: comments } = await github.rest.issues.listComments({
