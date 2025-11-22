@@ -48,4 +48,4 @@ COPY --from=builder /app/pkg /usr/share/nginx/html
 # Copy nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80 5000
+EXPOSE 80
