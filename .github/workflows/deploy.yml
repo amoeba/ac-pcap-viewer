@@ -181,8 +181,11 @@ jobs:
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
             apps:create "$APP_NAME"
 
-          # Deploy the image and always rebuild to pick up changes
-          # (git:from-image may return 0 with "no changes" even when image content changed)
+          # Force pull the latest image from registry (avoids using cached version)
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            "docker pull $IMAGE"
+
+          # Deploy the image
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
             git:from-image "$APP_NAME" "$IMAGE" || true
 
