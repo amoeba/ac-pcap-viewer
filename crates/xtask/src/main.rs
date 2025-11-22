@@ -1,5 +1,6 @@
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
+use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -49,7 +50,10 @@ fn build_web(serve: bool, port: u16, small: bool) -> Result<()> {
     let web_dir = root.join("crates/web");
     let pkg_dir = web_dir.join("pkg");
 
-    // Ensure pkg directory exists
+    // Clean and recreate pkg directory (removes stale files from previous builds)
+    if pkg_dir.exists() {
+        std::fs::remove_dir_all(&pkg_dir).context("Failed to clean pkg directory")?;
+    }
     std::fs::create_dir_all(&pkg_dir).context("Failed to create pkg directory")?;
 
     // Build WASM
@@ -97,11 +101,18 @@ fn build_web(serve: bool, port: u16, small: bool) -> Result<()> {
         bail!("wasm-bindgen failed");
     }
 
-    // Copy index.html
+    // Apply cache busting to generated files
+    println!("Applying cache busting...");
+    let hash = apply_cache_busting(&pkg_dir)?;
+    println!("  Content hash: {}", hash);
+
+    // Copy index.html with cache-busted references
     println!("Copying assets...");
     let index_src = web_dir.join("index.html");
+    let index_content = std::fs::read_to_string(&index_src).context("Failed to read index.html")?;
+    let index_content = index_content.replace("./web.js", &format!("./web.{}.js", hash));
     let index_dst = pkg_dir.join("index.html");
-    std::fs::copy(&index_src, &index_dst).context("Failed to copy index.html")?;
+    std::fs::write(&index_dst, index_content).context("Failed to write index.html")?;
 
     // Copy example PCAP
     let pcap_src = root.join("pkt_2025-11-18_1763490291_log.pcap");
@@ -146,4 +157,35 @@ fn build_web(serve: bool, port: u16, small: bool) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Apply cache busting by renaming files with content hash
+/// Returns the hash used for cache busting
+fn apply_cache_busting(pkg_dir: &PathBuf) -> Result<String> {
+    // Read the wasm file and compute its hash
+    let wasm_path = pkg_dir.join("web_bg.wasm");
+    let wasm_content = std::fs::read(&wasm_path).context("Failed to read web_bg.wasm")?;
+
+    let mut hasher = Sha256::new();
+    hasher.update(&wasm_content);
+    let hash_bytes = hasher.finalize();
+    let hash = hex::encode(&hash_bytes[..8]); // First 8 bytes = 16 hex chars
+
+    // Read the JS file and update the wasm reference
+    let js_path = pkg_dir.join("web.js");
+    let js_content = std::fs::read_to_string(&js_path).context("Failed to read web.js")?;
+    let js_content = js_content.replace("web_bg.wasm", &format!("web_bg.{}.wasm", hash));
+
+    // Write the new JS file with hash in name
+    let new_js_path = pkg_dir.join(format!("web.{}.js", hash));
+    std::fs::write(&new_js_path, js_content).context("Failed to write hashed web.js")?;
+
+    // Rename the wasm file with hash
+    let new_wasm_path = pkg_dir.join(format!("web_bg.{}.wasm", hash));
+    std::fs::rename(&wasm_path, &new_wasm_path).context("Failed to rename wasm file")?;
+
+    // Remove old JS file (keep pkg clean)
+    std::fs::remove_file(&js_path).context("Failed to remove old web.js")?;
+
+    Ok(hash)
 }

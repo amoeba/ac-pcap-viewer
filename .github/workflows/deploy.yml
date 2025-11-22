@@ -62,25 +62,14 @@ jobs:
             cargo install wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION" --force
           fi
 
-      - name: Build WASM
-        run: cargo build -p web --release --target wasm32-unknown-unknown
-
-      - name: Generate JS bindings
-        run: |
-          mkdir -p pkg
-          wasm-bindgen \
-            --target web \
-            --out-dir pkg \
-            --no-typescript \
-            target/wasm32-unknown-unknown/release/web.wasm
-          cp crates/web/index.html pkg/
-          cp pkt_2025-11-18_1763490291_log.pcap pkg/example.pcap
+      - name: Build web (xtask handles WASM build, bindings, cache busting, and assets)
+        run: cargo xtask web
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: wasm-pkg
-          path: pkg/
+          path: crates/web/pkg/
           retention-days: 1
 
   build-image:
