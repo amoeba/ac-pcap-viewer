@@ -4,6 +4,7 @@
 
 use eframe::egui;
 use ac_parser::{PacketParser, ParsedPacket, messages::ParsedMessage};
+use std::sync::{Arc, Mutex};
 
 #[derive(Default, PartialEq, Eq, Clone, Copy)]
 enum Tab {
@@ -19,6 +20,9 @@ enum SortField {
     Type,
     Direction,
 }
+
+// Shared state for async loading
+type SharedData = Arc<Mutex<Option<Vec<u8>>>>;
 
 pub struct PcapViewerApp {
     // Data
@@ -39,6 +43,9 @@ pub struct PcapViewerApp {
 
     // Dropped file data
     dropped_file_data: Option<Vec<u8>>,
+
+    // Async loaded data (from fetch)
+    fetched_data: SharedData,
 }
 
 impl Default for PcapViewerApp {
@@ -52,9 +59,10 @@ impl Default for PcapViewerApp {
             search_query: String::new(),
             sort_field: SortField::Id,
             sort_ascending: true,
-            status_message: "Drag & drop a PCAP file to begin".to_string(),
+            status_message: "Drag & drop a PCAP file or click 'Load Example'".to_string(),
             is_loading: false,
             dropped_file_data: None,
+            fetched_data: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -88,7 +96,81 @@ impl PcapViewerApp {
         self.is_loading = false;
     }
 
+    #[cfg(target_arch = "wasm32")]
+    fn load_example(&mut self, ctx: &egui::Context) {
+        if self.is_loading {
+            return;
+        }
+
+        self.is_loading = true;
+        self.status_message = "Loading example PCAP...".to_string();
+
+        let fetched_data = self.fetched_data.clone();
+        let ctx = ctx.clone();
+
+        wasm_bindgen_futures::spawn_local(async move {
+            let url = "./example.pcap";
+
+            match fetch_bytes(url).await {
+                Ok(bytes) => {
+                    if let Ok(mut data) = fetched_data.lock() {
+                        *data = Some(bytes);
+                    }
+                    ctx.request_repaint();
+                }
+                Err(e) => {
+                    log::error!("Failed to fetch example: {}", e);
+                }
+            }
+        });
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn load_example(&mut self, _ctx: &egui::Context) {
+        // Native: just read from file
+        if let Ok(data) = std::fs::read("pkt_2025-11-18_1763490291_log.pcap") {
+            self.parse_pcap_data(&data);
+        }
+    }
 }
+
+#[cfg(target_arch = "wasm32")]
+async fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_futures::JsFuture;
+    use web_sys::{Request, RequestInit, Response};
+
+    let window = web_sys::window().ok_or("No window")?;
+
+    let opts = RequestInit::new();
+    opts.set_method("GET");
+
+    let request = Request::new_with_str_and_init(url, &opts)
+        .map_err(|e| format!("Request error: {:?}", e))?;
+
+    let resp_value = JsFuture::from(window.fetch_with_request(&request))
+        .await
+        .map_err(|e| format!("Fetch error: {:?}", e))?;
+
+    let resp: Response = resp_value.dyn_into()
+        .map_err(|_| "Response cast error")?;
+
+    if !resp.ok() {
+        return Err(format!("HTTP error: {}", resp.status()));
+    }
+
+    let array_buffer = JsFuture::from(
+        resp.array_buffer().map_err(|e| format!("ArrayBuffer error: {:?}", e))?
+    )
+    .await
+    .map_err(|e| format!("ArrayBuffer await error: {:?}", e))?;
+
+    let uint8_array = js_sys::Uint8Array::new(&array_buffer);
+    let bytes = uint8_array.to_vec();
+
+    Ok(bytes)
+}
+
 
 impl eframe::App for PcapViewerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -105,6 +187,16 @@ impl eframe::App for PcapViewerApp {
 
         // Process dropped file data outside the input closure
         if let Some(data) = self.dropped_file_data.take() {
+            self.parse_pcap_data(&data);
+        }
+
+        // Check for async fetched data
+        let fetched_data = if let Ok(mut fetched) = self.fetched_data.try_lock() {
+            fetched.take()
+        } else {
+            None
+        };
+        if let Some(data) = fetched_data {
             self.parse_pcap_data(&data);
         }
 
@@ -215,17 +307,37 @@ impl eframe::App for PcapViewerApp {
             });
 
         // Central panel with list
+        let mut should_load_example = false;
         egui::CentralPanel::default().show(ctx, |ui| {
             if self.messages.is_empty() && self.packets.is_empty() {
-                // Show drop zone
-                ui.centered_and_justified(|ui| {
+                // Show drop zone with Load Example button
+                ui.vertical_centered(|ui| {
+                    ui.add_space(ui.available_height() / 3.0);
+
                     let rect = ui.available_rect_before_wrap();
+                    let drop_rect = egui::Rect::from_center_size(
+                        rect.center(),
+                        egui::vec2(400.0, 200.0),
+                    );
                     ui.painter().rect_stroke(
-                        rect.shrink(20.0),
+                        drop_rect,
                         10.0,
                         egui::Stroke::new(2.0, egui::Color32::GRAY),
                     );
+
                     ui.heading("Drop PCAP file here");
+                    ui.add_space(20.0);
+                    ui.label("or");
+                    ui.add_space(20.0);
+
+                    if ui.add_sized([200.0, 40.0], egui::Button::new("Load Example")).clicked() {
+                        should_load_example = true;
+                    }
+
+                    if self.is_loading {
+                        ui.add_space(20.0);
+                        ui.spinner();
+                    }
                 });
             } else {
                 match self.current_tab {
@@ -234,6 +346,10 @@ impl eframe::App for PcapViewerApp {
                 }
             }
         });
+
+        if should_load_example {
+            self.load_example(ctx);
+        }
     }
 }
 

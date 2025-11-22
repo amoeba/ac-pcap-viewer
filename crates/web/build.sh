@@ -39,6 +39,9 @@ wasm-bindgen \
 echo "Copying index.html..."
 cp index.html pkg/
 
+echo "Copying example PCAP..."
+cp ../../pkt_2025-11-18_1763490291_log.pcap pkg/example.pcap
+
 echo ""
 echo "Build complete! Files in crates/web/pkg/"
 ls -lh pkg/
