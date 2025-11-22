@@ -160,9 +160,9 @@ jobs:
       - name: Generate image tag
         id: image-tag
         run: |
-          # Use SHA-based tag so each commit gets a fresh image pull
-          # (Dokku skips pull if tag name is the same)
-          SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
+          # Use github.sha to match what docker/metadata-action generates
+          # (For PRs, this is the merge commit SHA, not the head commit)
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           echo "tag=pr-${{ github.event.pull_request.number }}-${SHORT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Setup SSH for Dokku
