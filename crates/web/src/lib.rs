@@ -42,6 +42,9 @@ pub struct PcapViewerApp {
     status_message: String,
     is_loading: bool,
 
+    // Theme
+    dark_mode: bool,
+
     // Dropped file data
     dropped_file_data: Option<Vec<u8>>,
 
@@ -62,6 +65,7 @@ impl Default for PcapViewerApp {
             sort_ascending: true,
             status_message: "Drag & drop a PCAP file or click 'Load Example'".to_string(),
             is_loading: false,
+            dark_mode: true,
             dropped_file_data: None,
             fetched_data: Arc::new(Mutex::new(None)),
         }
@@ -69,7 +73,24 @@ impl Default for PcapViewerApp {
 }
 
 impl PcapViewerApp {
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        // Configure fonts with emoji support
+        let mut fonts = egui::FontDefinitions::default();
+
+        // Add Noto Emoji as fallback font
+        fonts.font_data.insert(
+            "noto_emoji".to_owned(),
+            egui::FontData::from_static(include_bytes!("../assets/NotoEmoji-Regular.ttf")).into(),
+        );
+
+        // Add emoji font as fallback for proportional text
+        fonts.families
+            .entry(egui::FontFamily::Proportional)
+            .or_default()
+            .push("noto_emoji".to_owned());
+
+        cc.egui_ctx.set_fonts(fonts);
+
         Self::default()
     }
 
@@ -204,6 +225,13 @@ impl eframe::App for PcapViewerApp {
         // Preview dropped files
         preview_files_being_dropped(ctx);
 
+        // Apply theme
+        ctx.set_visuals(if self.dark_mode {
+            egui::Visuals::dark()
+        } else {
+            egui::Visuals::light()
+        });
+
         // Top panel with tabs and controls
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -243,6 +271,14 @@ impl eframe::App for PcapViewerApp {
                 if ui.button(if self.sort_ascending { "↑" } else { "↓" }).clicked() {
                     self.sort_ascending = !self.sort_ascending;
                 }
+
+                // Theme toggle on far right
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let theme_icon = if self.dark_mode { "☀️" } else { "🌙" };
+                    if ui.button(theme_icon).on_hover_text("Toggle dark/light mode").clicked() {
+                        self.dark_mode = !self.dark_mode;
+                    }
+                });
             });
         });
 
@@ -255,13 +291,16 @@ impl eframe::App for PcapViewerApp {
                 ui.label(&self.status_message);
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // "Made with Claude" badge
+                    // "Made with Claude" badge with logo
+                    let claude_color = egui::Color32::from_rgb(217, 119, 87);
                     ui.hyperlink_to(
                         egui::RichText::new("Made with Claude")
-                            .small()
-                            .color(egui::Color32::from_rgb(217, 119, 87)),
+                            .color(claude_color),
                         "https://claude.ai",
                     );
+                    // Claude logo (painted orange circle)
+                    let (rect, _response) = ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
+                    ui.painter().circle_filled(rect.center(), 6.0, claude_color);
                     ui.separator();
 
                     // Git info

@@ -2,7 +2,7 @@ name: Build and Deploy
 
 on:
   push:
-    branches: [main, 'claude/**']
+    branches: [main]
     tags: ['v*']
   pull_request:
     branches: [main]
@@ -102,6 +102,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
+            type=ref,event=pr,suffix=-{{sha}}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=
@@ -141,40 +142,28 @@ jobs:
               ps:rebuild ${{ secrets.DOKKU_APP_NAME }}
           fi
 
-  # Preview deployment for claude/** branches and PRs
+  # Preview deployment for PRs
   deploy-preview:
     runs-on: ubuntu-latest
     needs: build-image
     permissions:
       pull-requests: write
-    if: |
-      github.event_name == 'push' && startsWith(github.ref, 'refs/heads/claude/') ||
-      github.event_name == 'pull_request' && github.event.action != 'closed'
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
     steps:
       - name: Generate preview app name
         id: app-name
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            APP_SUFFIX="pr-${{ github.event.pull_request.number }}"
-          else
-            # Extract branch name and sanitize for Dokku app name
-            BRANCH="${{ github.ref_name }}"
-            # Remove claude/ prefix, lowercase, replace invalid chars with dashes, truncate
-            APP_SUFFIX=$(echo "$BRANCH" | sed 's|^claude/||' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | cut -c1-30)
-          fi
-          echo "app_name=${{ secrets.DOKKU_APP_NAME }}-${APP_SUFFIX}" >> $GITHUB_OUTPUT
-          echo "Preview app name: ${{ secrets.DOKKU_APP_NAME }}-${APP_SUFFIX}"
+          APP_NAME="${{ secrets.DOKKU_APP_NAME }}-pr-${{ github.event.pull_request.number }}"
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "Preview app name: $APP_NAME"
 
       - name: Generate image tag
         id: image-tag
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "tag=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-          else
-            # Sanitize branch name for docker tag
-            TAG=$(echo "${{ github.ref_name }}" | sed 's/[^a-zA-Z0-9._-]/-/g')
-            echo "tag=$TAG" >> $GITHUB_OUTPUT
-          fi
+          # Use github.sha to match what docker/metadata-action generates
+          # (For PRs, this is the merge commit SHA, not the head commit)
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "tag=pr-${{ github.event.pull_request.number }}-${SHORT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Setup SSH for Dokku
         run: |
@@ -190,21 +179,17 @@ jobs:
 
           echo "Deploying $IMAGE to $APP_NAME"
 
-          # Check if app exists, create if not
+          # Create app if it doesn't exist (preserves SSL cert on updates)
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
             apps:exists "$APP_NAME" 2>/dev/null || \
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
             apps:create "$APP_NAME"
 
-          # Deploy the image (allow "no changes" to succeed, rebuild if needed)
-          if ! ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            git:from-image "$APP_NAME" "$IMAGE" 2>&1; then
-            echo "git:from-image returned non-zero, triggering rebuild..."
-            ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-              ps:rebuild "$APP_NAME"
-          fi
+          # Deploy the image (unique tag per commit forces fresh pull)
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            git:from-image "$APP_NAME" "$IMAGE"
 
-          # Enable SSL via Let's Encrypt (skip if already enabled)
+          # Enable SSL via Let's Encrypt (only runs if not already enabled)
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
             letsencrypt:enable "$APP_NAME" 2>/dev/null || true
 
@@ -212,43 +197,52 @@ jobs:
         id: preview-url
         run: |
           APP_NAME="${{ steps.app-name.outputs.app_name }}"
-          URL=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            urls "$APP_NAME" 2>/dev/null | grep https | head -1 || echo "")
-          echo "url=$URL" >> $GITHUB_OUTPUT
+          # Construct URL directly (we know the domain pattern)
+          URL="https://${APP_NAME}.treestats.net"
           echo "Preview URL: $URL"
+          echo "url=$URL" >> $GITHUB_OUTPUT
 
       - name: Comment preview URL on PR
-        if: github.event_name == 'pull_request' && steps.preview-url.outputs.url != ''
         uses: actions/github-script@v7
         with:
           script: |
-            const url = '${{ steps.preview-url.outputs.url }}';
-            const appName = '${{ steps.app-name.outputs.app_name }}';
-            const body = `## 🚀 Preview Deployment\n\n**App:** \`${appName}\`\n**URL:** ${url}\n\nThis preview will be destroyed when the PR is closed.`;
+            const prNumber = context.payload.pull_request.number;
+            console.log('PR Number:', prNumber);
 
-            // Find existing comment
-            const { data: comments } = await github.rest.issues.listComments({
+            const url = '${{ steps.preview-url.outputs.url }}' || 'Deployment in progress...';
+            const appName = '${{ steps.app-name.outputs.app_name }}';
+            const sha = '${{ github.event.pull_request.head.sha }}';
+            const shortSha = sha.substring(0, 7);
+            const commitUrl = 'https://github.com/${{ github.repository }}/commit/' + sha;
+
+            console.log('URL:', url);
+            console.log('App:', appName);
+            console.log('SHA:', shortSha);
+
+            const lines = [
+              '## 🚀 Preview Deployment',
+              '',
+              '| | |',
+              '|---|---|',
+              '| URL | ' + url + ' |',
+              '| App | `' + appName + '` |',
+              '| Commit | [`' + shortSha + '`](' + commitUrl + ') |',
+              '',
+              '_Updated: ' + new Date().toISOString() + '_',
+              '',
+              'This preview will be destroyed when the PR is closed.'
+            ];
+            const body = lines.join('\n');
+
+            // Always create new comment for debugging
+            console.log('Creating new comment');
+            await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              issue_number: prNumber,
+              body: body
             });
-            const botComment = comments.find(c => c.body.includes('Preview Deployment'));
-
-            if (botComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: body
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: body
-              });
-            }
+            console.log('Comment posted successfully');
 
   # Cleanup preview deployments when PRs are closed
   cleanup-preview:
