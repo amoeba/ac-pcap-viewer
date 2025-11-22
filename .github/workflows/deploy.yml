@@ -51,7 +51,16 @@ jobs:
         run: |
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           export PATH="$HOME/.cargo/bin:$PATH"
-          wasm-bindgen --version || cargo install wasm-bindgen-cli
+          # Extract exact wasm-bindgen version from Cargo.lock to ensure CLI matches crate
+          WASM_BINDGEN_VERSION=$(grep -A1 'name = "wasm-bindgen"' Cargo.lock | grep version | head -1 | cut -d'"' -f2)
+          echo "Required wasm-bindgen version: $WASM_BINDGEN_VERSION"
+          # Check if correct version is installed, otherwise install it
+          INSTALLED_VERSION=$(wasm-bindgen --version 2>/dev/null | cut -d' ' -f2 || echo "none")
+          echo "Installed version: $INSTALLED_VERSION"
+          if [ "$INSTALLED_VERSION" != "$WASM_BINDGEN_VERSION" ]; then
+            echo "Version mismatch - installing wasm-bindgen-cli $WASM_BINDGEN_VERSION"
+            cargo install wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION" --force
+          fi
 
       - name: Build WASM
         run: cargo build -p web --release --target wasm32-unknown-unknown
