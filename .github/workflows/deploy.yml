@@ -185,25 +185,20 @@ jobs:
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
             git:from-image "$APP_NAME" "$IMAGE"
 
-          # Enable SSL via Let's Encrypt and wait for it to complete
-          echo "Enabling SSL certificate..."
+          # Enable SSL via Let's Encrypt (don't wait - it can take minutes)
+          echo "Requesting SSL certificate (async)..."
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            letsencrypt:enable "$APP_NAME" || echo "SSL setup may still be in progress"
-
-          # Wait a moment for SSL to propagate
-          sleep 5
+            letsencrypt:enable "$APP_NAME" &
+          sleep 10  # Give it a head start, then continue
 
       - name: Get preview URL
         id: preview-url
         run: |
           APP_NAME="${{ steps.app-name.outputs.app_name }}"
-          # Try https first, fall back to http
-          URL=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            urls "$APP_NAME" 2>/dev/null | grep https | head -1 || \
-            ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            urls "$APP_NAME" 2>/dev/null | grep http | head -1 || echo "")
-          echo "url=$URL" >> $GITHUB_OUTPUT
+          # Construct URL directly (we know the domain pattern)
+          URL="https://${APP_NAME}.treestats.net"
           echo "Preview URL: $URL"
+          echo "url=$URL" >> $GITHUB_OUTPUT
 
       - name: Comment preview URL on PR
         uses: actions/github-script@v7
