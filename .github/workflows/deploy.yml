@@ -175,21 +175,23 @@ jobs:
 
           echo "Deploying $IMAGE to $APP_NAME"
 
-          # Destroy and recreate app to force fresh image pull (avoids caching)
+          # Create app if it doesn't exist (preserves SSL cert on updates)
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            apps:destroy "$APP_NAME" --force 2>/dev/null || true
+            apps:exists "$APP_NAME" 2>/dev/null || \
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
             apps:create "$APP_NAME"
 
-          # Deploy the image
+          # Deploy the image and force rebuild
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            git:from-image "$APP_NAME" "$IMAGE"
+            git:from-image "$APP_NAME" "$IMAGE" || true
 
-          # Enable SSL via Let's Encrypt (don't wait - it can take minutes)
-          echo "Requesting SSL certificate (async)..."
+          # Force rebuild to pick up image changes
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            letsencrypt:enable "$APP_NAME" &
-          sleep 10  # Give it a head start, then continue
+            ps:rebuild "$APP_NAME"
+
+          # Enable SSL via Let's Encrypt (only runs if not already enabled)
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            letsencrypt:enable "$APP_NAME" 2>/dev/null || true
 
       - name: Get preview URL
         id: preview-url
