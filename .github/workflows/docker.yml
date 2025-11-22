@@ -64,10 +64,6 @@ jobs:
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Setup SSH for Dokku
         run: |
           mkdir -p ~/.ssh
@@ -77,5 +73,6 @@ jobs:
 
       - name: Deploy to Dokku
         run: |
-          git remote add dokku dokku@${{ secrets.DOKKU_HOST }}:${{ secrets.DOKKU_APP_NAME }}
-          GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key" git push dokku main:main --force
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            git:from-image ${{ secrets.DOKKU_APP_NAME }} \
+            ghcr.io/${{ github.repository }}:latest
