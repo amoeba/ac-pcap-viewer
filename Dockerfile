@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.4
 
 # Stage 1: Build WASM
-FROM rust:slim-bookworm AS builder
+FROM rust:1.91-slim-bookworm AS builder
 
 # Install dependencies (including git for build.rs)
 RUN apt-get update && apt-get install -y --no-install-recommends \
