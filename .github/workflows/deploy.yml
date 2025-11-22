@@ -131,6 +131,13 @@ jobs:
     needs: build-image
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
+      - name: Generate image tag
+        id: image-tag
+        run: |
+          # Use SHA-based tag to force Dokku to pull fresh image (same approach as PR deploys)
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
       - name: Setup SSH for Dokku
         run: |
           mkdir -p ~/.ssh
@@ -140,14 +147,12 @@ jobs:
 
       - name: Deploy to Dokku
         run: |
-          # Deploy the image (allow "no changes" to succeed, rebuild if needed)
-          if ! ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            git:from-image ${{ secrets.DOKKU_APP_NAME }} \
-            ghcr.io/${{ github.repository }}:latest 2>&1; then
-            echo "git:from-image returned non-zero, triggering rebuild..."
-            ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-              ps:rebuild ${{ secrets.DOKKU_APP_NAME }}
-          fi
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.image-tag.outputs.tag }}"
+          echo "Deploying $IMAGE"
+
+          # Deploy with SHA-tagged image (unique per commit forces fresh pull)
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            git:from-image ${{ secrets.DOKKU_APP_NAME }} "$IMAGE"
 
   # Preview deployment for PRs
   deploy-preview:
