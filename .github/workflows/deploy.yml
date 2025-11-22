@@ -40,6 +40,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+      - name: Force rebuild of web crate (embeds git SHA)
+        run: |
+          # Clean web crate build artifacts to ensure build.rs runs with current SHA
+          rm -rf target/wasm32-unknown-unknown/release/web.wasm
+          rm -rf target/wasm32-unknown-unknown/release/.fingerprint/web-*
+          rm -rf target/wasm32-unknown-unknown/release/deps/web-*
+
       - name: Install wasm-bindgen-cli
         run: |
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
