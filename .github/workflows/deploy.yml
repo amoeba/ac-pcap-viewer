@@ -102,6 +102,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
+            type=ref,event=pr,suffix=-{{sha}}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=
@@ -159,7 +160,10 @@ jobs:
       - name: Generate image tag
         id: image-tag
         run: |
-          echo "tag=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          # Use SHA-based tag so each commit gets a fresh image pull
+          # (Dokku skips pull if tag name is the same)
+          SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
+          echo "tag=pr-${{ github.event.pull_request.number }}-${SHORT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Setup SSH for Dokku
         run: |
@@ -181,13 +185,9 @@ jobs:
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
             apps:create "$APP_NAME"
 
-          # Deploy the image and force rebuild
+          # Deploy the image (unique tag per commit forces fresh pull)
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            git:from-image "$APP_NAME" "$IMAGE" || true
-
-          # Force rebuild to pick up image changes
-          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            ps:rebuild "$APP_NAME"
+            git:from-image "$APP_NAME" "$IMAGE"
 
           # Enable SSL via Let's Encrypt (only runs if not already enabled)
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
