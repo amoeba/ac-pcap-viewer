@@ -4,6 +4,7 @@ members = [
     "crates/parser",
     "crates/cli",
     "crates/web",
+    "crates/xtask",
 ]
 
 [workspace.package]
