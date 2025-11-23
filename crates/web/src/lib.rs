@@ -57,6 +57,9 @@ pub struct PcapViewerApp {
 
     // Async loaded data (from fetch)
     fetched_data: SharedData,
+
+    // Initial URL to load from query params (consumed on first update)
+    initial_url: Option<String>,
 }
 
 impl Default for PcapViewerApp {
@@ -76,14 +79,27 @@ impl Default for PcapViewerApp {
             show_detail_panel: false,
             dropped_file_data: None,
             fetched_data: Arc::new(Mutex::new(None)),
+            initial_url: None,
         }
     }
 }
 
 impl PcapViewerApp {
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
-        // Use default fonts (no custom emoji font needed)
-        Self::default()
+        #[allow(unused_mut)]
+        let mut app = Self::default();
+
+        // Check for URL query parameter on WASM
+        #[cfg(target_arch = "wasm32")]
+        {
+            if let Some(url) = get_url_from_query_params() {
+                log::info!("Found URL in query params: {}", url);
+                app.initial_url = Some(url);
+                app.status_message = "Loading PCAP from URL...".to_string();
+            }
+        }
+
+        app
     }
 
     fn parse_pcap_data(&mut self, data: &[u8]) {
@@ -112,31 +128,7 @@ impl PcapViewerApp {
 
     #[cfg(target_arch = "wasm32")]
     fn load_example(&mut self, ctx: &egui::Context) {
-        if self.is_loading {
-            return;
-        }
-
-        self.is_loading = true;
-        self.status_message = "Loading example PCAP...".to_string();
-
-        let fetched_data = self.fetched_data.clone();
-        let ctx = ctx.clone();
-
-        wasm_bindgen_futures::spawn_local(async move {
-            let url = "./example.pcap";
-
-            match fetch_bytes(url).await {
-                Ok(bytes) => {
-                    if let Ok(mut data) = fetched_data.lock() {
-                        *data = Some(bytes);
-                    }
-                    ctx.request_repaint();
-                }
-                Err(e) => {
-                    log::error!("Failed to fetch example: {}", e);
-                }
-            }
-        });
+        self.load_from_url("./example.pcap".to_string(), ctx);
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -145,6 +137,39 @@ impl PcapViewerApp {
         if let Ok(data) = std::fs::read("pkt_2025-11-18_1763490291_log.pcap") {
             self.parse_pcap_data(&data);
         }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn load_from_url(&mut self, url: String, ctx: &egui::Context) {
+        if self.is_loading {
+            return;
+        }
+
+        self.is_loading = true;
+        self.status_message = format!("Loading PCAP from {}...", url);
+
+        let fetched_data = self.fetched_data.clone();
+        let ctx = ctx.clone();
+
+        wasm_bindgen_futures::spawn_local(async move {
+            match fetch_bytes(&url).await {
+                Ok(bytes) => {
+                    if let Ok(mut data) = fetched_data.lock() {
+                        *data = Some(bytes);
+                    }
+                    ctx.request_repaint();
+                }
+                Err(e) => {
+                    log::error!("Failed to fetch PCAP from URL: {}", e);
+                }
+            }
+        });
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn load_from_url(&mut self, _url: String, _ctx: &egui::Context) {
+        // Native: URL loading not supported
+        self.status_message = "URL loading not supported in native mode".to_string();
     }
 }
 
@@ -185,6 +210,22 @@ async fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
+/// Get the URL from query parameters (?url=...)
+#[cfg(target_arch = "wasm32")]
+fn get_url_from_query_params() -> Option<String> {
+    let window = web_sys::window()?;
+    let location = window.location();
+    let search = location.search().ok()?;
+
+    if search.is_empty() {
+        return None;
+    }
+
+    // Remove the leading '?' and parse
+    let params = web_sys::UrlSearchParams::new_with_str(&search).ok()?;
+    params.get("url")
+}
+
 
 impl eframe::App for PcapViewerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -212,6 +253,11 @@ impl eframe::App for PcapViewerApp {
         };
         if let Some(data) = fetched_data {
             self.parse_pcap_data(&data);
+        }
+
+        // Handle initial URL from query params (auto-load on first frame)
+        if let Some(url) = self.initial_url.take() {
+            self.load_from_url(url, ctx);
         }
 
         // Preview dropped files
