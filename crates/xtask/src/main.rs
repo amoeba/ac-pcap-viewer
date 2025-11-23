@@ -169,7 +169,15 @@ fn build_desktop(release: bool, run: bool) -> Result<()> {
 
     println!("Building desktop application...");
 
-    let mut args = vec!["build", "-p", "web", "--bin", "ac-pcap-viewer", "--features", "desktop"];
+    let mut args = vec![
+        "build",
+        "-p",
+        "web",
+        "--bin",
+        "ac-pcap-viewer",
+        "--features",
+        "desktop",
+    ];
     if release {
         args.push("--release");
     }
