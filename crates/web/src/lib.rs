@@ -79,7 +79,7 @@ impl Default for PcapViewerApp {
             search_query: String::new(),
             sort_field: SortField::Id,
             sort_ascending: true,
-            status_message: "Drag & drop a PCAP file or click 'Load Example'".to_string(),
+            status_message: "Drop PCAP, click 'Load Example', or pass ?url=".to_string(),
             is_loading: false,
             dark_mode: true,
             show_detail_panel: false,
@@ -563,6 +563,15 @@ impl eframe::App for PcapViewerApp {
                     if ui.add_sized(button_size, egui::Button::new("Load Example")).clicked() {
                         should_load_example = true;
                     }
+
+                    ui.add_space(if is_mobile { 10.0 } else { 20.0 });
+                    ui.label("or");
+                    ui.add_space(if is_mobile { 5.0 } else { 10.0 });
+                    ui.label(
+                        egui::RichText::new("pass ?url=https://example.com/file.pcap")
+                            .small()
+                            .color(egui::Color32::GRAY)
+                    );
 
                     if self.is_loading {
                         ui.add_space(if is_mobile { 10.0 } else { 20.0 });
