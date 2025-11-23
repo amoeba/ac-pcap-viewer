@@ -344,7 +344,7 @@ impl eframe::App for PcapViewerApp {
                             .desired_width(ui.available_width() - 40.0));
 
                         // Sort direction only
-                        if ui.button(if self.sort_ascending { "↑" } else { "↓" }).clicked() {
+                        if self.draw_sort_button(ui) {
                             self.sort_ascending = !self.sort_ascending;
                         }
                     });
@@ -391,7 +391,7 @@ impl eframe::App for PcapViewerApp {
                             ui.selectable_value(&mut self.sort_field, SortField::Direction, "Direction");
                         });
 
-                    if ui.button(if self.sort_ascending { "↑" } else { "↓" }).clicked() {
+                    if self.draw_sort_button(ui) {
                         self.sort_ascending = !self.sort_ascending;
                     }
 
@@ -663,6 +663,45 @@ impl PcapViewerApp {
                 }
             }
         }
+    }
+
+    /// Draw a sort direction button with custom painted arrow icon
+    fn draw_sort_button(&mut self, ui: &mut egui::Ui) -> bool {
+        let (rect, response) = ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::click());
+        let clicked = response.clicked();
+        response.on_hover_text(if self.sort_ascending { "Sort descending" } else { "Sort ascending" });
+
+        let painter = ui.painter();
+        let center = rect.center();
+        let arrow_color = ui.visuals().text_color();
+
+        if self.sort_ascending {
+            // Draw up arrow ↑
+            let top = center + egui::vec2(0.0, -6.0);
+            let bottom = center + egui::vec2(0.0, 6.0);
+            let left = center + egui::vec2(-5.0, -1.0);
+            let right = center + egui::vec2(5.0, -1.0);
+
+            // Stem
+            painter.line_segment([top, bottom], egui::Stroke::new(2.0, arrow_color));
+            // Arrowhead
+            painter.line_segment([top, left], egui::Stroke::new(2.0, arrow_color));
+            painter.line_segment([top, right], egui::Stroke::new(2.0, arrow_color));
+        } else {
+            // Draw down arrow ↓
+            let top = center + egui::vec2(0.0, -6.0);
+            let bottom = center + egui::vec2(0.0, 6.0);
+            let left = center + egui::vec2(-5.0, 1.0);
+            let right = center + egui::vec2(5.0, 1.0);
+
+            // Stem
+            painter.line_segment([top, bottom], egui::Stroke::new(2.0, arrow_color));
+            // Arrowhead
+            painter.line_segment([bottom, left], egui::Stroke::new(2.0, arrow_color));
+            painter.line_segment([bottom, right], egui::Stroke::new(2.0, arrow_color));
+        }
+
+        clicked
     }
 
     /// Draw the theme toggle (sun/moon icon)
