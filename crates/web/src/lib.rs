@@ -26,6 +26,9 @@ enum SortField {
 const MOBILE_BREAKPOINT: f32 = 768.0;
 const TABLET_BREAKPOINT: f32 = 1024.0;
 
+// Mobile UI scaling factor
+const MOBILE_SCALE: f32 = 1.5;
+
 // Shared state for async loading
 type SharedData = Arc<Mutex<Option<Vec<u8>>>>;
 
@@ -60,6 +63,9 @@ pub struct PcapViewerApp {
 
     // Initial URL to load from query params (consumed on first update)
     initial_url: Option<String>,
+
+    // Base pixels_per_point for scaling calculations (set on first frame)
+    base_pixels_per_point: Option<f32>,
 }
 
 impl Default for PcapViewerApp {
@@ -80,6 +86,7 @@ impl Default for PcapViewerApp {
             dropped_file_data: None,
             fetched_data: Arc::new(Mutex::new(None)),
             initial_url: None,
+            base_pixels_per_point: None,
         }
     }
 }
@@ -270,12 +277,27 @@ impl eframe::App for PcapViewerApp {
             egui::Visuals::light()
         });
 
-        // Determine responsive layout mode
+        // Mobile scaling: store base pixels_per_point and apply scale factor
+        let base_ppp = *self.base_pixels_per_point.get_or_insert_with(|| ctx.pixels_per_point());
+        let current_ppp = ctx.pixels_per_point();
+
+        // Calculate viewport width in base units (before our custom scaling)
+        let screen_rect = ctx.screen_rect();
+        let viewport_width = screen_rect.width() * current_ppp / base_ppp;
+        let is_mobile_viewport = viewport_width < MOBILE_BREAKPOINT;
+
+        // Apply appropriate scale factor
+        let desired_ppp = if is_mobile_viewport { base_ppp * MOBILE_SCALE } else { base_ppp };
+        if (current_ppp - desired_ppp).abs() > 0.01 {
+            ctx.set_pixels_per_point(desired_ppp);
+        }
+
+        // Determine responsive layout mode (using scaled screen rect)
         let screen_rect = ctx.screen_rect();
         let screen_width = screen_rect.width();
         let screen_height = screen_rect.height();
-        let is_mobile = screen_width < MOBILE_BREAKPOINT;
-        let is_tablet = screen_width >= MOBILE_BREAKPOINT && screen_width < TABLET_BREAKPOINT;
+        let is_mobile = is_mobile_viewport;
+        let is_tablet = viewport_width >= MOBILE_BREAKPOINT && viewport_width < TABLET_BREAKPOINT;
         let has_data = !self.messages.is_empty() || !self.packets.is_empty();
 
         // Debug mode string
