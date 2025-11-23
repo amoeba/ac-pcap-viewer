@@ -381,7 +381,7 @@ impl eframe::App for PcapViewerApp {
         }
 
         // Desktop: process file from file dialog
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
         if let Some(path) = self.pending_file_path.take() {
             self.status_message = format!("Loading {}...", path.display());
             match std::fs::read(&path) {
@@ -580,7 +580,7 @@ impl eframe::App for PcapViewerApp {
                     ui.separator();
 
                     // Desktop: Open File button
-                    #[cfg(not(target_arch = "wasm32"))]
+                    #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
                     {
                         if ui.button("Open...").clicked() {
                             self.open_file_dialog();
