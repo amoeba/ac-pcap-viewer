@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use std::collections::HashMap;
 use std::fs::File;
 
-use ac_parser::{PacketParser, ParsedPacket, Direction, messages::ParsedMessage};
+use ac_parser::{messages::ParsedMessage, Direction, PacketParser, ParsedPacket};
 
 mod tui;
 
@@ -111,8 +111,14 @@ fn print_summary(packets: &[ParsedPacket], messages: &[ParsedMessage]) {
     println!("Packets: {}", packets.len());
     println!("Messages: {}", messages.len());
 
-    let send_packets = packets.iter().filter(|p| matches!(p.direction, Direction::Send)).count();
-    let recv_packets = packets.iter().filter(|p| matches!(p.direction, Direction::Recv)).count();
+    let send_packets = packets
+        .iter()
+        .filter(|p| matches!(p.direction, Direction::Send))
+        .count();
+    let recv_packets = packets
+        .iter()
+        .filter(|p| matches!(p.direction, Direction::Recv))
+        .count();
     println!("\nPackets by Direction:");
     println!("  Send (C→S): {}", send_packets);
     println!("  Recv (S→C): {}", recv_packets);
@@ -150,7 +156,8 @@ fn output_messages(
     limit: Option<usize>,
     output: OutputFormat,
 ) {
-    let mut filtered: Vec<&ParsedMessage> = messages.iter()
+    let mut filtered: Vec<&ParsedMessage> = messages
+        .iter()
         .filter(|m| {
             if let Some(ft) = filter_type {
                 if !m.message_type.to_lowercase().contains(&ft.to_lowercase()) {
@@ -159,8 +166,16 @@ fn output_messages(
             }
             if let Some(d) = direction {
                 match d {
-                    DirectionFilter::Send => if m.direction != "Send" { return false; }
-                    DirectionFilter::Recv => if m.direction != "Recv" { return false; }
+                    DirectionFilter::Send => {
+                        if m.direction != "Send" {
+                            return false;
+                        }
+                    }
+                    DirectionFilter::Recv => {
+                        if m.direction != "Recv" {
+                            return false;
+                        }
+                    }
                 }
             }
             true
@@ -173,7 +188,11 @@ fn output_messages(
             SortField::Type => a.message_type.cmp(&b.message_type),
             SortField::Direction => a.direction.cmp(&b.direction),
         };
-        if reverse { cmp.reverse() } else { cmp }
+        if reverse {
+            cmp.reverse()
+        } else {
+            cmp
+        }
     });
 
     if let Some(lim) = limit {
@@ -193,7 +212,8 @@ fn output_messages(
             println!("{:>6}  {:40}  {:>6}  {:>10}", "ID", "Type", "Dir", "OpCode");
             println!("{}", "-".repeat(70));
             for msg in filtered {
-                println!("{:>6}  {:40}  {:>6}  {:>10}",
+                println!(
+                    "{:>6}  {:40}  {:>6}  {:>10}",
                     msg.id,
                     truncate(&msg.message_type, 40),
                     msg.direction,
@@ -212,12 +232,21 @@ fn output_fragments(
     limit: Option<usize>,
     output: OutputFormat,
 ) {
-    let mut filtered: Vec<&ParsedPacket> = packets.iter()
+    let mut filtered: Vec<&ParsedPacket> = packets
+        .iter()
         .filter(|p| {
             if let Some(d) = direction {
                 match d {
-                    DirectionFilter::Send => if !matches!(p.direction, Direction::Send) { return false; }
-                    DirectionFilter::Recv => if !matches!(p.direction, Direction::Recv) { return false; }
+                    DirectionFilter::Send => {
+                        if !matches!(p.direction, Direction::Send) {
+                            return false;
+                        }
+                    }
+                    DirectionFilter::Recv => {
+                        if !matches!(p.direction, Direction::Recv) {
+                            return false;
+                        }
+                    }
                 }
             }
             true
@@ -228,9 +257,15 @@ fn output_fragments(
         let cmp = match sort {
             FragmentSortField::Id => a.id.cmp(&b.id),
             FragmentSortField::Sequence => a.header.sequence.cmp(&b.header.sequence),
-            FragmentSortField::Direction => format!("{:?}", a.direction).cmp(&format!("{:?}", b.direction)),
+            FragmentSortField::Direction => {
+                format!("{:?}", a.direction).cmp(&format!("{:?}", b.direction))
+            }
         };
-        if reverse { cmp.reverse() } else { cmp }
+        if reverse {
+            cmp.reverse()
+        } else {
+            cmp
+        }
     });
 
     if let Some(lim) = limit {
@@ -247,10 +282,14 @@ fn output_fragments(
             println!("{}", serde_json::to_string_pretty(&filtered).unwrap());
         }
         OutputFormat::Table => {
-            println!("{:>6}  {:>10}  {:>6}  {:>12}  {:>6}", "ID", "Seq", "Dir", "Flags", "Size");
+            println!(
+                "{:>6}  {:>10}  {:>6}  {:>12}  {:>6}",
+                "ID", "Seq", "Dir", "Flags", "Size"
+            );
             println!("{}", "-".repeat(50));
             for pkt in filtered {
-                println!("{:>6}  {:>10}  {:>6}  {:>12}  {:>6}",
+                println!(
+                    "{:>6}  {:>10}  {:>6}  {:>12}  {:>6}",
                     pkt.id,
                     pkt.header.sequence,
                     format!("{:?}", pkt.direction),
@@ -266,7 +305,7 @@ fn truncate(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         s.to_string()
     } else {
-        format!("{}...", &s[..max_len-3])
+        format!("{}...", &s[..max_len - 3])
     }
 }
 
@@ -278,16 +317,42 @@ fn main() -> Result<()> {
     eprintln!("Parsing PCAP file: {}", cli.file);
 
     let file = File::open(&cli.file).context("Failed to open pcap file")?;
-    let (packets, messages) = parser.parse_pcap(file)
+    let (packets, messages) = parser
+        .parse_pcap(file)
         .context("Failed to parse pcap file")?;
 
-    eprintln!("Found {} packets, {} messages", packets.len(), messages.len());
+    eprintln!(
+        "Found {} packets, {} messages",
+        packets.len(),
+        messages.len()
+    );
 
     match cli.command {
-        Some(Commands::Messages { filter_type, direction, sort, reverse, limit, output }) => {
-            output_messages(&messages, filter_type.as_deref(), direction, sort, reverse, limit, output);
+        Some(Commands::Messages {
+            filter_type,
+            direction,
+            sort,
+            reverse,
+            limit,
+            output,
+        }) => {
+            output_messages(
+                &messages,
+                filter_type.as_deref(),
+                direction,
+                sort,
+                reverse,
+                limit,
+                output,
+            );
         }
-        Some(Commands::Fragments { direction, sort, reverse, limit, output }) => {
+        Some(Commands::Fragments {
+            direction,
+            sort,
+            reverse,
+            limit,
+            output,
+        }) => {
             output_fragments(&packets, direction, sort, reverse, limit, output);
         }
         Some(Commands::Summary) => {

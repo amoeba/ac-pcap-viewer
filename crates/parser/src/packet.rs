@@ -1,6 +1,6 @@
+use crate::reader::BinaryReader;
 use anyhow::{bail, Result};
 use serde::Serialize;
-use crate::reader::BinaryReader;
 
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,28 +37,72 @@ impl Serialize for PacketHeaderFlags {
         S: serde::Serializer,
     {
         let mut names = Vec::new();
-        if self.contains(PacketHeaderFlags::RETRANSMISSION) { names.push("Retransmission"); }
-        if self.contains(PacketHeaderFlags::ENCRYPTED_CHECKSUM) { names.push("EncryptedChecksum"); }
-        if self.contains(PacketHeaderFlags::BLOB_FRAGMENTS) { names.push("BlobFragments"); }
-        if self.contains(PacketHeaderFlags::SERVER_SWITCH) { names.push("ServerSwitch"); }
-        if self.contains(PacketHeaderFlags::LOGON_SERVER_ADDR) { names.push("LogonServerAddr"); }
-        if self.contains(PacketHeaderFlags::EMPTY_HEADER1) { names.push("EmptyHeader1"); }
-        if self.contains(PacketHeaderFlags::REFERRAL) { names.push("Referral"); }
-        if self.contains(PacketHeaderFlags::REQUEST_RETRANSMIT) { names.push("RequestRetransmit"); }
-        if self.contains(PacketHeaderFlags::REJECT_RETRANSMIT) { names.push("RejectRetransmit"); }
-        if self.contains(PacketHeaderFlags::ACK_SEQUENCE) { names.push("AckSequence"); }
-        if self.contains(PacketHeaderFlags::DISCONNECT) { names.push("Disconnect"); }
-        if self.contains(PacketHeaderFlags::LOGIN_REQUEST) { names.push("LoginRequest"); }
-        if self.contains(PacketHeaderFlags::WORLD_LOGIN_REQUEST) { names.push("WorldLoginRequest"); }
-        if self.contains(PacketHeaderFlags::CONNECT_REQUEST) { names.push("ConnectRequest"); }
-        if self.contains(PacketHeaderFlags::CONNECT_RESPONSE) { names.push("ConnectResponse"); }
-        if self.contains(PacketHeaderFlags::NET_ERROR) { names.push("NetError"); }
-        if self.contains(PacketHeaderFlags::NET_ERROR_DISCONNECT) { names.push("NetErrorDisconnect"); }
-        if self.contains(PacketHeaderFlags::CICMD_COMMAND) { names.push("CICMDCommand"); }
-        if self.contains(PacketHeaderFlags::TIME_SYNC) { names.push("TimeSync"); }
-        if self.contains(PacketHeaderFlags::ECHO_REQUEST) { names.push("EchoRequest"); }
-        if self.contains(PacketHeaderFlags::ECHO_RESPONSE) { names.push("EchoResponse"); }
-        if self.contains(PacketHeaderFlags::FLOW) { names.push("Flow"); }
+        if self.contains(PacketHeaderFlags::RETRANSMISSION) {
+            names.push("Retransmission");
+        }
+        if self.contains(PacketHeaderFlags::ENCRYPTED_CHECKSUM) {
+            names.push("EncryptedChecksum");
+        }
+        if self.contains(PacketHeaderFlags::BLOB_FRAGMENTS) {
+            names.push("BlobFragments");
+        }
+        if self.contains(PacketHeaderFlags::SERVER_SWITCH) {
+            names.push("ServerSwitch");
+        }
+        if self.contains(PacketHeaderFlags::LOGON_SERVER_ADDR) {
+            names.push("LogonServerAddr");
+        }
+        if self.contains(PacketHeaderFlags::EMPTY_HEADER1) {
+            names.push("EmptyHeader1");
+        }
+        if self.contains(PacketHeaderFlags::REFERRAL) {
+            names.push("Referral");
+        }
+        if self.contains(PacketHeaderFlags::REQUEST_RETRANSMIT) {
+            names.push("RequestRetransmit");
+        }
+        if self.contains(PacketHeaderFlags::REJECT_RETRANSMIT) {
+            names.push("RejectRetransmit");
+        }
+        if self.contains(PacketHeaderFlags::ACK_SEQUENCE) {
+            names.push("AckSequence");
+        }
+        if self.contains(PacketHeaderFlags::DISCONNECT) {
+            names.push("Disconnect");
+        }
+        if self.contains(PacketHeaderFlags::LOGIN_REQUEST) {
+            names.push("LoginRequest");
+        }
+        if self.contains(PacketHeaderFlags::WORLD_LOGIN_REQUEST) {
+            names.push("WorldLoginRequest");
+        }
+        if self.contains(PacketHeaderFlags::CONNECT_REQUEST) {
+            names.push("ConnectRequest");
+        }
+        if self.contains(PacketHeaderFlags::CONNECT_RESPONSE) {
+            names.push("ConnectResponse");
+        }
+        if self.contains(PacketHeaderFlags::NET_ERROR) {
+            names.push("NetError");
+        }
+        if self.contains(PacketHeaderFlags::NET_ERROR_DISCONNECT) {
+            names.push("NetErrorDisconnect");
+        }
+        if self.contains(PacketHeaderFlags::CICMD_COMMAND) {
+            names.push("CICMDCommand");
+        }
+        if self.contains(PacketHeaderFlags::TIME_SYNC) {
+            names.push("TimeSync");
+        }
+        if self.contains(PacketHeaderFlags::ECHO_REQUEST) {
+            names.push("EchoRequest");
+        }
+        if self.contains(PacketHeaderFlags::ECHO_RESPONSE) {
+            names.push("EchoResponse");
+        }
+        if self.contains(PacketHeaderFlags::FLOW) {
+            names.push("Flow");
+        }
 
         if names.is_empty() {
             serializer.serialize_str("None")
@@ -327,13 +371,19 @@ impl PacketHeader {
         if flags.contains(PacketHeaderFlags::ECHO_RESPONSE) {
             let local_time = reader.read_f32()?;
             let holding_time = reader.read_f32()?;
-            header.echo_response = Some(EchoResponseHeader { local_time, holding_time });
+            header.echo_response = Some(EchoResponseHeader {
+                local_time,
+                holding_time,
+            });
         }
 
         if flags.contains(PacketHeaderFlags::FLOW) {
             let data_received = reader.read_u32()?;
             let interval = reader.read_u16()?;
-            header.flow = Some(FlowHeader { data_received, interval });
+            header.flow = Some(FlowHeader {
+                data_received,
+                interval,
+            });
         }
 
         Ok(header)

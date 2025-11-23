@@ -1,6 +1,6 @@
-use serde::Serialize;
 use crate::reader::BinaryReader;
 use anyhow::Result;
+use serde::Serialize;
 
 // Game action types (for 0xF7B1 messages)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,15 +39,24 @@ pub fn parse_game_action(
         }
         GameActionType::InventoryPutItemInContainer => {
             let msg = InventoryPutItemInContainer::read(reader, sequence)?;
-            Ok(("Inventory_PutItemInContainer".to_string(), serde_json::to_value(&msg)?))
+            Ok((
+                "Inventory_PutItemInContainer".to_string(),
+                serde_json::to_value(&msg)?,
+            ))
         }
         GameActionType::InventoryGetAndWieldItem => {
             let msg = InventoryGetAndWieldItem::read(reader, sequence)?;
-            Ok(("Inventory_GetAndWieldItem".to_string(), serde_json::to_value(&msg)?))
+            Ok((
+                "Inventory_GetAndWieldItem".to_string(),
+                serde_json::to_value(&msg)?,
+            ))
         }
         GameActionType::CharacterCharacterOptionsEvent => {
             let msg = CharacterCharacterOptionsEvent::read(reader, sequence)?;
-            Ok(("Character_CharacterOptionsEvent".to_string(), serde_json::to_value(&msg)?))
+            Ok((
+                "Character_CharacterOptionsEvent".to_string(),
+                serde_json::to_value(&msg)?,
+            ))
         }
         _ => {
             let remaining = reader.remaining();
@@ -65,7 +74,7 @@ pub fn parse_game_action(
                     "MessageType": "Ordered_GameAction",
                     "MessageDirection": "ClientToServer",
                     "RawData": hex::encode(&raw_data),
-                })
+                }),
             ))
         }
     }
@@ -408,11 +417,17 @@ pub struct OptionProperty {
     pub window_options: Vec<WindowOption>,
     #[serde(rename = "Unknown_k")]
     pub unknown_k: u32,
-    #[serde(rename = "ActiveOpacity", serialize_with = "crate::serialization::serialize_f32")]
+    #[serde(
+        rename = "ActiveOpacity",
+        serialize_with = "crate::serialization::serialize_f32"
+    )]
     pub active_opacity: f32,
     #[serde(rename = "Unknown_l")]
     pub unknown_l: u32,
-    #[serde(rename = "InactiveOpacity", serialize_with = "crate::serialization::serialize_f32")]
+    #[serde(
+        rename = "InactiveOpacity",
+        serialize_with = "crate::serialization::serialize_f32"
+    )]
     pub inactive_opacity: f32,
 }
 
@@ -662,7 +677,9 @@ fn read_packable_list_layered_spell(reader: &mut BinaryReader) -> Result<Vec<Lay
     Ok(result)
 }
 
-fn read_packable_hash_table_uint(reader: &mut BinaryReader) -> Result<std::collections::HashMap<String, u32>> {
+fn read_packable_hash_table_uint(
+    reader: &mut BinaryReader,
+) -> Result<std::collections::HashMap<String, u32>> {
     // PackableHashTable format: count (ushort), max_size (ushort), then entries
     let count = reader.read_u16()?;
     let _max_size = reader.read_u16()?;
@@ -675,7 +692,9 @@ fn read_packable_hash_table_uint(reader: &mut BinaryReader) -> Result<std::colle
     Ok(result)
 }
 
-fn read_packable_hash_table_string(reader: &mut BinaryReader) -> Result<std::collections::HashMap<String, String>> {
+fn read_packable_hash_table_string(
+    reader: &mut BinaryReader,
+) -> Result<std::collections::HashMap<String, String>> {
     // PackableHashTable format: count (ushort), max_size (ushort), then entries
     let count = reader.read_u16()?;
     let _max_size = reader.read_u16()?;
@@ -700,32 +719,86 @@ fn read_packable_list_window_option(reader: &mut BinaryReader) -> Result<Vec<Win
 
 fn character_options1_to_string(flags: u32) -> String {
     let mut options = Vec::new();
-    if flags & 0x00000002 != 0 { options.push("AutoRepeatAttack"); }
-    if flags & 0x00000004 != 0 { options.push("IgnoreAllegianceRequests"); }
-    if flags & 0x00000008 != 0 { options.push("IgnoreFellowshipRequests"); }
-    if flags & 0x00000040 != 0 { options.push("AllowGive"); }
-    if flags & 0x00000080 != 0 { options.push("ViewCombatTarget"); }
-    if flags & 0x00000100 != 0 { options.push("ShowTooltips"); }
-    if flags & 0x00000200 != 0 { options.push("UseDeception"); }
-    if flags & 0x00000400 != 0 { options.push("ToggleRun"); }
-    if flags & 0x00000800 != 0 { options.push("StayInChatMode"); }
-    if flags & 0x00001000 != 0 { options.push("AdvancedCombatUI"); }
-    if flags & 0x00002000 != 0 { options.push("AutoTarget"); }
-    if flags & 0x00008000 != 0 { options.push("VividTargetingIndicator"); }
-    if flags & 0x00010000 != 0 { options.push("DisableMostWeatherEffects"); }
-    if flags & 0x00020000 != 0 { options.push("IgnoreTradeRequests"); }
-    if flags & 0x00040000 != 0 { options.push("FellowshipShareXP"); }
-    if flags & 0x00080000 != 0 { options.push("AcceptLootPermits"); }
-    if flags & 0x00100000 != 0 { options.push("FellowshipShareLoot"); }
-    if flags & 0x00200000 != 0 { options.push("SideBySideVitals"); }
-    if flags & 0x00400000 != 0 { options.push("CoordinatesOnRadar"); }
-    if flags & 0x00800000 != 0 { options.push("SpellDuration"); }
-    if flags & 0x02000000 != 0 { options.push("DisableHouseRestrictionEffects"); }
-    if flags & 0x04000000 != 0 { options.push("DragItemOnPlayerOpensSecureTrade"); }
-    if flags & 0x08000000 != 0 { options.push("DisplayAllegianceLogonNotifications"); }
-    if flags & 0x10000000 != 0 { options.push("UseChargeAttack"); }
-    if flags & 0x20000000 != 0 { options.push("AutoAcceptFellowRequest"); }
-    if flags & 0x40000000 != 0 { options.push("HearAllegianceChat"); }
-    if flags & 0x80000000 != 0 { options.push("UseCraftSuccessDialog"); }
+    if flags & 0x00000002 != 0 {
+        options.push("AutoRepeatAttack");
+    }
+    if flags & 0x00000004 != 0 {
+        options.push("IgnoreAllegianceRequests");
+    }
+    if flags & 0x00000008 != 0 {
+        options.push("IgnoreFellowshipRequests");
+    }
+    if flags & 0x00000040 != 0 {
+        options.push("AllowGive");
+    }
+    if flags & 0x00000080 != 0 {
+        options.push("ViewCombatTarget");
+    }
+    if flags & 0x00000100 != 0 {
+        options.push("ShowTooltips");
+    }
+    if flags & 0x00000200 != 0 {
+        options.push("UseDeception");
+    }
+    if flags & 0x00000400 != 0 {
+        options.push("ToggleRun");
+    }
+    if flags & 0x00000800 != 0 {
+        options.push("StayInChatMode");
+    }
+    if flags & 0x00001000 != 0 {
+        options.push("AdvancedCombatUI");
+    }
+    if flags & 0x00002000 != 0 {
+        options.push("AutoTarget");
+    }
+    if flags & 0x00008000 != 0 {
+        options.push("VividTargetingIndicator");
+    }
+    if flags & 0x00010000 != 0 {
+        options.push("DisableMostWeatherEffects");
+    }
+    if flags & 0x00020000 != 0 {
+        options.push("IgnoreTradeRequests");
+    }
+    if flags & 0x00040000 != 0 {
+        options.push("FellowshipShareXP");
+    }
+    if flags & 0x00080000 != 0 {
+        options.push("AcceptLootPermits");
+    }
+    if flags & 0x00100000 != 0 {
+        options.push("FellowshipShareLoot");
+    }
+    if flags & 0x00200000 != 0 {
+        options.push("SideBySideVitals");
+    }
+    if flags & 0x00400000 != 0 {
+        options.push("CoordinatesOnRadar");
+    }
+    if flags & 0x00800000 != 0 {
+        options.push("SpellDuration");
+    }
+    if flags & 0x02000000 != 0 {
+        options.push("DisableHouseRestrictionEffects");
+    }
+    if flags & 0x04000000 != 0 {
+        options.push("DragItemOnPlayerOpensSecureTrade");
+    }
+    if flags & 0x08000000 != 0 {
+        options.push("DisplayAllegianceLogonNotifications");
+    }
+    if flags & 0x10000000 != 0 {
+        options.push("UseChargeAttack");
+    }
+    if flags & 0x20000000 != 0 {
+        options.push("AutoAcceptFellowRequest");
+    }
+    if flags & 0x40000000 != 0 {
+        options.push("HearAllegianceChat");
+    }
+    if flags & 0x80000000 != 0 {
+        options.push("UseCraftSuccessDialog");
+    }
     options.join(", ")
 }

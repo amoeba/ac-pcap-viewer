@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use sha2::{Digest, Sha256};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 #[derive(Parser)]
@@ -58,13 +58,7 @@ fn build_web(serve: bool, port: u16, small: bool) -> Result<()> {
 
     // Build WASM
     println!("Building WASM...");
-    let mut args = vec![
-        "build",
-        "-p",
-        "web",
-        "--target",
-        "wasm32-unknown-unknown",
-    ];
+    let mut args = vec!["build", "-p", "web", "--target", "wasm32-unknown-unknown"];
     if small {
         args.push("--profile=release-wasm");
     } else {
@@ -82,8 +76,7 @@ fn build_web(serve: bool, port: u16, small: bool) -> Result<()> {
 
     // Run wasm-bindgen
     println!("Generating JS bindings...");
-    let wasm_file = root
-        .join("target/wasm32-unknown-unknown/release/web.wasm");
+    let wasm_file = root.join("target/wasm32-unknown-unknown/release/web.wasm");
 
     let status = Command::new("wasm-bindgen")
         .args([
@@ -95,7 +88,9 @@ fn build_web(serve: bool, port: u16, small: bool) -> Result<()> {
             wasm_file.to_str().unwrap(),
         ])
         .status()
-        .context("Failed to run wasm-bindgen. Is it installed? Run: cargo install wasm-bindgen-cli")?;
+        .context(
+            "Failed to run wasm-bindgen. Is it installed? Run: cargo install wasm-bindgen-cli",
+        )?;
 
     if !status.success() {
         bail!("wasm-bindgen failed");
@@ -161,7 +156,7 @@ fn build_web(serve: bool, port: u16, small: bool) -> Result<()> {
 
 /// Apply cache busting by renaming files with content hash
 /// Returns the hash used for cache busting
-fn apply_cache_busting(pkg_dir: &PathBuf) -> Result<String> {
+fn apply_cache_busting(pkg_dir: &Path) -> Result<String> {
     // Read the wasm file and compute its hash
     let wasm_path = pkg_dir.join("web_bg.wasm");
     let wasm_content = std::fs::read(&wasm_path).context("Failed to read web_bg.wasm")?;

@@ -29,10 +29,13 @@ web-sys = { version = "0.3", features = [
     "Element",
     "HtmlElement",
     "HtmlCanvasElement",
+    "HtmlInputElement",
+    "HtmlBodyElement",
     "DragEvent",
     "DataTransfer",
     "FileList",
     "File",
+    "FileReader",
     "Blob",
     "Request",
     "RequestInit",
@@ -40,6 +43,8 @@ web-sys = { version = "0.3", features = [
     "Location",
     "Url",
     "UrlSearchParams",
+    "CssStyleDeclaration",
+    "Event",
 ] }
 js-sys = "0.3"
 console_error_panic_hook = "0.1"

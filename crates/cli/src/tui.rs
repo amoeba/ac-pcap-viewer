@@ -13,7 +13,7 @@ use ratatui::{
 };
 use std::io::{self, Stdout};
 
-use ac_parser::{messages::ParsedMessage, ParsedPacket, Direction as PktDirection};
+use ac_parser::{messages::ParsedMessage, Direction as PktDirection, ParsedPacket};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
@@ -81,7 +81,8 @@ impl App {
             self.messages.iter().collect()
         } else {
             let query = self.search_query.to_lowercase();
-            self.messages.iter()
+            self.messages
+                .iter()
                 .filter(|m| m.message_type.to_lowercase().contains(&query))
                 .collect()
         };
@@ -92,7 +93,11 @@ impl App {
                 MessageSort::Type => a.message_type.cmp(&b.message_type),
                 MessageSort::Direction => a.direction.cmp(&b.direction),
             };
-            if self.sort_ascending { cmp } else { cmp.reverse() }
+            if self.sort_ascending {
+                cmp
+            } else {
+                cmp.reverse()
+            }
         });
 
         msgs
@@ -105,9 +110,15 @@ impl App {
             let cmp = match self.packet_sort {
                 PacketSort::Id => a.id.cmp(&b.id),
                 PacketSort::Sequence => a.header.sequence.cmp(&b.header.sequence),
-                PacketSort::Direction => format!("{:?}", a.direction).cmp(&format!("{:?}", b.direction)),
+                PacketSort::Direction => {
+                    format!("{:?}", a.direction).cmp(&format!("{:?}", b.direction))
+                }
             };
-            if self.sort_ascending { cmp } else { cmp.reverse() }
+            if self.sort_ascending {
+                cmp
+            } else {
+                cmp.reverse()
+            }
         });
 
         pkts
@@ -117,7 +128,9 @@ impl App {
         match self.current_tab {
             Tab::Messages => {
                 let msgs = self.filtered_messages();
-                if msgs.is_empty() { return; }
+                if msgs.is_empty() {
+                    return;
+                }
                 let i = match self.message_state.selected() {
                     Some(i) => (i + 1).min(msgs.len() - 1),
                     None => 0,
@@ -126,7 +139,9 @@ impl App {
             }
             Tab::Fragments => {
                 let pkts = self.filtered_packets();
-                if pkts.is_empty() { return; }
+                if pkts.is_empty() {
+                    return;
+                }
                 let i = match self.packet_state.selected() {
                     Some(i) => (i + 1).min(pkts.len() - 1),
                     None => 0,
@@ -159,7 +174,9 @@ impl App {
         match self.current_tab {
             Tab::Messages => {
                 let msgs = self.filtered_messages();
-                if msgs.is_empty() { return; }
+                if msgs.is_empty() {
+                    return;
+                }
                 let i = match self.message_state.selected() {
                     Some(i) => (i + 20).min(msgs.len() - 1),
                     None => 0,
@@ -168,7 +185,9 @@ impl App {
             }
             Tab::Fragments => {
                 let pkts = self.filtered_packets();
-                if pkts.is_empty() { return; }
+                if pkts.is_empty() {
+                    return;
+                }
                 let i = match self.packet_state.selected() {
                     Some(i) => (i + 20).min(pkts.len() - 1),
                     None => 0,
@@ -290,28 +309,24 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
                     app.search_query.clear();
                     app.show_detail = false;
                 }
-                KeyCode::Home => {
-                    match app.current_tab {
-                        Tab::Messages => app.message_state.select(Some(0)),
-                        Tab::Fragments => app.packet_state.select(Some(0)),
-                    }
-                }
-                KeyCode::End => {
-                    match app.current_tab {
-                        Tab::Messages => {
-                            let len = app.filtered_messages().len();
-                            if len > 0 {
-                                app.message_state.select(Some(len - 1));
-                            }
-                        }
-                        Tab::Fragments => {
-                            let len = app.filtered_packets().len();
-                            if len > 0 {
-                                app.packet_state.select(Some(len - 1));
-                            }
+                KeyCode::Home => match app.current_tab {
+                    Tab::Messages => app.message_state.select(Some(0)),
+                    Tab::Fragments => app.packet_state.select(Some(0)),
+                },
+                KeyCode::End => match app.current_tab {
+                    Tab::Messages => {
+                        let len = app.filtered_messages().len();
+                        if len > 0 {
+                            app.message_state.select(Some(len - 1));
                         }
                     }
-                }
+                    Tab::Fragments => {
+                        let len = app.filtered_packets().len();
+                        if len > 0 {
+                            app.packet_state.select(Some(len - 1));
+                        }
+                    }
+                },
                 _ => {}
             }
         }
@@ -330,13 +345,21 @@ fn ui(f: &mut Frame, app: &mut App) {
 
     let titles = vec!["Messages", "Fragments"];
     let tabs = Tabs::new(titles)
-        .block(Block::default().borders(Borders::ALL).title("AC PCAP Parser"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("AC PCAP Parser"),
+        )
         .select(match app.current_tab {
             Tab::Messages => 0,
             Tab::Fragments => 1,
         })
         .style(Style::default().fg(Color::White))
-        .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD));
+        .highlight_style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        );
     f.render_widget(tabs, chunks[0]);
 
     if app.show_detail {
@@ -370,8 +393,7 @@ fn ui(f: &mut Frame, app: &mut App) {
         )
     };
 
-    let status = Paragraph::new(help)
-        .block(Block::default().borders(Borders::ALL).title("Help"));
+    let status = Paragraph::new(help).block(Block::default().borders(Borders::ALL).title("Help"));
     f.render_widget(status, chunks[2]);
 }
 
@@ -387,30 +409,44 @@ fn render_messages_table(f: &mut Frame, app: &mut App, area: Rect) {
     .style(Style::default().add_modifier(Modifier::BOLD))
     .height(1);
 
-    let rows: Vec<Row> = msgs.iter().map(|m| {
-        let dir_color = match m.direction.as_str() {
-            "Send" => Color::Cyan,
-            "Recv" => Color::Green,
-            _ => Color::White,
-        };
-        Row::new(vec![
-            Cell::from(m.id.to_string()),
-            Cell::from(m.message_type.clone()),
-            Cell::from(m.direction.clone()).style(Style::default().fg(dir_color)),
-            Cell::from(m.opcode.clone()),
-        ])
-    }).collect();
+    let rows: Vec<Row> = msgs
+        .iter()
+        .map(|m| {
+            let dir_color = match m.direction.as_str() {
+                "Send" => Color::Cyan,
+                "Recv" => Color::Green,
+                _ => Color::White,
+            };
+            Row::new(vec![
+                Cell::from(m.id.to_string()),
+                Cell::from(m.message_type.clone()),
+                Cell::from(m.direction.clone()).style(Style::default().fg(dir_color)),
+                Cell::from(m.opcode.clone()),
+            ])
+        })
+        .collect();
 
-    let title = format!("Messages ({} total, {} shown)", app.messages.len(), msgs.len());
-    let table = Table::new(rows, [
-        Constraint::Length(6),
-        Constraint::Min(30),
-        Constraint::Length(6),
-        Constraint::Length(10),
-    ])
+    let title = format!(
+        "Messages ({} total, {} shown)",
+        app.messages.len(),
+        msgs.len()
+    );
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(6),
+            Constraint::Min(30),
+            Constraint::Length(6),
+            Constraint::Length(10),
+        ],
+    )
     .header(header)
     .block(Block::default().borders(Borders::ALL).title(title))
-    .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD));
+    .highlight_style(
+        Style::default()
+            .bg(Color::DarkGray)
+            .add_modifier(Modifier::BOLD),
+    );
 
     f.render_stateful_widget(table, area, &mut app.message_state);
 }
@@ -428,31 +464,41 @@ fn render_packets_table(f: &mut Frame, app: &mut App, area: Rect) {
     .style(Style::default().add_modifier(Modifier::BOLD))
     .height(1);
 
-    let rows: Vec<Row> = pkts.iter().map(|p| {
-        let dir_color = match p.direction {
-            PktDirection::Send => Color::Cyan,
-            PktDirection::Recv => Color::Green,
-        };
-        Row::new(vec![
-            Cell::from(p.id.to_string()),
-            Cell::from(p.header.sequence.to_string()),
-            Cell::from(format!("{:?}", p.direction)).style(Style::default().fg(dir_color)),
-            Cell::from(format!("{:08X}", p.header.flags.bits())),
-            Cell::from(p.header.size.to_string()),
-        ])
-    }).collect();
+    let rows: Vec<Row> = pkts
+        .iter()
+        .map(|p| {
+            let dir_color = match p.direction {
+                PktDirection::Send => Color::Cyan,
+                PktDirection::Recv => Color::Green,
+            };
+            Row::new(vec![
+                Cell::from(p.id.to_string()),
+                Cell::from(p.header.sequence.to_string()),
+                Cell::from(format!("{:?}", p.direction)).style(Style::default().fg(dir_color)),
+                Cell::from(format!("{:08X}", p.header.flags.bits())),
+                Cell::from(p.header.size.to_string()),
+            ])
+        })
+        .collect();
 
     let title = format!("Fragments/Packets ({} total)", pkts.len());
-    let table = Table::new(rows, [
-        Constraint::Length(6),
-        Constraint::Length(10),
-        Constraint::Length(6),
-        Constraint::Length(12),
-        Constraint::Length(8),
-    ])
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(6),
+            Constraint::Length(10),
+            Constraint::Length(6),
+            Constraint::Length(12),
+            Constraint::Length(8),
+        ],
+    )
     .header(header)
     .block(Block::default().borders(Borders::ALL).title(title))
-    .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD));
+    .highlight_style(
+        Style::default()
+            .bg(Color::DarkGray)
+            .add_modifier(Modifier::BOLD),
+    );
 
     f.render_stateful_widget(table, area, &mut app.packet_state);
 }
@@ -488,7 +534,11 @@ fn render_detail(f: &mut Frame, app: &App, area: Rect) {
     };
 
     let paragraph = Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("Detail (Press Enter or Esc to close)"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Detail (Press Enter or Esc to close)"),
+        )
         .style(Style::default().fg(Color::White));
 
     f.render_widget(paragraph, area);

@@ -1,7 +1,10 @@
-use serde::Serialize;
+use crate::properties::{
+    self, appraisal_flags, ArmorProfile, CreatureProfile, HookProfile, LayeredSpellId,
+    WeaponProfile,
+};
 use crate::reader::BinaryReader;
-use crate::properties::{self, ArmorProfile, WeaponProfile, HookProfile, CreatureProfile, LayeredSpellId, appraisal_flags};
 use anyhow::Result;
+use serde::Serialize;
 use std::collections::HashMap;
 
 // Game event types (for 0xF7B0 messages)
@@ -223,7 +226,9 @@ impl GameEventType {
 
     pub fn name(&self) -> &'static str {
         match self {
-            GameEventType::Allegiance_AllegianceUpdateAborted => "Allegiance_AllegianceUpdateAborted",
+            GameEventType::Allegiance_AllegianceUpdateAborted => {
+                "Allegiance_AllegianceUpdateAborted"
+            }
             GameEventType::Communication_PopUpString => "Communication_PopUpString",
             GameEventType::Login_PlayerDescription => "Login_PlayerDescription",
             GameEventType::Allegiance_AllegianceUpdate => "Allegiance_AllegianceUpdate",
@@ -250,12 +255,24 @@ impl GameEventType {
             GameEventType::Item_ServerSaysMoveItem => "Item_ServerSaysMoveItem",
             GameEventType::Combat_HandleAttackDoneEvent => "Combat_HandleAttackDoneEvent",
             GameEventType::Magic_RemoveSpell => "Magic_RemoveSpell",
-            GameEventType::Combat_HandleVictimNotificationEventSelf => "Combat_HandleVictimNotificationEventSelf",
-            GameEventType::Combat_HandleVictimNotificationEventOther => "Combat_HandleVictimNotificationEventOther",
-            GameEventType::Combat_HandleAttackerNotificationEvent => "Combat_HandleAttackerNotificationEvent",
-            GameEventType::Combat_HandleDefenderNotificationEvent => "Combat_HandleDefenderNotificationEvent",
-            GameEventType::Combat_HandleEvasionAttackerNotificationEvent => "Combat_HandleEvasionAttackerNotificationEvent",
-            GameEventType::Combat_HandleEvasionDefenderNotificationEvent => "Combat_HandleEvasionDefenderNotificationEvent",
+            GameEventType::Combat_HandleVictimNotificationEventSelf => {
+                "Combat_HandleVictimNotificationEventSelf"
+            }
+            GameEventType::Combat_HandleVictimNotificationEventOther => {
+                "Combat_HandleVictimNotificationEventOther"
+            }
+            GameEventType::Combat_HandleAttackerNotificationEvent => {
+                "Combat_HandleAttackerNotificationEvent"
+            }
+            GameEventType::Combat_HandleDefenderNotificationEvent => {
+                "Combat_HandleDefenderNotificationEvent"
+            }
+            GameEventType::Combat_HandleEvasionAttackerNotificationEvent => {
+                "Combat_HandleEvasionAttackerNotificationEvent"
+            }
+            GameEventType::Combat_HandleEvasionDefenderNotificationEvent => {
+                "Combat_HandleEvasionDefenderNotificationEvent"
+            }
             GameEventType::Combat_HandleCommenceAttackEvent => "Combat_HandleCommenceAttackEvent",
             GameEventType::Combat_QueryHealthResponse => "Combat_QueryHealthResponse",
             GameEventType::Character_QueryAgeResponse => "Character_QueryAgeResponse",
@@ -288,21 +305,29 @@ impl GameEventType {
             GameEventType::House_AvailableHouses => "House_AvailableHouses",
             GameEventType::Character_ConfirmationRequest => "Character_ConfirmationRequest",
             GameEventType::Character_ConfirmationDone => "Character_ConfirmationDone",
-            GameEventType::Allegiance_AllegianceLoginNotificationEvent => "Allegiance_AllegianceLoginNotificationEvent",
-            GameEventType::Allegiance_AllegianceInfoResponseEvent => "Allegiance_AllegianceInfoResponseEvent",
+            GameEventType::Allegiance_AllegianceLoginNotificationEvent => {
+                "Allegiance_AllegianceLoginNotificationEvent"
+            }
+            GameEventType::Allegiance_AllegianceInfoResponseEvent => {
+                "Allegiance_AllegianceInfoResponseEvent"
+            }
             GameEventType::Game_JoinGameResponse => "Game_JoinGameResponse",
             GameEventType::Game_StartGame => "Game_StartGame",
             GameEventType::Game_MoveResponse => "Game_MoveResponse",
             GameEventType::Game_OpponentTurn => "Game_OpponentTurn",
             GameEventType::Game_OpponentStalemateState => "Game_OpponentStalemateState",
             GameEventType::Communication_WeenieError => "Communication_WeenieError",
-            GameEventType::Communication_WeenieErrorWithString => "Communication_WeenieErrorWithString",
+            GameEventType::Communication_WeenieErrorWithString => {
+                "Communication_WeenieErrorWithString"
+            }
             GameEventType::Game_GameOver => "Game_GameOver",
             GameEventType::Communication_ChatRoomTracker => "Communication_ChatRoomTracker",
             GameEventType::Admin_QueryPluginList => "Admin_QueryPluginList",
             GameEventType::Admin_QueryPlugin => "Admin_QueryPlugin",
             GameEventType::Admin_QueryPluginResponse2 => "Admin_QueryPluginResponse2",
-            GameEventType::Inventory_SalvageOperationsResultData => "Inventory_SalvageOperationsResultData",
+            GameEventType::Inventory_SalvageOperationsResultData => {
+                "Inventory_SalvageOperationsResultData"
+            }
             GameEventType::Communication_HearDirectSpeech => "Communication_HearDirectSpeech",
             GameEventType::Fellowship_FullUpdate => "Fellowship_FullUpdate",
             GameEventType::Fellowship_Disband => "Fellowship_Disband",
@@ -321,7 +346,9 @@ impl GameEventType {
             GameEventType::Misc_PortalStormSubsided => "Misc_PortalStormSubsided",
             GameEventType::Communication_TransientString => "Communication_TransientString",
             GameEventType::Magic_PurgeBadEnchantments => "Magic_PurgeBadEnchantments",
-            GameEventType::Social_SendClientContractTrackerTable => "Social_SendClientContractTrackerTable",
+            GameEventType::Social_SendClientContractTrackerTable => {
+                "Social_SendClientContractTrackerTable"
+            }
             GameEventType::Social_SendClientContractTracker => "Social_SendClientContractTracker",
             GameEventType::Unknown => "Unknown",
         }
@@ -339,11 +366,17 @@ pub fn parse_game_event(
     match evt_type {
         GameEventType::Item_SetAppraiseInfo => {
             let msg = ItemSetAppraiseInfo::read(reader, object_id, sequence)?;
-            Ok(("Item_SetAppraiseInfo".to_string(), serde_json::to_value(&msg)?))
+            Ok((
+                "Item_SetAppraiseInfo".to_string(),
+                serde_json::to_value(&msg)?,
+            ))
         }
         GameEventType::Item_ServerSaysContainId => {
             let msg = ItemServerSaysContainId::read(reader, object_id, sequence)?;
-            Ok(("Item_ServerSaysContainId".to_string(), serde_json::to_value(&msg)?))
+            Ok((
+                "Item_ServerSaysContainId".to_string(),
+                serde_json::to_value(&msg)?,
+            ))
         }
         GameEventType::Item_WearItem => {
             let msg = ItemWearItem::read(reader, object_id, sequence)?;
@@ -351,11 +384,17 @@ pub fn parse_game_event(
         }
         GameEventType::Magic_UpdateEnchantment => {
             let msg = MagicUpdateEnchantment::read(reader, object_id, sequence)?;
-            Ok(("Magic_UpdateEnchantment".to_string(), serde_json::to_value(&msg)?))
+            Ok((
+                "Magic_UpdateEnchantment".to_string(),
+                serde_json::to_value(&msg)?,
+            ))
         }
         GameEventType::Magic_DispelEnchantment => {
             let msg = MagicDispelEnchantment::read(reader, object_id, sequence)?;
-            Ok(("Magic_DispelEnchantment".to_string(), serde_json::to_value(&msg)?))
+            Ok((
+                "Magic_DispelEnchantment".to_string(),
+                serde_json::to_value(&msg)?,
+            ))
         }
         _ => {
             // Use the enum name if known, otherwise format as hex
@@ -380,7 +419,7 @@ pub fn parse_game_event(
                     "MessageType": "Ordered_GameEvent",
                     "MessageDirection": "ServerToClient",
                     "RawData": hex::encode(&raw_data),
-                })
+                }),
             ))
         }
     }
@@ -568,7 +607,7 @@ pub struct MovementData {
     #[serde(rename = "ObjectServerControlSequence")]
     pub object_server_control_sequence: u16,
     #[serde(rename = "Autonomous")]
-    pub autonomous: u16,  // ushort per protocol.xml
+    pub autonomous: u16, // ushort per protocol.xml
     #[serde(rename = "MovementType")]
     pub movement_type: String,
     #[serde(rename = "OptionFlags")]
@@ -585,11 +624,17 @@ pub struct MovementData {
     pub origin: Option<serde_json::Value>,
     #[serde(rename = "MoveToParams")]
     pub move_to_params: Option<serde_json::Value>,
-    #[serde(rename = "MyRunRate", serialize_with = "crate::serialization::serialize_f32")]
+    #[serde(
+        rename = "MyRunRate",
+        serialize_with = "crate::serialization::serialize_f32"
+    )]
     pub my_run_rate: f32,
     #[serde(rename = "TargetId")]
     pub target_id: u32,
-    #[serde(rename = "DesiredHeading", serialize_with = "crate::serialization::serialize_f32")]
+    #[serde(
+        rename = "DesiredHeading",
+        serialize_with = "crate::serialization::serialize_f32"
+    )]
     pub desired_heading: f32,
     #[serde(rename = "TurnToParams")]
     pub turn_to_params: Option<serde_json::Value>,
@@ -607,11 +652,20 @@ pub struct InterpretedMotionState {
     pub sidestep_command: u32,
     #[serde(rename = "TurnCommand")]
     pub turn_command: u32,
-    #[serde(rename = "ForwardSpeed", serialize_with = "crate::serialization::serialize_f32")]
+    #[serde(
+        rename = "ForwardSpeed",
+        serialize_with = "crate::serialization::serialize_f32"
+    )]
     pub forward_speed: f32,
-    #[serde(rename = "SidestepSpeed", serialize_with = "crate::serialization::serialize_f32")]
+    #[serde(
+        rename = "SidestepSpeed",
+        serialize_with = "crate::serialization::serialize_f32"
+    )]
     pub sidestep_speed: f32,
-    #[serde(rename = "TurnSpeed", serialize_with = "crate::serialization::serialize_f32")]
+    #[serde(
+        rename = "TurnSpeed",
+        serialize_with = "crate::serialization::serialize_f32"
+    )]
     pub turn_speed: f32,
     #[serde(rename = "Commands")]
     pub commands: Vec<serde_json::Value>,
@@ -623,7 +677,7 @@ impl MovementData {
     pub fn read(reader: &mut BinaryReader) -> Result<Self> {
         let object_movement_sequence = reader.read_u16()?;
         let object_server_control_sequence = reader.read_u16()?;
-        let autonomous = reader.read_u16()?;  // ushort per protocol.xml
+        let autonomous = reader.read_u16()?; // ushort per protocol.xml
         let movement_type_raw = reader.read_u8()?;
         let option_flags_raw = reader.read_u8()?;
         let stance_raw = reader.read_u16()?;
@@ -636,14 +690,16 @@ impl MovementData {
             0x08 => "TurnToObject",
             0x09 => "TurnToPosition",
             _ => "Unknown",
-        }.to_string();
+        }
+        .to_string();
 
         let option_flags = match option_flags_raw {
             0x00 => "None",
             0x01 => "StickToObject",
             0x02 => "StandingLongJump",
             _ => "Unknown",
-        }.to_string();
+        }
+        .to_string();
 
         let stance = stance_mode_name(stance_raw);
 
@@ -709,7 +765,7 @@ impl InterpretedMotionState {
         let forward_command = if flags & 0x02 != 0 {
             reader.read_u16()? as u32
         } else {
-            0x03  // Ready
+            0x03 // Ready
         };
 
         // SidestepCommand - default to 0 if not present
@@ -831,7 +887,10 @@ pub struct EffectsSoundEvent {
     pub object_id: u32,
     #[serde(rename = "SoundType")]
     pub sound_type: String,
-    #[serde(rename = "Volume", serialize_with = "crate::serialization::serialize_f32")]
+    #[serde(
+        rename = "Volume",
+        serialize_with = "crate::serialization::serialize_f32"
+    )]
     pub volume: f32,
     #[serde(rename = "OpCode")]
     pub opcode: u32,
@@ -865,7 +924,10 @@ pub struct EffectsPlayScriptType {
     pub object_id: u32,
     #[serde(rename = "ScriptType")]
     pub script_type: u32,
-    #[serde(rename = "Speed", serialize_with = "crate::serialization::serialize_f32")]
+    #[serde(
+        rename = "Speed",
+        serialize_with = "crate::serialization::serialize_f32"
+    )]
     pub speed: f32,
     #[serde(rename = "OpCode")]
     pub opcode: u32,
@@ -938,14 +1000,17 @@ impl CommunicationTextboxString {
             0x17 => "Recall",
             0x18 => "Craft",
             0x19 => "Salvaging",
-            _ => return Ok(Self {
-                text,
-                chat_type: format!("Unknown_{}", chat_type_raw),
-                opcode: 0xF7E0,
-                message_type: "Communication_TextboxString".to_string(),
-                message_direction: "ServerToClient".to_string(),
-            }),
-        }.to_string();
+            _ => {
+                return Ok(Self {
+                    text,
+                    chat_type: format!("Unknown_{}", chat_type_raw),
+                    opcode: 0xF7E0,
+                    message_type: "Communication_TextboxString".to_string(),
+                    message_direction: "ServerToClient".to_string(),
+                })
+            }
+        }
+        .to_string();
 
         Ok(Self {
             text,
@@ -1043,7 +1108,12 @@ impl ObjectDescription {
 
         // Validate counts are reasonable
         if palette_count > 100 || texture_count > 100 || model_count > 100 {
-            anyhow::bail!("Suspicious ObjDesc counts: pal={} tex={} model={}", palette_count, texture_count, model_count);
+            anyhow::bail!(
+                "Suspicious ObjDesc counts: pal={} tex={} model={}",
+                palette_count,
+                texture_count,
+                model_count
+            );
         }
 
         // Read base palette if palette count > 0 (PackedDWORD)
@@ -1146,7 +1216,11 @@ pub struct CharacterCharacterOptionsEvent {
 }
 
 impl CharacterCharacterOptionsEvent {
-    pub fn read(_reader: &mut BinaryReader, ordered_object_id: u32, ordered_sequence: u32) -> Result<Self> {
+    pub fn read(
+        _reader: &mut BinaryReader,
+        ordered_object_id: u32,
+        ordered_sequence: u32,
+    ) -> Result<Self> {
         // Complex options data - skip for now
         Ok(Self {
             ordered_object_id,
@@ -1180,7 +1254,11 @@ pub struct ItemWearItem {
 }
 
 impl ItemWearItem {
-    pub fn read(reader: &mut BinaryReader, ordered_object_id: u32, ordered_sequence: u32) -> Result<Self> {
+    pub fn read(
+        reader: &mut BinaryReader,
+        ordered_object_id: u32,
+        ordered_sequence: u32,
+    ) -> Result<Self> {
         let object_id = reader.read_u32()?;
         let slot_raw = reader.read_u32()?;
         let slot = crate::properties::equip_mask_name(slot_raw);
@@ -1273,7 +1351,11 @@ pub struct ItemSetAppraiseInfo {
 }
 
 impl ItemSetAppraiseInfo {
-    pub fn read(reader: &mut BinaryReader, ordered_object_id: u32, ordered_sequence: u32) -> Result<Self> {
+    pub fn read(
+        reader: &mut BinaryReader,
+        ordered_object_id: u32,
+        ordered_sequence: u32,
+    ) -> Result<Self> {
         let object_id = reader.read_u32()?;
         let flags = reader.read_u32()?;
         let success = reader.read_bool()?;
@@ -1371,34 +1453,59 @@ impl ItemSetAppraiseInfo {
         let (armor_highlight, armor_color) = if flags & appraisal_flags::ARMOR_ENCH_RATING != 0 {
             let ah = reader.read_u16()?;
             let ac = reader.read_u16()?;
-            (highlight_to_json(ah, properties::armor_highlight_mask_name), highlight_to_json(ac, properties::armor_highlight_mask_name))
+            (
+                highlight_to_json(ah, properties::armor_highlight_mask_name),
+                highlight_to_json(ac, properties::armor_highlight_mask_name),
+            )
         } else {
-            (serde_json::Value::Number(0.into()), serde_json::Value::Number(0.into()))
+            (
+                serde_json::Value::Number(0.into()),
+                serde_json::Value::Number(0.into()),
+            )
         };
 
         // WeaponEnchRating (0x0800)
         let (weapon_highlight, weapon_color) = if flags & appraisal_flags::WEAPON_ENCH_RATING != 0 {
             let wh = reader.read_u16()?;
             let wc = reader.read_u16()?;
-            (highlight_to_json(wh, properties::weapon_highlight_mask_name), highlight_to_json(wc, properties::weapon_highlight_mask_name))
+            (
+                highlight_to_json(wh, properties::weapon_highlight_mask_name),
+                highlight_to_json(wc, properties::weapon_highlight_mask_name),
+            )
         } else {
-            (serde_json::Value::Number(0.into()), serde_json::Value::Number(0.into()))
+            (
+                serde_json::Value::Number(0.into()),
+                serde_json::Value::Number(0.into()),
+            )
         };
 
         // ResistEnchRating (0x0400)
         let (resist_highlight, resist_color) = if flags & appraisal_flags::RESIST_ENCH_RATING != 0 {
             let rh = reader.read_u16()?;
             let rc = reader.read_u16()?;
-            (highlight_to_json(rh, properties::resist_highlight_mask_name), highlight_to_json(rc, properties::resist_highlight_mask_name))
+            (
+                highlight_to_json(rh, properties::resist_highlight_mask_name),
+                highlight_to_json(rc, properties::resist_highlight_mask_name),
+            )
         } else {
-            (serde_json::Value::Number(0.into()), serde_json::Value::Number(0.into()))
+            (
+                serde_json::Value::Number(0.into()),
+                serde_json::Value::Number(0.into()),
+            )
         };
 
         // BaseArmor (0x4000)
-        let (base_armor_head, base_armor_chest, base_armor_groin,
-             base_armor_bicep, base_armor_wrist, base_armor_hand,
-             base_armor_thigh, base_armor_shin, base_armor_foot) =
-        if flags & appraisal_flags::BASE_ARMOR != 0 {
+        let (
+            base_armor_head,
+            base_armor_chest,
+            base_armor_groin,
+            base_armor_bicep,
+            base_armor_wrist,
+            base_armor_hand,
+            base_armor_thigh,
+            base_armor_shin,
+            base_armor_foot,
+        ) = if flags & appraisal_flags::BASE_ARMOR != 0 {
             (
                 reader.read_u32()?,
                 reader.read_u32()?,
@@ -1473,7 +1580,11 @@ pub struct MagicDispelEnchantment {
 }
 
 impl MagicDispelEnchantment {
-    pub fn read(reader: &mut BinaryReader, ordered_object_id: u32, ordered_sequence: u32) -> Result<Self> {
+    pub fn read(
+        reader: &mut BinaryReader,
+        ordered_object_id: u32,
+        ordered_sequence: u32,
+    ) -> Result<Self> {
         let spell_id = reader.read_u16()?;
         let layer = reader.read_u16()?;
 
@@ -1520,17 +1631,32 @@ pub struct Enchantment {
     pub spell_category: String,
     #[serde(rename = "PowerLevel")]
     pub power_level: u32,
-    #[serde(rename = "StartTime", serialize_with = "crate::serialization::serialize_f64")]
+    #[serde(
+        rename = "StartTime",
+        serialize_with = "crate::serialization::serialize_f64"
+    )]
     pub start_time: f64,
-    #[serde(rename = "Duration", serialize_with = "crate::serialization::serialize_f64")]
+    #[serde(
+        rename = "Duration",
+        serialize_with = "crate::serialization::serialize_f64"
+    )]
     pub duration: f64,
     #[serde(rename = "CasterId")]
     pub caster_id: u32,
-    #[serde(rename = "DegradeModifier", serialize_with = "crate::serialization::serialize_f32")]
+    #[serde(
+        rename = "DegradeModifier",
+        serialize_with = "crate::serialization::serialize_f32"
+    )]
     pub degrade_modifier: f32,
-    #[serde(rename = "DegradeLimit", serialize_with = "crate::serialization::serialize_f32")]
+    #[serde(
+        rename = "DegradeLimit",
+        serialize_with = "crate::serialization::serialize_f32"
+    )]
     pub degrade_limit: f32,
-    #[serde(rename = "LastTimeDegraded", serialize_with = "crate::serialization::serialize_f64")]
+    #[serde(
+        rename = "LastTimeDegraded",
+        serialize_with = "crate::serialization::serialize_f64"
+    )]
     pub last_time_degraded: f64,
     #[serde(rename = "StatMod")]
     pub stat_mod: StatMod,
@@ -1544,7 +1670,10 @@ pub struct StatMod {
     pub mod_type: String,
     #[serde(rename = "Key")]
     pub key: u32,
-    #[serde(rename = "Value", serialize_with = "crate::serialization::serialize_f32")]
+    #[serde(
+        rename = "Value",
+        serialize_with = "crate::serialization::serialize_f32"
+    )]
     pub value: f32,
 }
 
@@ -1569,8 +1698,8 @@ impl Enchantment {
 
         let spell_id = reader.read_u16()? as u32;
         let layer = reader.read_u16()?;
-        let has_equipment_set = reader.read_u16()? as u32;  // u16 not u32
-        let spell_category_id = reader.read_u16()?;         // swapped with above
+        let has_equipment_set = reader.read_u16()? as u32; // u16 not u32
+        let spell_category_id = reader.read_u16()?; // swapped with above
         let power_level = reader.read_u32()?;
         let start_time = reader.read_f64()?;
         let duration = reader.read_f64()?;
@@ -1593,7 +1722,10 @@ impl Enchantment {
         };
 
         Ok(Self {
-            id: LayeredSpellId { id: spell_id, layer },
+            id: LayeredSpellId {
+                id: spell_id,
+                layer,
+            },
             has_equipment_set,
             spell_category: spell_category_name(spell_category_id),
             power_level,
@@ -1631,27 +1763,65 @@ fn stat_mod_type_name(flags: u32) -> String {
     let mut parts = Vec::new();
 
     // Stat type flags (lower bits)
-    if flags & 0x0000001 != 0 { parts.push("Attribute"); }
-    if flags & 0x0000002 != 0 { parts.push("SecondAtt"); }
-    if flags & 0x0000004 != 0 { parts.push("Int"); }
-    if flags & 0x0000008 != 0 { parts.push("Float"); }
-    if flags & 0x0000010 != 0 { parts.push("Skill"); }
-    if flags & 0x0000020 != 0 { parts.push("BodyDamageValue"); }
-    if flags & 0x0000040 != 0 { parts.push("BodyDamageVariance"); }
-    if flags & 0x0000080 != 0 { parts.push("BodyArmorValue"); }
+    if flags & 0x0000001 != 0 {
+        parts.push("Attribute");
+    }
+    if flags & 0x0000002 != 0 {
+        parts.push("SecondAtt");
+    }
+    if flags & 0x0000004 != 0 {
+        parts.push("Int");
+    }
+    if flags & 0x0000008 != 0 {
+        parts.push("Float");
+    }
+    if flags & 0x0000010 != 0 {
+        parts.push("Skill");
+    }
+    if flags & 0x0000020 != 0 {
+        parts.push("BodyDamageValue");
+    }
+    if flags & 0x0000040 != 0 {
+        parts.push("BodyDamageVariance");
+    }
+    if flags & 0x0000080 != 0 {
+        parts.push("BodyArmorValue");
+    }
 
     // Modifier type flags (higher bits)
-    if flags & 0x0001000 != 0 { parts.push("SingleStat"); }
-    if flags & 0x0002000 != 0 { parts.push("MultipleStat"); }
-    if flags & 0x0004000 != 0 { parts.push("Multiplicative"); }
-    if flags & 0x0008000 != 0 { parts.push("Additive"); }
-    if flags & 0x0010000 != 0 { parts.push("AttackSkills"); }
-    if flags & 0x0020000 != 0 { parts.push("DefenseSkills"); }
-    if flags & 0x0100000 != 0 { parts.push("MultiplicativeDegrade"); }
-    if flags & 0x0200000 != 0 { parts.push("Additive_Degrade"); }
-    if flags & 0x0800000 != 0 { parts.push("Vitae"); }
-    if flags & 0x1000000 != 0 { parts.push("Cooldown"); }
-    if flags & 0x2000000 != 0 { parts.push("Beneficial"); }
+    if flags & 0x0001000 != 0 {
+        parts.push("SingleStat");
+    }
+    if flags & 0x0002000 != 0 {
+        parts.push("MultipleStat");
+    }
+    if flags & 0x0004000 != 0 {
+        parts.push("Multiplicative");
+    }
+    if flags & 0x0008000 != 0 {
+        parts.push("Additive");
+    }
+    if flags & 0x0010000 != 0 {
+        parts.push("AttackSkills");
+    }
+    if flags & 0x0020000 != 0 {
+        parts.push("DefenseSkills");
+    }
+    if flags & 0x0100000 != 0 {
+        parts.push("MultiplicativeDegrade");
+    }
+    if flags & 0x0200000 != 0 {
+        parts.push("Additive_Degrade");
+    }
+    if flags & 0x0800000 != 0 {
+        parts.push("Vitae");
+    }
+    if flags & 0x1000000 != 0 {
+        parts.push("Cooldown");
+    }
+    if flags & 0x2000000 != 0 {
+        parts.push("Beneficial");
+    }
 
     if parts.is_empty() {
         format!("StatModType_{}", flags)
@@ -1664,25 +1834,58 @@ fn equipment_set_name(id: u32) -> String {
     // Equipment set IDs from protocol.xml
     match id {
         0 => "None",
-        1 => "Test", 2 => "Test2", 3 => "Unknown3",
-        4 => "CarraidasBenediction", 5 => "NobleRelic", 6 => "AncientRelic",
-        7 => "AlduressaRelic", 8 => "Ninja", 9 => "EmpyreanRings",
-        10 => "ArmMindHeart", 11 => "ArmorPerfectLight", 12 => "ArmorPerfectLight2",
-        13 => "Soldiers", 14 => "Adepts", 15 => "Archers", 16 => "Defenders",
-        17 => "Tinkers", 18 => "Crafters", 19 => "Hearty", 20 => "Dexterous",
-        21 => "Wise", 22 => "Swift", 23 => "Hardened", 24 => "Reinforced",
-        25 => "Interlocking", 26 => "Flameproof", 27 => "Acidproof",
-        28 => "Coldproof", 29 => "Lightningproof", 30 => "SocietyArmor",
-        31 => "ColosseumClothing", 32 => "GraveyardClothing", 33 => "OlthoiClothing",
-        34 => "NoobieArmor", 35 => "AetheriaDefense", 36 => "AetheriaDestruction",
-        37 => "AetheriaFury", 38 => "AetheriaGrowth", 39 => "AetheriaVigor",
-        40 => "RareDamageResistance", 41 => "RareDamageBoost",
+        1 => "Test",
+        2 => "Test2",
+        3 => "Unknown3",
+        4 => "CarraidasBenediction",
+        5 => "NobleRelic",
+        6 => "AncientRelic",
+        7 => "AlduressaRelic",
+        8 => "Ninja",
+        9 => "EmpyreanRings",
+        10 => "ArmMindHeart",
+        11 => "ArmorPerfectLight",
+        12 => "ArmorPerfectLight2",
+        13 => "Soldiers",
+        14 => "Adepts",
+        15 => "Archers",
+        16 => "Defenders",
+        17 => "Tinkers",
+        18 => "Crafters",
+        19 => "Hearty",
+        20 => "Dexterous",
+        21 => "Wise",
+        22 => "Swift",
+        23 => "Hardened",
+        24 => "Reinforced",
+        25 => "Interlocking",
+        26 => "Flameproof",
+        27 => "Acidproof",
+        28 => "Coldproof",
+        29 => "Lightningproof",
+        30 => "SocietyArmor",
+        31 => "ColosseumClothing",
+        32 => "GraveyardClothing",
+        33 => "OlthoiClothing",
+        34 => "NoobieArmor",
+        35 => "AetheriaDefense",
+        36 => "AetheriaDestruction",
+        37 => "AetheriaFury",
+        38 => "AetheriaGrowth",
+        39 => "AetheriaVigor",
+        40 => "RareDamageResistance",
+        41 => "RareDamageBoost",
         _ => return format!("Set_{}", id),
-    }.to_string()
+    }
+    .to_string()
 }
 
 impl MagicUpdateEnchantment {
-    pub fn read(reader: &mut BinaryReader, ordered_object_id: u32, ordered_sequence: u32) -> Result<Self> {
+    pub fn read(
+        reader: &mut BinaryReader,
+        ordered_object_id: u32,
+        ordered_sequence: u32,
+    ) -> Result<Self> {
         let enchantment = Enchantment::read(reader)?;
 
         Ok(Self {
@@ -1722,7 +1925,11 @@ pub struct ItemServerSaysContainId {
 }
 
 impl ItemServerSaysContainId {
-    pub fn read(reader: &mut BinaryReader, ordered_object_id: u32, ordered_sequence: u32) -> Result<Self> {
+    pub fn read(
+        reader: &mut BinaryReader,
+        ordered_object_id: u32,
+        ordered_sequence: u32,
+    ) -> Result<Self> {
         let object_id = reader.read_u32()?;
         let container_id = reader.read_u32()?;
         let slot_index = reader.read_u32()?;
@@ -1733,19 +1940,22 @@ impl ItemServerSaysContainId {
             0 => "None",
             1 => "Container",
             2 => "Foci",
-            _ => return Ok(Self {
-                object_id,
-                container_id,
-                slot_index,
-                container_type: format!("ContainerType_{}", container_type_raw),
-                ordered_object_id,
-                ordered_sequence,
-                event_type: "Item_ServerSaysContainId".to_string(),
-                opcode: 0xF7B0,
-                message_type: "Ordered_GameEvent".to_string(),
-                message_direction: "ServerToClient".to_string(),
-            }),
-        }.to_string();
+            _ => {
+                return Ok(Self {
+                    object_id,
+                    container_id,
+                    slot_index,
+                    container_type: format!("ContainerType_{}", container_type_raw),
+                    ordered_object_id,
+                    ordered_sequence,
+                    event_type: "Item_ServerSaysContainId".to_string(),
+                    opcode: 0xF7B0,
+                    message_type: "Ordered_GameEvent".to_string(),
+                    message_direction: "ServerToClient".to_string(),
+                })
+            }
+        }
+        .to_string();
 
         Ok(Self {
             object_id,
@@ -1767,11 +1977,12 @@ impl ItemServerSaysContainId {
 fn vital_name(key: u32) -> String {
     // Per protocol.xml CurVitalId enum
     match key {
-        2 => "Health",      // CurrentHealth = 0x02
-        4 => "Stamina",     // CurrentStamina = 0x04
-        6 => "Mana",        // CurrentMana = 0x06
+        2 => "Health",  // CurrentHealth = 0x02
+        4 => "Stamina", // CurrentStamina = 0x04
+        6 => "Mana",    // CurrentMana = 0x06
         _ => return format!("Vital_{}", key),
-    }.to_string()
+    }
+    .to_string()
 }
 
 fn property_instance_id_name(key: u32) -> String {
@@ -1780,5 +1991,6 @@ fn property_instance_id_name(key: u32) -> String {
         2 => "Container",
         3 => "Wielder",
         _ => return format!("PropertyInstanceId_{}", key),
-    }.to_string()
+    }
+    .to_string()
 }

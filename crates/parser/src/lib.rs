@@ -4,24 +4,24 @@
 //! Asheron's Call network traffic.
 
 use anyhow::{Context, Result};
-use pcap_parser::*;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use pcap_parser::traits::PcapReaderIterator;
+use pcap_parser::*;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Read;
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
-pub mod packet;
+pub mod enums;
 pub mod fragment;
 pub mod message;
-pub mod reader;
-pub mod enums;
 pub mod messages;
+pub mod packet;
 pub mod properties;
+pub mod reader;
 pub mod serialization;
 
+use fragment::{Fragment, FragmentHeader};
 use packet::{PacketHeader, PacketHeaderFlags};
-use fragment::{FragmentHeader, Fragment};
 use reader::BinaryReader;
 
 /// Direction of packet flow
@@ -91,7 +91,8 @@ impl PacketParser {
         mut reader: R,
     ) -> Result<(Vec<ParsedPacket>, Vec<messages::ParsedMessage>)> {
         let mut buffer = Vec::new();
-        reader.read_to_end(&mut buffer)
+        reader
+            .read_to_end(&mut buffer)
             .context("Failed to read pcap data")?;
 
         self.parse_pcap_bytes(&buffer)
@@ -107,8 +108,8 @@ impl PacketParser {
         let mut packet_id = 0;
         let mut message_id = 0;
 
-        let mut reader = LegacyPcapReader::new(65536, buffer)
-            .context("Failed to create pcap reader")?;
+        let mut reader =
+            LegacyPcapReader::new(65536, buffer).context("Failed to create pcap reader")?;
 
         loop {
             match reader.next() {
@@ -123,13 +124,18 @@ impl PacketParser {
 
                                 // Determine direction from port
                                 let src_port = u16::from_be_bytes([data[34], data[35]]);
-                                let direction = if src_port >= 9000 && src_port <= 9013 {
+                                let direction = if (9000..=9013).contains(&src_port) {
                                     Direction::Recv // From server
                                 } else {
                                     Direction::Send // To server
                                 };
 
-                                match self.parse_packet(udp_payload, direction, &mut packet_id, &mut message_id) {
+                                match self.parse_packet(
+                                    udp_payload,
+                                    direction,
+                                    &mut packet_id,
+                                    &mut message_id,
+                                ) {
                                     Ok((mut parsed_packets, msgs)) => {
                                         packets.append(&mut parsed_packets);
                                         all_messages.extend(msgs);
@@ -241,7 +247,8 @@ impl PacketParser {
 
         let bytes = reader.read_bytes(frag_length)?;
 
-        let fragment = self.pending_fragments
+        let fragment = self
+            .pending_fragments
             .entry(sequence)
             .or_insert_with(|| Fragment::new(sequence, count));
 

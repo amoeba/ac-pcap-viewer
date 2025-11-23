@@ -1,5 +1,5 @@
-use std::io::{Read, Cursor};
 use anyhow::Result;
+use std::io::{Cursor, Read};
 
 /// A binary reader that provides little-endian reading of AC protocol data
 #[allow(dead_code)]
@@ -26,7 +26,7 @@ impl<'a> BinaryReader<'a> {
     pub fn remaining(&self) -> usize {
         let pos = self.cursor.position() as usize;
         let len = self.cursor.get_ref().len();
-        if pos >= len { 0 } else { len - pos }
+        len.saturating_sub(pos)
     }
 
     pub fn read_u8(&mut self) -> Result<u8> {
@@ -144,7 +144,10 @@ impl<'a> BinaryReader<'a> {
 
         // Sanity check - strings shouldn't be huge
         if actual_len > 10000 {
-            anyhow::bail!("String length too large: {} (likely misaligned)", actual_len);
+            anyhow::bail!(
+                "String length too large: {} (likely misaligned)",
+                actual_len
+            );
         }
 
         if actual_len == 0 {

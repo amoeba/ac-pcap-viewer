@@ -1,10 +1,10 @@
-pub mod s2c;
 pub mod c2s;
+pub mod s2c;
 
-use serde::Serialize;
+use crate::enums::{C2SMessageType, S2CMessageType};
 use crate::reader::BinaryReader;
-use crate::enums::{S2CMessageType, C2SMessageType};
 use anyhow::Result;
+use serde::Serialize;
 
 /// Parsed AC message with all fields decoded
 #[derive(Debug, Clone, Serialize)]
@@ -70,39 +70,66 @@ fn parse_s2c_message(
         }
         S2CMessageType::QualitiesPrivateUpdateInt => {
             let msg = QualitiesPrivateUpdateInt::read(reader)?;
-            ("Qualities_PrivateUpdateInt".to_string(), serde_json::to_value(&msg)?)
+            (
+                "Qualities_PrivateUpdateInt".to_string(),
+                serde_json::to_value(&msg)?,
+            )
         }
         S2CMessageType::QualitiesPrivateUpdateAttribute2ndLevel => {
             let msg = QualitiesPrivateUpdateAttribute2ndLevel::read(reader)?;
-            ("Qualities_PrivateUpdateAttribute2ndLevel".to_string(), serde_json::to_value(&msg)?)
+            (
+                "Qualities_PrivateUpdateAttribute2ndLevel".to_string(),
+                serde_json::to_value(&msg)?,
+            )
         }
         S2CMessageType::QualitiesUpdateInt => {
             let msg = QualitiesUpdateInt::read(reader)?;
-            ("Qualities_UpdateInt".to_string(), serde_json::to_value(&msg)?)
+            (
+                "Qualities_UpdateInt".to_string(),
+                serde_json::to_value(&msg)?,
+            )
         }
         S2CMessageType::QualitiesUpdateInstanceId => {
             let msg = QualitiesUpdateInstanceId::read(reader)?;
-            ("Qualities_UpdateInstanceId".to_string(), serde_json::to_value(&msg)?)
+            (
+                "Qualities_UpdateInstanceId".to_string(),
+                serde_json::to_value(&msg)?,
+            )
         }
         S2CMessageType::MovementSetObjectMovement => {
             let msg = MovementSetObjectMovement::read(reader)?;
-            ("Movement_SetObjectMovement".to_string(), serde_json::to_value(&msg)?)
+            (
+                "Movement_SetObjectMovement".to_string(),
+                serde_json::to_value(&msg)?,
+            )
         }
         S2CMessageType::InventoryPickupEvent => {
             let msg = InventoryPickupEvent::read(reader)?;
-            ("Inventory_PickupEvent".to_string(), serde_json::to_value(&msg)?)
+            (
+                "Inventory_PickupEvent".to_string(),
+                serde_json::to_value(&msg)?,
+            )
         }
         S2CMessageType::EffectsSoundEvent => {
             let msg = EffectsSoundEvent::read(reader)?;
-            ("Effects_SoundEvent".to_string(), serde_json::to_value(&msg)?)
+            (
+                "Effects_SoundEvent".to_string(),
+                serde_json::to_value(&msg)?,
+            )
         }
         S2CMessageType::EffectsPlayScriptType => {
             let msg = EffectsPlayScriptType::read(reader)?;
-            ("Effects_PlayScriptType".to_string(), serde_json::to_value(&msg)?)
+            (
+                "Effects_PlayScriptType".to_string(),
+                serde_json::to_value(&msg)?,
+            )
         }
         S2CMessageType::CommunicationTextboxString => {
             let msg = CommunicationTextboxString::read(reader)?;
-            ("Communication_TextboxString".to_string(), serde_json::to_value(&msg)?)
+            (
+                "Communication_TextboxString".to_string(),
+                serde_json::to_value(&msg)?,
+            )
         }
         S2CMessageType::ItemObjDescEvent => {
             let msg = ItemObjDescEvent::read(reader)?;
@@ -122,7 +149,7 @@ fn parse_s2c_message(
                     "MessageType": format!("{:?}", msg_type),
                     "MessageDirection": "ServerToClient",
                     "RawData": hex::encode(&raw_data),
-                })
+                }),
             )
         }
     };
@@ -166,7 +193,7 @@ fn parse_c2s_message(
                     "MessageType": format!("{:?}", msg_type),
                     "MessageDirection": "ClientToServer",
                     "RawData": hex::encode(&raw_data),
-                })
+                }),
             )
         }
     };
