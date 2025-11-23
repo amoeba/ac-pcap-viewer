@@ -26,8 +26,8 @@ enum SortField {
 const MOBILE_BREAKPOINT: f32 = 768.0;
 const TABLET_BREAKPOINT: f32 = 1024.0;
 
-// Mobile UI scaling (2x for debugging, adjust as needed)
-const MOBILE_SCALE: f32 = 2.0;
+// Mobile UI scaling factor
+const MOBILE_SCALE: f32 = 1.5;
 
 // Shared state for async loading
 type SharedData = Arc<Mutex<Option<Vec<u8>>>>;
