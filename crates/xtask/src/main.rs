@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use sha2::{Digest, Sha256};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 #[derive(Parser)]
@@ -161,7 +161,7 @@ fn build_web(serve: bool, port: u16, small: bool) -> Result<()> {
 
 /// Apply cache busting by renaming files with content hash
 /// Returns the hash used for cache busting
-fn apply_cache_busting(pkg_dir: &PathBuf) -> Result<String> {
+fn apply_cache_busting(pkg_dir: &Path) -> Result<String> {
     // Read the wasm file and compute its hash
     let wasm_path = pkg_dir.join("web_bg.wasm");
     let wasm_content = std::fs::read(&wasm_path).context("Failed to read web_bg.wasm")?;
