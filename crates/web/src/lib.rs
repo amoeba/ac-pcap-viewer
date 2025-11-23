@@ -221,7 +221,11 @@ impl PcapViewerApp {
         input.style().set_property("display", "none").ok();
 
         // Add to document temporarily
-        if document.body().map(|b| b.append_child(&input)).is_err() {
+        let body = match document.body() {
+            Some(b) => b,
+            None => return,
+        };
+        if body.append_child(&input).is_err() {
             return;
         }
 
@@ -424,6 +428,7 @@ impl eframe::App for PcapViewerApp {
         // Track menu actions to execute after borrow ends
         let mut open_file_clicked = false;
         let mut open_url_clicked = false;
+        #[cfg(not(target_arch = "wasm32"))]
         let mut quit_clicked = false;
 
         // Menu bar panel
