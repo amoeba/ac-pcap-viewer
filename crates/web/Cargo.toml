@@ -7,6 +7,16 @@ description = "Web UI for Asheron's Call PCAP parser"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+# Desktop binary (requires --features desktop)
+[[bin]]
+name = "ac-pcap-viewer"
+path = "src/bin/desktop.rs"
+required-features = ["desktop"]
+
+[features]
+default = []
+desktop = ["rfd", "env_logger"]
+
 [dependencies]
 ac-parser = { path = "../parser" }
 anyhow.workspace = true
@@ -49,3 +59,8 @@ web-sys = { version = "0.3", features = [
 js-sys = "0.3"
 console_error_panic_hook = "0.1"
 tracing-wasm = "0.2"
+
+# Desktop-specific dependencies (optional, enabled by "desktop" feature)
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rfd = { version = "0.15", optional = true }
+env_logger = { version = "0.11", optional = true }

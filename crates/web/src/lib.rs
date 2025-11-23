@@ -72,6 +72,10 @@ pub struct PcapViewerApp {
     url_input: String,
     show_settings: bool,
     show_about: bool,
+
+    // Desktop: pending file from file dialog
+    #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
+    pending_file_path: Option<std::path::PathBuf>,
 }
 
 impl Default for PcapViewerApp {
@@ -97,6 +101,8 @@ impl Default for PcapViewerApp {
             url_input: String::new(),
             show_settings: false,
             show_about: false,
+            #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
+            pending_file_path: None,
         }
     }
 }
@@ -289,6 +295,18 @@ impl PcapViewerApp {
         // Native: Use drag-and-drop or show a message
         self.status_message = "Please drag and drop a PCAP file to open it".to_string();
     }
+
+    /// Open a native file dialog (desktop only)
+    #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
+    fn open_file_dialog(&mut self) {
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("PCAP files", &["pcap", "pcapng", "cap"])
+            .add_filter("All files", &["*"])
+            .pick_file()
+        {
+            self.pending_file_path = Some(path);
+        }
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -360,6 +378,16 @@ impl eframe::App for PcapViewerApp {
         // Process dropped file data outside the input closure
         if let Some(data) = self.dropped_file_data.take() {
             self.parse_pcap_data(&data);
+        }
+
+        // Desktop: process file from file dialog
+        #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
+        if let Some(path) = self.pending_file_path.take() {
+            self.status_message = format!("Loading {}...", path.display());
+            match std::fs::read(&path) {
+                Ok(data) => self.parse_pcap_data(&data),
+                Err(e) => self.status_message = format!("Error reading file: {}", e),
+            }
         }
 
         // Check for async fetched data
@@ -550,6 +578,15 @@ impl eframe::App for PcapViewerApp {
                         "AC PCAP Parser"
                     });
                     ui.separator();
+
+                    // Desktop: Open File button
+                    #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
+                    {
+                        if ui.button("Open...").clicked() {
+                            self.open_file_dialog();
+                        }
+                        ui.separator();
+                    }
 
                     // Tab buttons
                     if ui
@@ -791,6 +828,21 @@ impl eframe::App for PcapViewerApp {
                     } else {
                         [200.0, 40.0]
                     };
+
+                    // Desktop: Open File button
+                    #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
+                    {
+                        if ui
+                            .add_sized(button_size, egui::Button::new("Open File..."))
+                            .clicked()
+                        {
+                            self.open_file_dialog();
+                        }
+                        ui.add_space(10.0);
+                        ui.label("or");
+                        ui.add_space(10.0);
+                    }
+
                     if ui
                         .add_sized(button_size, egui::Button::new("Load Example"))
                         .clicked()

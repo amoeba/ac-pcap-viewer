@@ -2,11 +2,65 @@
 
 A Rust application that parses PCAP (packet capture) files containing Asheron's Call (AC) game network traffic. It extracts, reassembles fragmented UDP packets, and decodes binary messages from the AC network protocol into JSON format.
 
+**Runs on Desktop and Web** - The graphical interface works as both a native desktop application and in the browser via WebAssembly, sharing the same codebase.
+
+## Quick Start - Desktop & Web GUI
+
+The easiest way to use this tool is with the graphical interface, available as both a **native desktop app** and a **web app**.
+
+### Desktop Application
+
+```bash
+# Build and run the desktop app
+cargo xtask desktop --run
+
+# Or build release version
+cargo xtask desktop --release --run
+```
+
+Features:
+- Native file dialogs ("Open File...")
+- Drag-and-drop PCAP files
+- Fast native performance
+- Works offline
+
+### Web Application
+
+```bash
+# Prerequisites (one-time setup)
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli
+
+# Build and serve locally
+cargo xtask web --serve
+```
+
+Then open http://localhost:8080 in your browser.
+
+Features:
+- No installation required
+- Drag-and-drop PCAP files
+- Load files from URL (`?url=https://...`)
+- Runs entirely in the browser
+
+### GUI Features (Both Platforms)
+
+- Browse parsed messages and raw packet fragments
+- Search and filter by message type
+- Sort by ID, type, or direction
+- JSON tree view for message details
+- Dark/light theme toggle
+- Responsive layout (mobile-friendly on web)
+
+---
+
 ## Features
 
 - Parse PCAP files with AC network traffic
 - Reassemble fragmented UDP packets
 - Decode Server-to-Client (S2C) and Client-to-Server (C2S) messages
+- **Desktop GUI** with native file dialogs
+- **Web GUI** via WebAssembly
 - CLI with filtering, sorting, and multiple output formats
 - Interactive TUI with tabs for messages and fragments
 
@@ -232,19 +286,52 @@ cd ac-pcap-parser
 cargo build --release
 ```
 
-## Web UI
+## GUI (Desktop & Web)
 
-A browser-based version is available using WebAssembly.
+The graphical interface is built with [egui](https://github.com/emilk/egui)/[eframe](https://docs.rs/eframe), which supports both native desktop and WebAssembly from the same codebase.
 
-### Prerequisites
+### Architecture
 
+```
+crates/web/
+├── src/
+│   ├── lib.rs              # Shared UI code (99% of the app)
+│   └── bin/desktop.rs      # Desktop entry point
+├── Cargo.toml              # Platform-specific dependencies via cfg()
+└── index.html              # Web entry point
+```
+
+Platform-specific code uses `#[cfg(target_arch = "wasm32")]` / `#[cfg(not(target_arch = "wasm32"))]` for:
+- File dialogs (desktop: `rfd` crate, web: drag-drop only)
+- URL loading (web only)
+- Logging setup
+
+### Building Desktop
+
+```bash
+# Debug build
+cargo xtask desktop
+
+# Release build
+cargo xtask desktop --release
+
+# Build and run
+cargo xtask desktop --run
+cargo xtask desktop --release --run
+
+# Or directly with cargo
+cargo run -p web --bin ac-pcap-viewer --features desktop
+```
+
+### Building Web
+
+Prerequisites:
 ```bash
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli
 ```
 
-### Building
-
+Build commands:
 ```bash
 # Build the web UI
 cargo xtask web
@@ -277,11 +364,13 @@ This project uses the [xtask pattern](https://github.com/matklad/cargo-xtask) fo
 ```bash
 cargo xtask --help           # List all tasks
 cargo xtask web --help       # Help for a specific task
+cargo xtask desktop --help   # Help for desktop task
 ```
 
 | Task | Description |
 |------|-------------|
 | `cargo xtask web` | Build the WebAssembly UI |
+| `cargo xtask desktop` | Build the native desktop app |
 
 ### Adding New Tasks
 

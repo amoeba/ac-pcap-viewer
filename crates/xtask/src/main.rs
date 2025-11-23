@@ -25,6 +25,15 @@ enum Commands {
         #[arg(long)]
         small: bool,
     },
+    /// Build the desktop application
+    Desktop {
+        /// Build in release mode
+        #[arg(long)]
+        release: bool,
+        /// Run the application after building
+        #[arg(long)]
+        run: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -32,6 +41,7 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Web { serve, port, small } => build_web(serve, port, small),
+        Commands::Desktop { release, run } => build_desktop(release, run),
     }
 }
 
@@ -149,6 +159,60 @@ fn build_web(serve: bool, port: u16, small: bool) -> Result<()> {
     } else {
         println!("\nTo test locally:");
         println!("  cargo xtask web --serve");
+    }
+
+    Ok(())
+}
+
+fn build_desktop(release: bool, run: bool) -> Result<()> {
+    let root = project_root();
+
+    println!("Building desktop application...");
+
+    let mut args = vec![
+        "build",
+        "-p",
+        "web",
+        "--bin",
+        "ac-pcap-viewer",
+        "--features",
+        "desktop",
+    ];
+    if release {
+        args.push("--release");
+    }
+
+    let status = Command::new("cargo")
+        .args(&args)
+        .current_dir(&root)
+        .status()
+        .context("Failed to run cargo build")?;
+
+    if !status.success() {
+        bail!("cargo build failed");
+    }
+
+    let profile = if release { "release" } else { "debug" };
+    let binary_path = root.join(format!("target/{}/ac-pcap-viewer", profile));
+
+    println!("\nBuild complete!");
+    println!("  Binary: {}", binary_path.display());
+
+    if run {
+        println!("\nRunning application...");
+        let status = Command::new(&binary_path)
+            .current_dir(&root)
+            .status()
+            .context("Failed to run application")?;
+
+        if !status.success() {
+            bail!("Application exited with error");
+        }
+    } else {
+        println!("\nTo run:");
+        println!("  cargo xtask desktop --run");
+        println!("  # or directly:");
+        println!("  {}", binary_path.display());
     }
 
     Ok(())
