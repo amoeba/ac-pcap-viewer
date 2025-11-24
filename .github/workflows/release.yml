@@ -1,0 +1,310 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v0.1.0)'
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ====================
+  # Build Desktop Binaries
+  # ====================
+
+  build-desktop:
+    name: Build Desktop (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: ac-pcap-viewer-linux-x86_64
+            binary: ac-pcap-viewer
+            archive: tar.gz
+
+          # macOS x86_64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            artifact: ac-pcap-viewer-macos-x86_64
+            binary: ac-pcap-viewer
+            archive: tar.gz
+
+          # macOS ARM64 (Apple Silicon)
+          - os: macos-14
+            target: aarch64-apple-darwin
+            artifact: ac-pcap-viewer-macos-arm64
+            binary: ac-pcap-viewer
+            archive: tar.gz
+
+          # Windows x86_64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: ac-pcap-viewer-windows-x86_64
+            binary: ac-pcap-viewer.exe
+            archive: zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust
+        run: |
+          rustup target add ${{ matrix.target }}
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-release-
+
+      - name: Build Desktop (Release)
+        run: |
+          cargo build -p web --bin ac-pcap-viewer --features desktop --release --target ${{ matrix.target }}
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} dist/
+          cd dist
+          tar -czvf ${{ matrix.artifact }}.tar.gz ${{ matrix.binary }}
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.binary }}" -Destination "dist/"
+          Compress-Archive -Path "dist/${{ matrix.binary }}" -DestinationPath "dist/${{ matrix.artifact }}.zip"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}.${{ matrix.archive }}
+          retention-days: 1
+
+  # ====================
+  # Build WASM Package
+  # ====================
+
+  build-wasm:
+    name: Build WASM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-wasm-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-wasm-release-
+
+      - name: Install wasm-bindgen-cli
+        run: |
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.cargo/bin:$PATH"
+          WASM_BINDGEN_VERSION=$(grep -A1 'name = "wasm-bindgen"' Cargo.lock | grep version | head -1 | cut -d'"' -f2)
+          echo "Required wasm-bindgen version: $WASM_BINDGEN_VERSION"
+          INSTALLED_VERSION=$(wasm-bindgen --version 2>/dev/null | cut -d' ' -f2 || echo "none")
+          echo "Installed version: $INSTALLED_VERSION"
+          if [ "$INSTALLED_VERSION" != "$WASM_BINDGEN_VERSION" ]; then
+            echo "Version mismatch - installing wasm-bindgen-cli $WASM_BINDGEN_VERSION"
+            cargo install wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION" --force
+          fi
+
+      - name: Build WASM (Release)
+        run: cargo xtask web
+
+      - name: Package WASM
+        run: |
+          cd crates/web
+          tar -czvf ac-pcap-viewer-wasm.tar.gz pkg/
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ac-pcap-viewer-wasm
+          path: crates/web/ac-pcap-viewer-wasm.tar.gz
+          retention-days: 1
+
+  # ====================
+  # Build CLI Binaries
+  # ====================
+
+  build-cli:
+    name: Build CLI (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: ac-pcap-parser-linux-x86_64
+            binary: ac-pcap-parser
+            archive: tar.gz
+
+          # macOS x86_64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            artifact: ac-pcap-parser-macos-x86_64
+            binary: ac-pcap-parser
+            archive: tar.gz
+
+          # macOS ARM64 (Apple Silicon)
+          - os: macos-14
+            target: aarch64-apple-darwin
+            artifact: ac-pcap-parser-macos-arm64
+            binary: ac-pcap-parser
+            archive: tar.gz
+
+          # Windows x86_64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: ac-pcap-parser-windows-x86_64
+            binary: ac-pcap-parser.exe
+            archive: zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust
+        run: |
+          rustup target add ${{ matrix.target }}
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-cli-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-cli-release-
+
+      - name: Build CLI (Release)
+        run: |
+          cargo build -p ac-pcap-cli --release --target ${{ matrix.target }}
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} dist/
+          cd dist
+          tar -czvf ${{ matrix.artifact }}.tar.gz ${{ matrix.binary }}
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.binary }}" -Destination "dist/"
+          Compress-Archive -Path "dist/${{ matrix.binary }}" -DestinationPath "dist/${{ matrix.artifact }}.zip"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}.${{ matrix.archive }}
+          retention-days: 1
+
+  # ====================
+  # Create GitHub Release
+  # ====================
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build-desktop, build-wasm, build-cli]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.tag }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find artifacts -type f -name "*"
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} release-assets/ \;
+          echo "Release assets:"
+          ls -la release-assets/
+
+      - name: Generate checksums
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          echo "Checksums:"
+          cat SHA256SUMS.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+          generate_release_notes: true
+          files: |
+            release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
