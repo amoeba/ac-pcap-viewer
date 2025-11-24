@@ -69,11 +69,13 @@ fn build_web(serve: bool, port: u16, small: bool) -> Result<()> {
     // Build WASM
     println!("Building WASM...");
     let mut args = vec!["build", "-p", "web", "--target", "wasm32-unknown-unknown"];
-    if small {
+    let profile_dir = if small {
         args.push("--profile=release-wasm");
+        "release-wasm"
     } else {
         args.push("--release");
-    }
+        "release"
+    };
     let status = Command::new("cargo")
         .args(&args)
         .current_dir(&root)
@@ -86,7 +88,10 @@ fn build_web(serve: bool, port: u16, small: bool) -> Result<()> {
 
     // Run wasm-bindgen
     println!("Generating JS bindings...");
-    let wasm_file = root.join("target/wasm32-unknown-unknown/release/web.wasm");
+    let wasm_file = root.join(format!(
+        "target/wasm32-unknown-unknown/{}/web.wasm",
+        profile_dir
+    ));
 
     let status = Command::new("wasm-bindgen")
         .args([
