@@ -16,22 +16,25 @@ env:
 
 jobs:
   # ====================
-  # Build Desktop Binaries
+  # Build Native Binaries (Desktop & CLI)
   # ====================
 
-  build-desktop:
-    name: Build Desktop (${{ matrix.target }})
+  build-native:
+    name: Build ${{ matrix.build_type }} (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
+          # ---- Desktop Builds ----
           # Linux x86_64
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact: ac-pcap-viewer-linux-x86_64
             binary: ac-pcap-viewer
             archive: tar.gz
+            build_type: desktop
+            build_cmd: cargo build -p web --bin ac-pcap-viewer --features desktop --release --target x86_64-unknown-linux-gnu
 
           # macOS x86_64
           - os: macos-13
@@ -39,6 +42,8 @@ jobs:
             artifact: ac-pcap-viewer-macos-x86_64
             binary: ac-pcap-viewer
             archive: tar.gz
+            build_type: desktop
+            build_cmd: cargo build -p web --bin ac-pcap-viewer --features desktop --release --target x86_64-apple-darwin
 
           # macOS ARM64 (Apple Silicon)
           - os: macos-14
@@ -46,6 +51,8 @@ jobs:
             artifact: ac-pcap-viewer-macos-arm64
             binary: ac-pcap-viewer
             archive: tar.gz
+            build_type: desktop
+            build_cmd: cargo build -p web --bin ac-pcap-viewer --features desktop --release --target aarch64-apple-darwin
 
           # Windows x86_64
           - os: windows-latest
@@ -53,6 +60,45 @@ jobs:
             artifact: ac-pcap-viewer-windows-x86_64
             binary: ac-pcap-viewer.exe
             archive: zip
+            build_type: desktop
+            build_cmd: cargo build -p web --bin ac-pcap-viewer --features desktop --release --target x86_64-pc-windows-msvc
+
+          # ---- CLI Builds ----
+          # Linux x86_64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: ac-pcap-parser-linux-x86_64
+            binary: ac-pcap-parser
+            archive: tar.gz
+            build_type: cli
+            build_cmd: cargo build -p ac-pcap-cli --release --target x86_64-unknown-linux-gnu
+
+          # macOS x86_64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            artifact: ac-pcap-parser-macos-x86_64
+            binary: ac-pcap-parser
+            archive: tar.gz
+            build_type: cli
+            build_cmd: cargo build -p ac-pcap-cli --release --target x86_64-apple-darwin
+
+          # macOS ARM64 (Apple Silicon)
+          - os: macos-14
+            target: aarch64-apple-darwin
+            artifact: ac-pcap-parser-macos-arm64
+            binary: ac-pcap-parser
+            archive: tar.gz
+            build_type: cli
+            build_cmd: cargo build -p ac-pcap-cli --release --target aarch64-apple-darwin
+
+          # Windows x86_64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: ac-pcap-parser-windows-x86_64
+            binary: ac-pcap-parser.exe
+            archive: zip
+            build_type: cli
+            build_cmd: cargo build -p ac-pcap-cli --release --target x86_64-pc-windows-msvc
 
     steps:
       - name: Checkout
@@ -61,8 +107,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Rust
-        run: |
-          rustup target add ${{ matrix.target }}
+        run: rustup target add ${{ matrix.target }}
 
       - name: Get Cargo.lock hash
         id: cargo-lock
@@ -91,9 +136,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.target }}-cargo-release-
 
-      - name: Build Desktop (Release)
-        run: |
-          cargo build -p web --bin ac-pcap-viewer --features desktop --release --target ${{ matrix.target }}
+      - name: Build (Release)
+        run: ${{ matrix.build_cmd }}
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
@@ -179,116 +223,13 @@ jobs:
           retention-days: 1
 
   # ====================
-  # Build CLI Binaries
-  # ====================
-
-  build-cli:
-    name: Build CLI (${{ matrix.target }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Linux x86_64
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact: ac-pcap-parser-linux-x86_64
-            binary: ac-pcap-parser
-            archive: tar.gz
-
-          # macOS x86_64
-          - os: macos-13
-            target: x86_64-apple-darwin
-            artifact: ac-pcap-parser-macos-x86_64
-            binary: ac-pcap-parser
-            archive: tar.gz
-
-          # macOS ARM64 (Apple Silicon)
-          - os: macos-14
-            target: aarch64-apple-darwin
-            artifact: ac-pcap-parser-macos-arm64
-            binary: ac-pcap-parser
-            archive: tar.gz
-
-          # Windows x86_64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact: ac-pcap-parser-windows-x86_64
-            binary: ac-pcap-parser.exe
-            archive: zip
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Rust
-        run: |
-          rustup target add ${{ matrix.target }}
-
-      - name: Get Cargo.lock hash
-        id: cargo-lock
-        shell: bash
-        run: |
-          if [ -f Cargo.lock ]; then
-            if command -v sha256sum &> /dev/null; then
-              HASH=$(sha256sum Cargo.lock | cut -d ' ' -f 1)
-            else
-              HASH=$(shasum -a 256 Cargo.lock | cut -d ' ' -f 1)
-            fi
-          else
-            HASH="no-lock-file"
-          fi
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-${{ matrix.target }}-cargo-cli-release-${{ steps.cargo-lock.outputs.hash }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.target }}-cargo-cli-release-
-
-      - name: Build CLI (Release)
-        run: |
-          cargo build -p ac-pcap-cli --release --target ${{ matrix.target }}
-
-      - name: Package (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          mkdir -p dist
-          cp target/${{ matrix.target }}/release/${{ matrix.binary }} dist/
-          cd dist
-          tar -czvf ${{ matrix.artifact }}.tar.gz ${{ matrix.binary }}
-
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path dist
-          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.binary }}" -Destination "dist/"
-          Compress-Archive -Path "dist/${{ matrix.binary }}" -DestinationPath "dist/${{ matrix.artifact }}.zip"
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: dist/${{ matrix.artifact }}.${{ matrix.archive }}
-          retention-days: 1
-
-  # ====================
   # Create GitHub Release
   # ====================
 
   release:
     name: Create Release
     runs-on: ubuntu-latest
-    needs: [build-desktop, build-wasm, build-cli]
+    needs: [build-native, build-wasm]
     permissions:
       contents: write
     steps:
