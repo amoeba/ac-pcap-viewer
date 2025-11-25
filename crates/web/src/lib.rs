@@ -17,7 +17,7 @@ enum Tab {
 #[derive(Default, PartialEq, Eq, Clone, Copy)]
 enum ViewMode {
     #[default]
-    Json,
+    Tree,
     Binary,
 }
 
@@ -97,7 +97,7 @@ impl Default for PcapViewerApp {
             search_query: String::new(),
             sort_field: SortField::Id,
             sort_ascending: true,
-            view_mode: ViewMode::Json,
+            view_mode: ViewMode::Tree,
             status_message: "Drag & drop a PCAP file or click 'Load Example'".to_string(),
             is_loading: false,
             dark_mode: true,
@@ -1117,13 +1117,13 @@ impl PcapViewerApp {
     fn show_detail_content(&mut self, ui: &mut egui::Ui) {
         // View mode toggle buttons
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.view_mode, ViewMode::Json, "JSON");
+            ui.selectable_value(&mut self.view_mode, ViewMode::Tree, "Tree");
             ui.selectable_value(&mut self.view_mode, ViewMode::Binary, "Binary");
         });
         ui.separator();
 
         match self.view_mode {
-            ViewMode::Json => {
+            ViewMode::Tree => {
                 match self.current_tab {
                     Tab::Messages => {
                         if let Some(idx) = self.selected_message {
