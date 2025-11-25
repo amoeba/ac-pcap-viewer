@@ -192,11 +192,9 @@ impl TimeScrubber {
                 // Fill area under curve
                 if points.len() > 1 {
                     let mut fill_points = points.clone();
-                    // Close the polygon properly at the bottom corners
-                    if let Some(last_point) = points.last() {
+                    // Close the polygon properly by going along the bottom
+                    if let (Some(last_point), Some(first_point)) = (points.last(), points.first()) {
                         fill_points.push(egui::pos2(last_point.x, rect.max.y));
-                    }
-                    if let Some(first_point) = points.first() {
                         fill_points.push(egui::pos2(first_point.x, rect.max.y));
                     }
 
@@ -205,11 +203,15 @@ impl TimeScrubber {
                     } else {
                         egui::Color32::from_rgba_unmultiplied(50, 100, 200, 50)
                     };
-                    painter.add(egui::Shape::convex_polygon(
-                        fill_points,
-                        fill_color,
-                        egui::Stroke::NONE,
-                    ));
+
+                    // Use PathShape instead of convex_polygon since our shape isn't convex
+                    use egui::epaint::{PathShape, PathStroke};
+                    painter.add(PathShape {
+                        points: fill_points,
+                        closed: true,
+                        fill: fill_color,
+                        stroke: PathStroke::default(),
+                    });
 
                     // Draw line
                     let line_color = if ui.visuals().dark_mode {
