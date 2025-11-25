@@ -1123,64 +1123,60 @@ impl PcapViewerApp {
         ui.separator();
 
         match self.view_mode {
-            ViewMode::Tree => {
-                match self.current_tab {
-                    Tab::Messages => {
-                        if let Some(idx) = self.selected_message {
-                            if idx < self.messages.len() {
-                                let tree_id = format!("message_tree_{}", idx);
-                                JsonTree::new(&tree_id, &self.messages[idx].data).show(ui);
-                            } else {
-                                ui.label("No message selected");
-                            }
+            ViewMode::Tree => match self.current_tab {
+                Tab::Messages => {
+                    if let Some(idx) = self.selected_message {
+                        if idx < self.messages.len() {
+                            let tree_id = format!("message_tree_{}", idx);
+                            JsonTree::new(&tree_id, &self.messages[idx].data).show(ui);
                         } else {
                             ui.label("No message selected");
                         }
+                    } else {
+                        ui.label("No message selected");
                     }
-                    Tab::Fragments => {
-                        if let Some(idx) = self.selected_packet {
-                            if idx < self.packets.len() {
-                                if let Ok(value) = serde_json::to_value(&self.packets[idx]) {
-                                    let tree_id = format!("packet_tree_{}", idx);
-                                    JsonTree::new(&tree_id, &value).show(ui);
-                                } else {
-                                    ui.label("Error displaying packet");
-                                }
+                }
+                Tab::Fragments => {
+                    if let Some(idx) = self.selected_packet {
+                        if idx < self.packets.len() {
+                            if let Ok(value) = serde_json::to_value(&self.packets[idx]) {
+                                let tree_id = format!("packet_tree_{}", idx);
+                                JsonTree::new(&tree_id, &value).show(ui);
                             } else {
-                                ui.label("No packet selected");
+                                ui.label("Error displaying packet");
                             }
                         } else {
                             ui.label("No packet selected");
                         }
+                    } else {
+                        ui.label("No packet selected");
                     }
                 }
-            }
-            ViewMode::Binary => {
-                match self.current_tab {
-                    Tab::Messages => {
-                        if let Some(idx) = self.selected_message {
-                            if idx < self.messages.len() {
-                                self.show_hex_dump(ui, &self.messages[idx]);
-                            } else {
-                                ui.label("No message selected");
-                            }
+            },
+            ViewMode::Binary => match self.current_tab {
+                Tab::Messages => {
+                    if let Some(idx) = self.selected_message {
+                        if idx < self.messages.len() {
+                            self.show_hex_dump(ui, &self.messages[idx]);
                         } else {
                             ui.label("No message selected");
                         }
+                    } else {
+                        ui.label("No message selected");
                     }
-                    Tab::Fragments => {
-                        if let Some(idx) = self.selected_packet {
-                            if idx < self.packets.len() {
-                                self.show_hex_dump_packet(ui, &self.packets[idx]);
-                            } else {
-                                ui.label("No packet selected");
-                            }
+                }
+                Tab::Fragments => {
+                    if let Some(idx) = self.selected_packet {
+                        if idx < self.packets.len() {
+                            self.show_hex_dump_packet(ui, &self.packets[idx]);
                         } else {
                             ui.label("No packet selected");
                         }
+                    } else {
+                        ui.label("No packet selected");
                     }
                 }
-            }
+            },
         }
     }
 
