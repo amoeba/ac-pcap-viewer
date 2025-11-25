@@ -3383,10 +3383,12 @@ version = "0.1.0"
 dependencies = [
  "ac-parser",
  "anyhow",
+ "base64",
  "console_error_panic_hook",
  "eframe",
  "egui_json_tree",
  "env_logger",
+ "hex",
  "js-sys",
  "log",
  "rfd",

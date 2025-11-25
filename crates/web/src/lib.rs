@@ -15,6 +15,13 @@ enum Tab {
 }
 
 #[derive(Default, PartialEq, Eq, Clone, Copy)]
+enum ViewMode {
+    #[default]
+    Json,
+    Binary,
+}
+
+#[derive(Default, PartialEq, Eq, Clone, Copy)]
 enum SortField {
     #[default]
     Id,
@@ -44,6 +51,7 @@ pub struct PcapViewerApp {
     search_query: String,
     sort_field: SortField,
     sort_ascending: bool,
+    view_mode: ViewMode,
 
     // Status
     status_message: String,
@@ -89,6 +97,7 @@ impl Default for PcapViewerApp {
             search_query: String::new(),
             sort_field: SortField::Id,
             sort_ascending: true,
+            view_mode: ViewMode::Json,
             status_message: "Drag & drop a PCAP file or click 'Load Example'".to_string(),
             is_loading: false,
             dark_mode: true,
@@ -1105,37 +1114,236 @@ impl PcapViewerApp {
     }
 
     /// Show the detail panel content (shared between bottom and side panel)
-    fn show_detail_content(&self, ui: &mut egui::Ui) {
-        match self.current_tab {
-            Tab::Messages => {
-                if let Some(idx) = self.selected_message {
-                    if idx < self.messages.len() {
-                        let tree_id = format!("message_tree_{}", idx);
-                        JsonTree::new(&tree_id, &self.messages[idx].data).show(ui);
-                    } else {
-                        ui.label("No message selected");
+    fn show_detail_content(&mut self, ui: &mut egui::Ui) {
+        // View mode toggle buttons
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut self.view_mode, ViewMode::Json, "JSON");
+            ui.selectable_value(&mut self.view_mode, ViewMode::Binary, "Binary");
+        });
+        ui.separator();
+
+        match self.view_mode {
+            ViewMode::Json => {
+                match self.current_tab {
+                    Tab::Messages => {
+                        if let Some(idx) = self.selected_message {
+                            if idx < self.messages.len() {
+                                let tree_id = format!("message_tree_{}", idx);
+                                JsonTree::new(&tree_id, &self.messages[idx].data).show(ui);
+                            } else {
+                                ui.label("No message selected");
+                            }
+                        } else {
+                            ui.label("No message selected");
+                        }
                     }
-                } else {
-                    ui.label("No message selected");
+                    Tab::Fragments => {
+                        if let Some(idx) = self.selected_packet {
+                            if idx < self.packets.len() {
+                                if let Ok(value) = serde_json::to_value(&self.packets[idx]) {
+                                    let tree_id = format!("packet_tree_{}", idx);
+                                    JsonTree::new(&tree_id, &value).show(ui);
+                                } else {
+                                    ui.label("Error displaying packet");
+                                }
+                            } else {
+                                ui.label("No packet selected");
+                            }
+                        } else {
+                            ui.label("No packet selected");
+                        }
+                    }
                 }
             }
-            Tab::Fragments => {
-                if let Some(idx) = self.selected_packet {
-                    if idx < self.packets.len() {
-                        if let Ok(value) = serde_json::to_value(&self.packets[idx]) {
-                            let tree_id = format!("packet_tree_{}", idx);
-                            JsonTree::new(&tree_id, &value).show(ui);
+            ViewMode::Binary => {
+                match self.current_tab {
+                    Tab::Messages => {
+                        if let Some(idx) = self.selected_message {
+                            if idx < self.messages.len() {
+                                self.show_hex_dump(ui, &self.messages[idx]);
+                            } else {
+                                ui.label("No message selected");
+                            }
                         } else {
-                            ui.label("Error displaying packet");
+                            ui.label("No message selected");
                         }
-                    } else {
-                        ui.label("No packet selected");
                     }
-                } else {
-                    ui.label("No packet selected");
+                    Tab::Fragments => {
+                        if let Some(idx) = self.selected_packet {
+                            if idx < self.packets.len() {
+                                self.show_hex_dump_packet(ui, &self.packets[idx]);
+                            } else {
+                                ui.label("No packet selected");
+                            }
+                        } else {
+                            ui.label("No packet selected");
+                        }
+                    }
                 }
             }
         }
+    }
+
+    /// Extract binary data from a message
+    fn extract_message_binary(&self, message: &ParsedMessage) -> Option<Vec<u8>> {
+        // Try to get RawData field from the message JSON
+        if let Some(raw_data_str) = message.data.get("RawData").and_then(|v| v.as_str()) {
+            // RawData is hex-encoded
+            if let Ok(bytes) = hex::decode(raw_data_str) {
+                return Some(bytes);
+            }
+        }
+        None
+    }
+
+    /// Extract binary data from a packet fragment
+    fn extract_packet_binary(&self, packet: &ParsedPacket) -> Option<Vec<u8>> {
+        // Get the fragment data (base64-encoded)
+        if let Some(ref fragment) = packet.fragment {
+            use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+            if let Ok(bytes) = BASE64.decode(&fragment.data) {
+                return Some(bytes);
+            }
+        }
+        None
+    }
+
+    /// Display hex dump for a message
+    fn show_hex_dump(&self, ui: &mut egui::Ui, message: &ParsedMessage) {
+        if let Some(data) = self.extract_message_binary(message) {
+            self.render_hex_dump(ui, &data);
+        } else {
+            ui.label("No binary data available for this message");
+        }
+    }
+
+    /// Display hex dump for a packet
+    fn show_hex_dump_packet(&self, ui: &mut egui::Ui, packet: &ParsedPacket) {
+        if let Some(data) = self.extract_packet_binary(packet) {
+            self.render_hex_dump(ui, &data);
+        } else {
+            ui.label("No binary data available for this packet");
+        }
+    }
+
+    /// Render a hex dump view of binary data
+    fn render_hex_dump(&self, ui: &mut egui::Ui, data: &[u8]) {
+        use egui::text::LayoutJob;
+        use egui::{Color32, FontId, TextFormat};
+
+        let bytes_per_line = 16;
+        let mut job = LayoutJob::default();
+
+        // Use monospace font for the entire hex dump
+        let font_id = FontId::monospace(12.0);
+        let offset_color = if ui.visuals().dark_mode {
+            Color32::from_rgb(128, 128, 255)
+        } else {
+            Color32::from_rgb(64, 64, 200)
+        };
+        let hex_color = ui.visuals().text_color();
+        let ascii_color = if ui.visuals().dark_mode {
+            Color32::from_rgb(128, 255, 128)
+        } else {
+            Color32::from_rgb(64, 150, 64)
+        };
+
+        for (i, chunk) in data.chunks(bytes_per_line).enumerate() {
+            let offset = i * bytes_per_line;
+
+            // Offset column
+            job.append(
+                &format!("{:08x}  ", offset),
+                0.0,
+                TextFormat {
+                    font_id: font_id.clone(),
+                    color: offset_color,
+                    ..Default::default()
+                },
+            );
+
+            // Hex bytes
+            for (j, byte) in chunk.iter().enumerate() {
+                job.append(
+                    &format!("{:02x} ", byte),
+                    0.0,
+                    TextFormat {
+                        font_id: font_id.clone(),
+                        color: hex_color,
+                        ..Default::default()
+                    },
+                );
+
+                // Add extra space after 8 bytes for readability
+                if j == 7 {
+                    job.append(
+                        " ",
+                        0.0,
+                        TextFormat {
+                            font_id: font_id.clone(),
+                            color: hex_color,
+                            ..Default::default()
+                        },
+                    );
+                }
+            }
+
+            // Pad if line is not full
+            if chunk.len() < bytes_per_line {
+                let padding_bytes = bytes_per_line - chunk.len();
+                let extra_space = if chunk.len() < 8 { 1 } else { 0 };
+                let padding = " ".repeat(padding_bytes * 3 + extra_space);
+                job.append(
+                    &padding,
+                    0.0,
+                    TextFormat {
+                        font_id: font_id.clone(),
+                        color: hex_color,
+                        ..Default::default()
+                    },
+                );
+            }
+
+            // ASCII representation
+            job.append(
+                " |",
+                0.0,
+                TextFormat {
+                    font_id: font_id.clone(),
+                    color: hex_color,
+                    ..Default::default()
+                },
+            );
+
+            for byte in chunk.iter() {
+                let ch = if *byte >= 32 && *byte < 127 {
+                    *byte as char
+                } else {
+                    '.'
+                };
+                job.append(
+                    &ch.to_string(),
+                    0.0,
+                    TextFormat {
+                        font_id: font_id.clone(),
+                        color: ascii_color,
+                        ..Default::default()
+                    },
+                );
+            }
+
+            job.append(
+                "|\n",
+                0.0,
+                TextFormat {
+                    font_id: font_id.clone(),
+                    color: hex_color,
+                    ..Default::default()
+                },
+            );
+        }
+
+        ui.label(job);
     }
 
     /// Draw a sort direction button with custom painted arrow icon
