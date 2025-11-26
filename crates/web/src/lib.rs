@@ -957,6 +957,18 @@ impl eframe::App for PcapViewerApp {
                         should_load_example = true;
                     }
 
+                    // Add URL loading option
+                    ui.add_space(10.0);
+                    ui.label("or");
+                    ui.add_space(10.0);
+
+                    if ui
+                        .add_sized(button_size, egui::Button::new("Load from URL..."))
+                        .clicked()
+                    {
+                        self.show_url_dialog = true;
+                    }
+
                     if self.is_loading {
                         ui.add_space(if is_mobile { 10.0 } else { 20.0 });
                         ui.spinner();
