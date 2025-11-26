@@ -16,6 +16,17 @@ use std::io::{self, Stdout};
 use crate::messages::ParsedMessage;
 use crate::ParsedPacket;
 
+/// Recursively search for a string within a JSON value (case-insensitive)
+fn json_contains_string(value: &serde_json::Value, search: &str) -> bool {
+    let search_lower = search.to_lowercase();
+    match value {
+        serde_json::Value::String(s) => s.to_lowercase().contains(&search_lower),
+        serde_json::Value::Array(arr) => arr.iter().any(|v| json_contains_string(v, search)),
+        serde_json::Value::Object(obj) => obj.values().any(|v| json_contains_string(v, search)),
+        _ => false,
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Messages,
@@ -81,9 +92,16 @@ impl App {
         let mut msgs: Vec<&ParsedMessage> = if self.search_query.is_empty() {
             self.messages.iter().collect()
         } else {
-            let query = self.search_query.to_lowercase();
+            let query = &self.search_query;
             self.messages.iter()
-                .filter(|m| m.message_type.to_lowercase().contains(&query))
+                .filter(|m| {
+                    // Search in message type
+                    let type_matches = m.message_type.to_lowercase().contains(&query.to_lowercase());
+                    // Search in message data (deep search)
+                    let data_matches = json_contains_string(&m.data, query);
+                    // Match if either type or data contains the search string
+                    type_matches || data_matches
+                })
                 .collect()
         };
 

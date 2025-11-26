@@ -353,6 +353,17 @@ fn print_summary(packets: &[ParsedPacket], messages: &[messages::ParsedMessage])
     }
 }
 
+/// Recursively search for a string within a JSON value (case-insensitive)
+fn json_contains_string(value: &serde_json::Value, search: &str) -> bool {
+    let search_lower = search.to_lowercase();
+    match value {
+        serde_json::Value::String(s) => s.to_lowercase().contains(&search_lower),
+        serde_json::Value::Array(arr) => arr.iter().any(|v| json_contains_string(v, search)),
+        serde_json::Value::Object(obj) => obj.values().any(|v| json_contains_string(v, search)),
+        _ => false,
+    }
+}
+
 fn output_messages(
     messages: &[messages::ParsedMessage],
     filter_type: Option<&str>,
@@ -365,7 +376,12 @@ fn output_messages(
     let mut filtered: Vec<&messages::ParsedMessage> = messages.iter()
         .filter(|m| {
             if let Some(ft) = filter_type {
-                if !m.message_type.to_lowercase().contains(&ft.to_lowercase()) {
+                // Search in message type
+                let type_matches = m.message_type.to_lowercase().contains(&ft.to_lowercase());
+                // Search in message data (deep search)
+                let data_matches = json_contains_string(&m.data, ft);
+                // Match if either type or data contains the search string
+                if !type_matches && !data_matches {
                     return false;
                 }
             }
