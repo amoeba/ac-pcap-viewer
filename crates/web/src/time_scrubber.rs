@@ -4,6 +4,15 @@
 
 use eframe::egui;
 
+/// Response from time scrubber interaction
+#[derive(Default)]
+pub struct ScrubberResponse {
+    /// Index that was clicked (if any)
+    pub clicked_index: Option<usize>,
+    /// Whether the reset marks button was clicked
+    pub reset_marks_clicked: bool,
+}
+
 /// Time range selection state
 #[derive(Clone, Debug)]
 pub struct TimeRange {
@@ -39,6 +48,8 @@ pub struct TimeScrubber {
     hover_time: Option<f64>,
     /// Highlighted timestamps (e.g., search results)
     highlighted_timestamps: Vec<f64>,
+    /// Marked timestamps (purple indicators)
+    marked_timestamps: Vec<f64>,
 }
 
 impl Default for TimeScrubber {
@@ -56,6 +67,7 @@ impl TimeScrubber {
             drag_start: None,
             hover_time: None,
             highlighted_timestamps: Vec::new(),
+            marked_timestamps: Vec::new(),
         }
     }
 
@@ -115,17 +127,32 @@ impl TimeScrubber {
         self.highlighted_timestamps = timestamps;
     }
 
+    /// Set marked timestamps (purple indicators)
+    pub fn set_marked_timestamps(&mut self, timestamps: Vec<f64>) {
+        self.marked_timestamps = timestamps;
+    }
+
+    /// Clear all marked timestamps
+    pub fn clear_marked_timestamps(&mut self) {
+        self.marked_timestamps.clear();
+    }
+
+    /// Check if there are any marked timestamps
+    pub fn has_marked_timestamps(&self) -> bool {
+        !self.marked_timestamps.is_empty()
+    }
+
     /// Render the time scrubber UI
-    pub fn show(&mut self, ui: &mut egui::Ui) -> Option<usize> {
+    pub fn show(&mut self, ui: &mut egui::Ui) -> ScrubberResponse {
         if !self.has_data() {
             ui.label("No data to display");
-            return None;
+            return ScrubberResponse::default();
         }
 
         let data_range = self.data_range.clone().unwrap();
         let selected_range = self.selected_range.clone().unwrap();
 
-        let mut clicked_index: Option<usize> = None;
+        let mut response = ScrubberResponse::default();
 
         ui.vertical(|ui| {
             // Header with info and reset button
@@ -135,6 +162,13 @@ impl TimeScrubber {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.button("Reset").clicked() {
                         self.reset_selection();
+                    }
+
+                    // Reset Marks button (only show if there are marked timestamps)
+                    if self.has_marked_timestamps() {
+                        if ui.button("Reset Marks").clicked() {
+                            response.reset_marks_clicked = true;
+                        }
                     }
 
                     // Show time range
@@ -157,12 +191,12 @@ impl TimeScrubber {
 
             // Density visualization
             let height = 80.0;
-            let (response, painter) = ui.allocate_painter(
+            let (egui_response, painter) = ui.allocate_painter(
                 egui::vec2(ui.available_width(), height),
                 egui::Sense::click_and_drag(),
             );
 
-            let rect = response.rect;
+            let rect = egui_response.rect;
             let time_range = data_range.max - data_range.min;
 
             // Background
@@ -218,6 +252,16 @@ impl TimeScrubber {
                 }
             }
 
+            // Draw marked timestamps as purple vertical lines
+            if !self.marked_timestamps.is_empty() {
+                let mark_color = egui::Color32::from_rgb(160, 80, 255); // Purple
+                for &timestamp in &self.marked_timestamps {
+                    let x = rect.min.x
+                        + ((timestamp - data_range.min) / time_range) as f32 * rect.width();
+                    painter.vline(x, rect.y_range(), egui::Stroke::new(2.0, mark_color));
+                }
+            }
+
             // Draw selected range overlay
             if !selected_range.is_full_range(data_range.min, data_range.max) {
                 let sel_start_x = rect.min.x
@@ -255,7 +299,7 @@ impl TimeScrubber {
             let mut show_tooltip = false;
             let mut tooltip_text = String::new();
 
-            if let Some(pointer_pos) = response.interact_pointer_pos() {
+            if let Some(pointer_pos) = egui_response.interact_pointer_pos() {
                 if rect.contains(pointer_pos) {
                     let x_ratio = (pointer_pos.x - rect.min.x) / rect.width();
                     let hover_time_val = data_range.min + x_ratio as f64 * time_range;
@@ -278,13 +322,13 @@ impl TimeScrubber {
             }
 
             // Handle dragging for range selection
-            if response.drag_started() {
+            if egui_response.drag_started() {
                 if let Some(hover) = self.hover_time {
                     self.drag_start = Some(hover);
                 }
             }
 
-            if response.dragged() {
+            if egui_response.dragged() {
                 if let (Some(start), Some(current)) = (self.drag_start, self.hover_time) {
                     let min = start.min(current);
                     let max = start.max(current);
@@ -292,19 +336,19 @@ impl TimeScrubber {
                 }
             }
 
-            if response.drag_stopped() {
+            if egui_response.drag_stopped() {
                 self.drag_start = None;
             }
 
             // Handle single click
-            if response.clicked() {
+            if egui_response.clicked() {
                 if let Some(clicked_time) = self.hover_time {
                     // If there's a selection active, clear it
                     if !selected_range.is_full_range(data_range.min, data_range.max) {
                         self.reset_selection();
                     } else {
                         // Otherwise scroll to time
-                        clicked_index = Some(0); // Placeholder - will be computed by caller
+                        response.clicked_index = Some(0); // Placeholder - will be computed by caller
                         self.hover_time = Some(clicked_time);
                     }
                 }
@@ -315,13 +359,13 @@ impl TimeScrubber {
                 self.reset_selection();
             }
 
-            // Show tooltip after all interactions (this consumes response)
+            // Show tooltip after all interactions (this consumes egui_response)
             if show_tooltip {
-                response.on_hover_text(tooltip_text);
+                egui_response.on_hover_text(tooltip_text);
             }
         });
 
-        clicked_index
+        response
     }
 
     /// Get the current selected range

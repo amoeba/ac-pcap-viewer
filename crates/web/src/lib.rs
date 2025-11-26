@@ -7,6 +7,7 @@ mod time_scrubber;
 use ac_parser::{messages::ParsedMessage, PacketParser, ParsedPacket};
 use eframe::egui;
 use egui_json_tree::JsonTree;
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use time_scrubber::TimeScrubber;
 
@@ -102,6 +103,10 @@ pub struct PcapViewerApp {
     messages_scrubber: TimeScrubber,
     fragments_scrubber: TimeScrubber,
 
+    // Marking state
+    marked_messages: HashSet<usize>,
+    marked_packets: HashSet<usize>,
+
     // Desktop: pending file from file dialog
     #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
     pending_file_path: Option<std::path::PathBuf>,
@@ -135,6 +140,8 @@ impl Default for PcapViewerApp {
             show_about: false,
             messages_scrubber: TimeScrubber::new(),
             fragments_scrubber: TimeScrubber::new(),
+            marked_messages: HashSet::new(),
+            marked_packets: HashSet::new(),
             #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
             pending_file_path: None,
         }
@@ -203,6 +210,92 @@ impl PcapViewerApp {
             }
         }
         self.is_loading = false;
+    }
+
+    fn mark_filtered_items(&mut self) {
+        let search = self.search_query.to_lowercase();
+
+        match self.current_tab {
+            Tab::Messages => {
+                let time_filter = self.messages_scrubber.get_selected_range().cloned();
+
+                // Filter messages based on search and time
+                let filtered_data: Vec<(usize, f64)> = self
+                    .messages
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, m)| {
+                        // Apply search filter
+                        let matches_search = if search.is_empty() {
+                            true
+                        } else {
+                            let type_matches = m.message_type.to_lowercase().contains(&search);
+                            let data_matches = json_contains_string(&m.data, &search);
+                            type_matches || data_matches
+                        };
+
+                        // Apply time filter
+                        let matches_time = if let Some(ref range) = time_filter {
+                            range.contains(m.timestamp)
+                        } else {
+                            true
+                        };
+
+                        matches_search && matches_time
+                    })
+                    .map(|(idx, m)| (idx, m.timestamp))
+                    .collect();
+
+                // Add all filtered indices to marked_messages
+                for (idx, _) in &filtered_data {
+                    self.marked_messages.insert(*idx);
+                }
+
+                // Update scrubber with marked timestamps
+                let marked_timestamps: Vec<f64> = self
+                    .messages
+                    .iter()
+                    .enumerate()
+                    .filter(|(idx, _)| self.marked_messages.contains(idx))
+                    .map(|(_, m)| m.timestamp)
+                    .collect();
+                self.messages_scrubber.set_marked_timestamps(marked_timestamps);
+            }
+            Tab::Fragments => {
+                let time_filter = self.fragments_scrubber.get_selected_range().cloned();
+
+                // Filter packets based on time
+                let filtered_data: Vec<(usize, f64)> = self
+                    .packets
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, p)| {
+                        // Apply time filter
+                        if let Some(ref range) = time_filter {
+                            range.contains(p.timestamp)
+                        } else {
+                            true
+                        }
+                    })
+                    .map(|(idx, p)| (idx, p.timestamp))
+                    .collect();
+
+                // Add all filtered indices to marked_packets
+                for (idx, _) in &filtered_data {
+                    self.marked_packets.insert(*idx);
+                }
+
+                // Update scrubber with marked timestamps
+                let marked_timestamps: Vec<f64> = self
+                    .packets
+                    .iter()
+                    .enumerate()
+                    .filter(|(idx, _)| self.marked_packets.contains(idx))
+                    .map(|(_, p)| p.timestamp)
+                    .collect();
+                self.fragments_scrubber.set_marked_timestamps(marked_timestamps);
+            }
+        }
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -635,8 +728,15 @@ impl eframe::App for PcapViewerApp {
                         ui.add(
                             egui::TextEdit::singleline(&mut self.search_query)
                                 .hint_text("Search...")
-                                .desired_width(ui.available_width() - 40.0),
+                                .desired_width(ui.available_width() - 80.0),
                         );
+
+                        // Mark button
+                        ui.add_enabled_ui(!self.search_query.is_empty(), |ui| {
+                            if ui.button("Mark").clicked() {
+                                self.mark_filtered_items();
+                            }
+                        });
 
                         // Sort direction only
                         if self.draw_sort_button(ui) {
@@ -688,6 +788,13 @@ impl eframe::App for PcapViewerApp {
                             .hint_text("Search...")
                             .desired_width(if is_tablet { 120.0 } else { 150.0 }),
                     );
+
+                    // Mark button
+                    ui.add_enabled_ui(!self.search_query.is_empty(), |ui| {
+                        if ui.button("Mark").clicked() {
+                            self.mark_filtered_items();
+                        }
+                    });
 
                     ui.separator();
 
@@ -892,8 +999,22 @@ impl eframe::App for PcapViewerApp {
                             Tab::Fragments => self.fragments_scrubber.show(ui),
                         };
 
+                        // Handle reset marks button
+                        if result.reset_marks_clicked {
+                            match self.current_tab {
+                                Tab::Messages => {
+                                    self.marked_messages.clear();
+                                    self.messages_scrubber.clear_marked_timestamps();
+                                }
+                                Tab::Fragments => {
+                                    self.marked_packets.clear();
+                                    self.fragments_scrubber.clear_marked_timestamps();
+                                }
+                            }
+                        }
+
                         // Check if user clicked
-                        if result.is_some() {
+                        if result.clicked_index.is_some() {
                             clicked_time = match self.current_tab {
                                 Tab::Messages => self.messages_scrubber.get_hover_time(),
                                 Tab::Fragments => self.fragments_scrubber.get_hover_time(),
@@ -1307,6 +1428,7 @@ impl PcapViewerApp {
         width: f32,
         right_align: bool,
         is_selected: bool,
+        is_marked: bool,
         text: impl Into<egui::WidgetText>,
     ) -> egui::Response {
         let layout = if right_align {
@@ -1315,9 +1437,30 @@ impl PcapViewerApp {
             egui::Layout::left_to_right(egui::Align::Center)
         };
         ui.allocate_ui_with_layout(egui::vec2(width, 20.0), layout, |ui| {
+            // Draw purple background for marked items
+            if is_marked && !is_selected {
+                let rect = ui.available_rect_before_wrap();
+                let mark_color = egui::Color32::from_rgba_unmultiplied(160, 80, 255, 30);
+                ui.painter().rect_filled(rect, 0.0, mark_color);
+            }
             ui.selectable_label(is_selected, text)
         })
         .inner
+    }
+
+    /// Render a desktop table cell with optional marking
+    fn desktop_marked_cell(
+        ui: &mut egui::Ui,
+        is_selected: bool,
+        is_marked: bool,
+        text: impl Into<egui::WidgetText>,
+    ) -> egui::Response {
+        if is_marked && !is_selected {
+            let rect = ui.available_rect_before_wrap();
+            let mark_color = egui::Color32::from_rgba_unmultiplied(160, 80, 255, 30);
+            ui.painter().rect_filled(rect, 0.0, mark_color);
+        }
+        ui.selectable_label(is_selected, text)
     }
 
     /// Render mobile table header
@@ -1779,8 +1922,9 @@ impl PcapViewerApp {
 
                         for (original_idx, id, msg_type, direction, _opcode) in &filtered {
                             let is_selected = self.selected_message == Some(*original_idx);
+                            let is_marked = self.marked_messages.contains(original_idx);
 
-                            if Self::mobile_cell(ui, widths[0], false, is_selected, id.to_string())
+                            if Self::mobile_cell(ui, widths[0], false, is_selected, is_marked, id.to_string())
                                 .clicked()
                             {
                                 self.selected_message = Some(*original_idx);
@@ -1792,7 +1936,7 @@ impl PcapViewerApp {
                             } else {
                                 msg_type.clone()
                             };
-                            if Self::mobile_cell(ui, widths[1], false, is_selected, display_type)
+                            if Self::mobile_cell(ui, widths[1], false, is_selected, is_marked, display_type)
                                 .clicked()
                             {
                                 self.selected_message = Some(*original_idx);
@@ -1810,6 +1954,7 @@ impl PcapViewerApp {
                                 widths[2],
                                 true,
                                 is_selected,
+                                is_marked,
                                 egui::RichText::new(dir_text).color(dir_color),
                             )
                             .clicked()
@@ -1836,11 +1981,12 @@ impl PcapViewerApp {
 
                         for (original_idx, id, msg_type, direction, opcode) in &filtered {
                             let is_selected = self.selected_message == Some(*original_idx);
+                            let is_marked = self.marked_messages.contains(original_idx);
 
-                            if ui.selectable_label(is_selected, id.to_string()).clicked() {
+                            if Self::desktop_marked_cell(ui, is_selected, is_marked, id.to_string()).clicked() {
                                 self.selected_message = Some(*original_idx);
                             }
-                            if ui.selectable_label(is_selected, msg_type).clicked() {
+                            if Self::desktop_marked_cell(ui, is_selected, is_marked, msg_type.to_string()).clicked() {
                                 self.selected_message = Some(*original_idx);
                             }
                             let dir_color = if direction == "Send" {
@@ -1848,16 +1994,10 @@ impl PcapViewerApp {
                             } else {
                                 egui::Color32::from_rgb(100, 255, 150)
                             };
-                            if ui
-                                .selectable_label(
-                                    is_selected,
-                                    egui::RichText::new(direction).color(dir_color),
-                                )
-                                .clicked()
-                            {
+                            if Self::desktop_marked_cell(ui, is_selected, is_marked, egui::RichText::new(direction).color(dir_color)).clicked() {
                                 self.selected_message = Some(*original_idx);
                             }
-                            if ui.selectable_label(is_selected, opcode).clicked() {
+                            if Self::desktop_marked_cell(ui, is_selected, is_marked, opcode.to_string()).clicked() {
                                 self.selected_message = Some(*original_idx);
                             }
                             ui.end_row();
@@ -1952,8 +2092,9 @@ impl PcapViewerApp {
 
                         for (original_idx, id, sequence, direction, _flags, _size) in &filtered {
                             let is_selected = self.selected_packet == Some(*original_idx);
+                            let is_marked = self.marked_packets.contains(original_idx);
 
-                            if Self::mobile_cell(ui, widths[0], false, is_selected, id.to_string())
+                            if Self::mobile_cell(ui, widths[0], false, is_selected, is_marked, id.to_string())
                                 .clicked()
                             {
                                 self.selected_packet = Some(*original_idx);
@@ -1965,6 +2106,7 @@ impl PcapViewerApp {
                                 widths[1],
                                 false,
                                 is_selected,
+                                is_marked,
                                 sequence.to_string(),
                             )
                             .clicked()
@@ -1984,6 +2126,7 @@ impl PcapViewerApp {
                                 widths[2],
                                 true,
                                 is_selected,
+                                is_marked,
                                 egui::RichText::new(dir_text).color(dir_color),
                             )
                             .clicked()
@@ -2012,14 +2155,12 @@ impl PcapViewerApp {
 
                         for (original_idx, id, sequence, direction, flags, size) in &filtered {
                             let is_selected = self.selected_packet == Some(*original_idx);
+                            let is_marked = self.marked_packets.contains(original_idx);
 
-                            if ui.selectable_label(is_selected, id.to_string()).clicked() {
+                            if Self::desktop_marked_cell(ui, is_selected, is_marked, id.to_string()).clicked() {
                                 self.selected_packet = Some(*original_idx);
                             }
-                            if ui
-                                .selectable_label(is_selected, sequence.to_string())
-                                .clicked()
-                            {
+                            if Self::desktop_marked_cell(ui, is_selected, is_marked, sequence.to_string()).clicked() {
                                 self.selected_packet = Some(*original_idx);
                             }
                             let dir_color = if direction == "Send" {
@@ -2027,22 +2168,13 @@ impl PcapViewerApp {
                             } else {
                                 egui::Color32::from_rgb(100, 255, 150)
                             };
-                            if ui
-                                .selectable_label(
-                                    is_selected,
-                                    egui::RichText::new(direction).color(dir_color),
-                                )
-                                .clicked()
-                            {
+                            if Self::desktop_marked_cell(ui, is_selected, is_marked, egui::RichText::new(direction).color(dir_color)).clicked() {
                                 self.selected_packet = Some(*original_idx);
                             }
-                            if ui
-                                .selectable_label(is_selected, format!("{:08X}", flags))
-                                .clicked()
-                            {
+                            if Self::desktop_marked_cell(ui, is_selected, is_marked, format!("{:08X}", flags)).clicked() {
                                 self.selected_packet = Some(*original_idx);
                             }
-                            if ui.selectable_label(is_selected, size.to_string()).clicked() {
+                            if Self::desktop_marked_cell(ui, is_selected, is_marked, size.to_string()).clicked() {
                                 self.selected_packet = Some(*original_idx);
                             }
                             ui.end_row();
