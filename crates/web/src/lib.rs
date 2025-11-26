@@ -991,7 +991,7 @@ impl eframe::App for PcapViewerApp {
                         ui.add(
                             egui::TextEdit::singleline(&mut self.url_input)
                                 .hint_text("https://example.com/file.pcap")
-                                .desired_width(input_width)
+                                .desired_width(input_width),
                         );
                         if ui.button("Load").clicked() && !self.url_input.is_empty() {
                             should_load_example = false; // Use a different flag
