@@ -10,12 +10,29 @@ None of this would be possible without [trevis](https://github.com/trevis) open 
 
 ## Features
 
+**Core**
 - Parse PCAP files containing AC network traffic
 - Reassemble fragmented UDP packets
 - Decode Server-to-Client and Client-to-Server messages
-- Web app (runs in browser via WebAssembly)
-- Desktop app (native, cross-platform)
-- CLI with filtering, sorting, and multiple output formats
+- Full property dictionaries (int, float, bool, string, data IDs)
+- Enchantment, movement, and object description parsing
+
+**Web/Desktop UI**
+- Drag-and-drop file loading
+- Load PCAP from URL (query param or dialog)
+- Interactive JSON tree viewer
+- Hex editor for binary data
+- Search and filter parsed packets
+- Time scrubber with packet density visualization
+- Dark/light mode toggle
+- Responsive layout (mobile-friendly)
+- Native file dialogs and menus (desktop)
+
+**CLI**
+- Multiple output formats (JSONL, JSON, table)
+- Filter by message type and direction
+- Sort by id, type, or direction
+- Summary statistics
 - Interactive TUI mode
 
 ## Usage
