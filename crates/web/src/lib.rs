@@ -947,9 +947,9 @@ impl eframe::App for PcapViewerApp {
                     } else {
                         "Drop a PCAP anywhere in the window"
                     });
-                    ui.add_space(if is_mobile { 10.0 } else { 10.0 });
+                    ui.add_space(10.0);
                     ui.label("or");
-                    ui.add_space(if is_mobile { 10.0 } else { 10.0 });
+                    ui.add_space(10.0);
 
                     let button_size = if is_mobile {
                         [150.0, 35.0]
