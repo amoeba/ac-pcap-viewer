@@ -804,37 +804,6 @@ impl eframe::App for PcapViewerApp {
             });
         });
 
-        // Time scrubber panel (only show if we have data)
-        // Show appropriate scrubber based on current tab
-        let mut clicked_time: Option<f64> = None;
-        if has_data {
-            // Check which scrubber has data
-            let scrubber_has_data = match self.current_tab {
-                Tab::Messages => self.messages_scrubber.has_data(),
-                Tab::Fragments => self.fragments_scrubber.has_data(),
-            };
-
-            if scrubber_has_data {
-                egui::TopBottomPanel::top("time_scrubber_panel")
-                    .resizable(false)
-                    .show(ctx, |ui| {
-                        // Show appropriate scrubber
-                        let result = match self.current_tab {
-                            Tab::Messages => self.messages_scrubber.show(ui),
-                            Tab::Fragments => self.fragments_scrubber.show(ui),
-                        };
-
-                        // Check if user clicked
-                        if result.is_some() {
-                            clicked_time = match self.current_tab {
-                                Tab::Messages => self.messages_scrubber.get_hover_time(),
-                                Tab::Fragments => self.fragments_scrubber.get_hover_time(),
-                            };
-                        }
-                    });
-            }
-        }
-
         // Detail panel - responsive layout:
         // Mobile: Bottom panel (stacked vertically below list)
         // Desktop/Tablet: Right side panel (side by side)
@@ -898,6 +867,38 @@ impl eframe::App for PcapViewerApp {
                             .show(ui, |ui| {
                                 self.show_detail_content(ui);
                             });
+                    });
+            }
+        }
+
+        // Time scrubber panel (only show if we have data)
+        // Show appropriate scrubber based on current tab
+        // This panel is shown BELOW the central panel (list/detail pane)
+        let mut clicked_time: Option<f64> = None;
+        if has_data {
+            // Check which scrubber has data
+            let scrubber_has_data = match self.current_tab {
+                Tab::Messages => self.messages_scrubber.has_data(),
+                Tab::Fragments => self.fragments_scrubber.has_data(),
+            };
+
+            if scrubber_has_data {
+                egui::TopBottomPanel::bottom("time_scrubber_panel")
+                    .resizable(false)
+                    .show(ctx, |ui| {
+                        // Show appropriate scrubber
+                        let result = match self.current_tab {
+                            Tab::Messages => self.messages_scrubber.show(ui),
+                            Tab::Fragments => self.fragments_scrubber.show(ui),
+                        };
+
+                        // Check if user clicked
+                        if result.is_some() {
+                            clicked_time = match self.current_tab {
+                                Tab::Messages => self.messages_scrubber.get_hover_time(),
+                                Tab::Fragments => self.fragments_scrubber.get_hover_time(),
+                            };
+                        }
                     });
             }
         }
