@@ -988,6 +988,17 @@ impl eframe::App for PcapViewerApp {
 
                     ui.horizontal(|ui| {
                         let input_width = if is_mobile { 200.0 } else { 300.0 };
+                        let button_width = 50.0; // approximate button width
+                        let spacing = ui.spacing().item_spacing.x;
+                        let total_content_width = input_width + spacing + button_width;
+                        let available_width = ui.available_width();
+
+                        // Add left padding to center the content
+                        if total_content_width < available_width {
+                            let left_padding = (available_width - total_content_width) / 2.0;
+                            ui.add_space(left_padding);
+                        }
+
                         ui.add(
                             egui::TextEdit::singleline(&mut self.url_input)
                                 .hint_text("https://example.com/file.pcap")
@@ -997,6 +1008,36 @@ impl eframe::App for PcapViewerApp {
                             should_load_example = false; // Use a different flag
                             let url = self.url_input.clone();
                             self.load_from_url(url, ctx);
+                        }
+                    });
+
+                    // Show example URL link
+                    ui.add_space(5.0);
+                    ui.horizontal(|ui| {
+                        let example_url = "./example.pcap";
+                        let link_text = format!("or try this example: {}", example_url);
+
+                        // Calculate width for centering
+                        let text_width = ui.fonts(|f| {
+                            f.layout_no_wrap(
+                                link_text.clone(),
+                                egui::FontId::default(),
+                                egui::Color32::PLACEHOLDER,
+                            )
+                            .rect
+                            .width()
+                        });
+                        let available_width = ui.available_width();
+
+                        // Add left padding to center
+                        if text_width < available_width {
+                            let left_padding = (available_width - text_width) / 2.0;
+                            ui.add_space(left_padding);
+                        }
+
+                        if ui.link(link_text).clicked() {
+                            self.url_input = example_url.to_string();
+                            self.load_from_url(example_url.to_string(), ctx);
                         }
                     });
 
