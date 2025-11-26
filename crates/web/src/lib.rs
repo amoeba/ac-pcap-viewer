@@ -10,6 +10,17 @@ use egui_json_tree::JsonTree;
 use std::sync::{Arc, Mutex};
 use time_scrubber::TimeScrubber;
 
+/// Recursively search for a string within a JSON value (case-insensitive)
+fn json_contains_string(value: &serde_json::Value, search: &str) -> bool {
+    let search_lower = search.to_lowercase();
+    match value {
+        serde_json::Value::String(s) => s.to_lowercase().contains(&search_lower),
+        serde_json::Value::Array(arr) => arr.iter().any(|v| json_contains_string(v, search)),
+        serde_json::Value::Object(obj) => obj.values().any(|v| json_contains_string(v, search)),
+        _ => false,
+    }
+}
+
 #[derive(Default, PartialEq, Eq, Clone, Copy)]
 enum Tab {
     #[default]
@@ -1657,14 +1668,41 @@ impl PcapViewerApp {
         let total = self.messages.len();
         let time_filter = self.messages_scrubber.get_selected_range().cloned();
 
+        // Collect timestamps of messages matching search (for highlighting on scrubber)
+        if !search.is_empty() {
+            let search_matched_timestamps: Vec<f64> = self
+                .messages
+                .iter()
+                .filter(|m| {
+                    let type_matches = m.message_type.to_lowercase().contains(&search);
+                    let data_matches = json_contains_string(&m.data, &search);
+                    type_matches || data_matches
+                })
+                .map(|m| m.timestamp)
+                .collect();
+            self.messages_scrubber
+                .set_highlighted_timestamps(search_matched_timestamps);
+        } else {
+            self.messages_scrubber
+                .set_highlighted_timestamps(Vec::new());
+        }
+
         let mut filtered: Vec<(usize, usize, String, String, String)> = self
             .messages
             .iter()
             .enumerate()
             .filter(|(_, m)| {
-                // Apply search filter
-                let matches_search =
-                    search.is_empty() || m.message_type.to_lowercase().contains(&search);
+                // Apply search filter (search both message type and data)
+                let matches_search = if search.is_empty() {
+                    true
+                } else {
+                    // Search in message type
+                    let type_matches = m.message_type.to_lowercase().contains(&search);
+                    // Search in message data (deep search)
+                    let data_matches = json_contains_string(&m.data, &search);
+                    // Match if either type or data contains the search string
+                    type_matches || data_matches
+                };
 
                 // Apply time filter
                 let matches_time = if let Some(ref range) = time_filter {
