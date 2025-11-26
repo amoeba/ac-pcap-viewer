@@ -41,6 +41,7 @@ const MOBILE_SCALE: f32 = 1.5;
 
 // Shared state for async loading
 type SharedData = Arc<Mutex<Option<Vec<u8>>>>;
+type SharedError = Arc<Mutex<Option<String>>>;
 
 pub struct PcapViewerApp {
     // Data
@@ -71,6 +72,7 @@ pub struct PcapViewerApp {
 
     // Async loaded data (from fetch)
     fetched_data: SharedData,
+    fetched_error: SharedError,
 
     // Initial URL to load from query params (consumed on first update)
     initial_url: Option<String>,
@@ -81,6 +83,7 @@ pub struct PcapViewerApp {
     // Menu dialog state
     show_url_dialog: bool,
     url_input: String,
+    url_load_error: Option<String>,
     show_settings: bool,
     show_about: bool,
 
@@ -111,10 +114,12 @@ impl Default for PcapViewerApp {
             show_detail_panel: false,
             dropped_file_data: None,
             fetched_data: Arc::new(Mutex::new(None)),
+            fetched_error: Arc::new(Mutex::new(None)),
             initial_url: None,
             base_pixels_per_point: None,
             show_url_dialog: false,
             url_input: String::new(),
+            url_load_error: None,
             show_settings: false,
             show_about: false,
             messages_scrubber: TimeScrubber::new(),
@@ -157,6 +162,9 @@ impl PcapViewerApp {
                 );
                 self.packets = packets;
                 self.messages = messages;
+
+                // Clear any URL load errors on success
+                self.url_load_error = None;
                 self.selected_message = if self.messages.is_empty() {
                     None
                 } else {
@@ -208,7 +216,14 @@ impl PcapViewerApp {
         self.is_loading = true;
         self.status_message = format!("Loading PCAP from {}...", url);
 
+        // Clear any previous errors
+        if let Ok(mut error) = self.fetched_error.lock() {
+            *error = None;
+        }
+        self.url_load_error = None;
+
         let fetched_data = self.fetched_data.clone();
+        let fetched_error = self.fetched_error.clone();
         let ctx = ctx.clone();
 
         wasm_bindgen_futures::spawn_local(async move {
@@ -217,10 +232,19 @@ impl PcapViewerApp {
                     if let Ok(mut data) = fetched_data.lock() {
                         *data = Some(bytes);
                     }
+                    // Clear error on success
+                    if let Ok(mut error) = fetched_error.lock() {
+                        *error = None;
+                    }
                     ctx.request_repaint();
                 }
                 Err(e) => {
                     log::error!("Failed to fetch PCAP from URL: {}", e);
+                    // Store error for display
+                    if let Ok(mut error) = fetched_error.lock() {
+                        *error = Some(e);
+                    }
+                    ctx.request_repaint();
                 }
             }
         });
@@ -427,6 +451,17 @@ impl eframe::App for PcapViewerApp {
         };
         if let Some(data) = fetched_data {
             self.parse_pcap_data(&data);
+        }
+
+        // Check for async fetch errors
+        let fetched_error = if let Ok(mut error) = self.fetched_error.try_lock() {
+            error.take()
+        } else {
+            None
+        };
+        if let Some(error) = fetched_error {
+            self.url_load_error = Some(error);
+            self.is_loading = false;
         }
 
         // Handle initial URL from query params (auto-load on first frame)
@@ -907,28 +942,14 @@ impl eframe::App for PcapViewerApp {
                 ui.vertical_centered(|ui| {
                     ui.add_space(ui.available_height() / 3.0);
 
-                    let rect = ui.available_rect_before_wrap();
-                    // Responsive drop zone size
-                    let drop_size = if is_mobile {
-                        egui::vec2(rect.width() * 0.9, 150.0)
+                    ui.label(if is_mobile {
+                        "Drop a PCAP anywhere\nin the window"
                     } else {
-                        egui::vec2(400.0, 200.0)
-                    };
-                    let drop_rect = egui::Rect::from_center_size(rect.center(), drop_size);
-                    ui.painter().rect_stroke(
-                        drop_rect,
-                        10.0,
-                        egui::Stroke::new(2.0, egui::Color32::GRAY),
-                    );
-
-                    ui.heading(if is_mobile {
-                        "Drop PCAP here"
-                    } else {
-                        "Drop PCAP file here"
+                        "Drop a PCAP anywhere in the window"
                     });
-                    ui.add_space(if is_mobile { 10.0 } else { 20.0 });
+                    ui.add_space(10.0);
                     ui.label("or");
-                    ui.add_space(if is_mobile { 10.0 } else { 20.0 });
+                    ui.add_space(10.0);
 
                     let button_size = if is_mobile {
                         [150.0, 35.0]
@@ -955,6 +976,102 @@ impl eframe::App for PcapViewerApp {
                         .clicked()
                     {
                         should_load_example = true;
+                    }
+
+                    // Add URL loading option
+                    ui.add_space(10.0);
+                    ui.label("or");
+                    ui.add_space(10.0);
+
+                    ui.label("Load from URL");
+                    ui.add_space(5.0);
+
+                    ui.horizontal(|ui| {
+                        let input_width = if is_mobile { 200.0 } else { 300.0 };
+                        let button_width = 50.0; // approximate button width
+                        let spacing = ui.spacing().item_spacing.x;
+                        let total_content_width = input_width + spacing + button_width;
+                        let available_width = ui.available_width();
+
+                        // Add left padding to center the content
+                        if total_content_width < available_width {
+                            let left_padding = (available_width - total_content_width) / 2.0;
+                            ui.add_space(left_padding);
+                        }
+
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.url_input)
+                                .hint_text("https://example.com/file.pcap")
+                                .desired_width(input_width),
+                        );
+                        if ui.button("Load").clicked() && !self.url_input.is_empty() {
+                            should_load_example = false; // Use a different flag
+                            let url = self.url_input.clone();
+                            self.load_from_url(url, ctx);
+                        }
+                    });
+
+                    // Show example URL link
+                    ui.add_space(5.0);
+                    ui.horizontal(|ui| {
+                        // Get the full absolute URL for the example
+                        #[cfg(target_arch = "wasm32")]
+                        let example_url = {
+                            if let Some(window) = web_sys::window() {
+                                if let Some(location) = window.location().href().ok() {
+                                    // Build absolute URL from current location
+                                    if let Ok(url) =
+                                        web_sys::Url::new_with_base("example.pcap", &location)
+                                    {
+                                        url.href()
+                                    } else {
+                                        "./example.pcap".to_string()
+                                    }
+                                } else {
+                                    "./example.pcap".to_string()
+                                }
+                            } else {
+                                "./example.pcap".to_string()
+                            }
+                        };
+                        #[cfg(not(target_arch = "wasm32"))]
+                        let example_url = "./example.pcap".to_string();
+
+                        let prefix_text = "Example: ";
+                        let full_text = format!("{}{}", prefix_text, example_url);
+
+                        // Calculate width for centering the entire line
+                        let total_width = ui.fonts(|f| {
+                            f.layout_no_wrap(
+                                full_text.clone(),
+                                egui::FontId::default(),
+                                egui::Color32::PLACEHOLDER,
+                            )
+                            .rect
+                            .width()
+                        });
+                        let available_width = ui.available_width();
+
+                        // Add left padding to center
+                        if total_width < available_width {
+                            let left_padding = (available_width - total_width) / 2.0;
+                            ui.add_space(left_padding);
+                        }
+
+                        // Show "Example: " as plain text
+                        ui.label(prefix_text);
+
+                        // Show the URL as a clickable link
+                        if ui.link(&example_url).clicked() {
+                            self.url_input = example_url.clone();
+                            self.load_from_url(example_url, ctx);
+                        }
+                    });
+
+                    // Display error if URL load failed
+                    if let Some(ref error) = self.url_load_error {
+                        ui.add_space(5.0);
+                        ui.colored_label(egui::Color32::RED, error);
                     }
 
                     if self.is_loading {
