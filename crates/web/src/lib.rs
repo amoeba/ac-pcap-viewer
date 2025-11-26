@@ -1014,7 +1014,29 @@ impl eframe::App for PcapViewerApp {
                     // Show example URL link
                     ui.add_space(5.0);
                     ui.horizontal(|ui| {
-                        let example_url = "./example.pcap";
+                        // Get the full absolute URL for the example
+                        #[cfg(target_arch = "wasm32")]
+                        let example_url = {
+                            if let Some(window) = web_sys::window() {
+                                if let Some(location) = window.location().href().ok() {
+                                    // Build absolute URL from current location
+                                    if let Ok(url) =
+                                        web_sys::Url::new_with_base("example.pcap", &location)
+                                    {
+                                        url.href()
+                                    } else {
+                                        "./example.pcap".to_string()
+                                    }
+                                } else {
+                                    "./example.pcap".to_string()
+                                }
+                            } else {
+                                "./example.pcap".to_string()
+                            }
+                        };
+                        #[cfg(not(target_arch = "wasm32"))]
+                        let example_url = "./example.pcap".to_string();
+
                         let link_text = format!("or try this example: {}", example_url);
 
                         // Calculate width for centering
@@ -1036,8 +1058,8 @@ impl eframe::App for PcapViewerApp {
                         }
 
                         if ui.link(link_text).clicked() {
-                            self.url_input = example_url.to_string();
-                            self.load_from_url(example_url.to_string(), ctx);
+                            self.url_input = example_url.clone();
+                            self.load_from_url(example_url, ctx);
                         }
                     });
 
