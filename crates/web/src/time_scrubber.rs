@@ -56,7 +56,7 @@ impl TimeScrubber {
         }
     }
 
-    /// Update density data from timestamps
+    /// Update density data from timestamps using histogram binning
     pub fn update_density(&mut self, timestamps: &[f64]) {
         if timestamps.is_empty() {
             self.density_data.clear();
@@ -70,39 +70,29 @@ impl TimeScrubber {
 
         self.data_range = Some(TimeRange::new(min_time, max_time));
 
-        // Calculate kernel density estimation
+        // Calculate histogram bins
         let num_bins = 100;
-        let bandwidth = (max_time - min_time) / 50.0; // Adaptive bandwidth
+        let bin_width = (max_time - min_time) / num_bins as f64;
 
+        // Count packets in each bin
+        let mut bins = vec![0u32; num_bins];
+        for &timestamp in timestamps {
+            let bin_index = ((timestamp - min_time) / bin_width).floor() as usize;
+            let bin_index = bin_index.min(num_bins - 1); // Clamp to last bin
+            bins[bin_index] += 1;
+        }
+
+        // Store bin data as (time, count)
         self.density_data.clear();
-
-        for i in 0..num_bins {
-            let t = min_time + (max_time - min_time) * (i as f64 / num_bins as f64);
-            let density = self.kde_at_point(timestamps, t, bandwidth);
-            self.density_data.push((t, density));
+        for (i, &count) in bins.iter().enumerate() {
+            let t = min_time + (i as f64 + 0.5) * bin_width; // Center of bin
+            self.density_data.push((t, count as f32));
         }
 
         // Initialize selected range to full range
         if self.selected_range.is_none() {
             self.selected_range = Some(TimeRange::new(min_time, max_time));
         }
-    }
-
-    /// Kernel Density Estimation at a specific point using Gaussian kernel
-    fn kde_at_point(&self, data: &[f64], x: f64, bandwidth: f64) -> f32 {
-        if bandwidth <= 0.0 {
-            return 0.0;
-        }
-
-        let mut sum = 0.0;
-        for &xi in data {
-            let z = (x - xi) / bandwidth;
-            // Gaussian kernel: (1/sqrt(2π)) * exp(-0.5 * z²)
-            let kernel_value = (-0.5 * z * z).exp();
-            sum += kernel_value;
-        }
-
-        (sum / (data.len() as f64 * bandwidth * 2.506628)) as f32 // 2.506628 ≈ sqrt(2π)
     }
 
     /// Reset selection to show all data
@@ -178,51 +168,34 @@ impl TimeScrubber {
                 .fold(0.0f32, f32::max);
 
             if max_density > 0.0 {
-                // Draw density curve
-                let mut points: Vec<egui::Pos2> = Vec::new();
+                // Draw histogram bars
+                let bar_width = rect.width() / self.density_data.len() as f32;
 
-                for (time, density) in &self.density_data {
-                    let x =
-                        rect.min.x + ((*time - data_range.min) / time_range) as f32 * rect.width();
+                let fill_color = if ui.visuals().dark_mode {
+                    egui::Color32::from_rgba_unmultiplied(100, 150, 255, 120)
+                } else {
+                    egui::Color32::from_rgba_unmultiplied(50, 100, 200, 120)
+                };
+
+                let stroke_color = if ui.visuals().dark_mode {
+                    egui::Color32::from_rgba_unmultiplied(100, 150, 255, 200)
+                } else {
+                    egui::Color32::from_rgba_unmultiplied(50, 100, 200, 200)
+                };
+
+                for (i, (time, density)) in self.density_data.iter().enumerate() {
+                    let x = rect.min.x + ((*time - data_range.min) / time_range) as f32 * rect.width();
                     let normalized_density = density / max_density;
-                    let y = rect.max.y - normalized_density * height;
-                    points.push(egui::pos2(x, y));
-                }
+                    let bar_height = normalized_density * height;
 
-                // Fill area under curve
-                if points.len() > 1 {
-                    let mut fill_points = points.clone();
-                    // Close the polygon properly by going along the bottom
-                    if let (Some(last_point), Some(first_point)) = (points.last(), points.first()) {
-                        fill_points.push(egui::pos2(last_point.x, rect.max.y));
-                        fill_points.push(egui::pos2(first_point.x, rect.max.y));
-                    }
+                    // Draw bar from bottom up
+                    let bar_rect = egui::Rect::from_min_size(
+                        egui::pos2(x - bar_width * 0.4, rect.max.y - bar_height),
+                        egui::vec2(bar_width * 0.8, bar_height),
+                    );
 
-                    let fill_color = if ui.visuals().dark_mode {
-                        egui::Color32::from_rgba_unmultiplied(100, 150, 255, 50)
-                    } else {
-                        egui::Color32::from_rgba_unmultiplied(50, 100, 200, 50)
-                    };
-
-                    // Use PathShape with closed=false since we manually close the path
-                    use egui::epaint::{PathShape, PathStroke};
-                    painter.add(PathShape {
-                        points: fill_points,
-                        closed: false,
-                        fill: fill_color,
-                        stroke: PathStroke::default(),
-                    });
-
-                    // Draw line
-                    let line_color = if ui.visuals().dark_mode {
-                        egui::Color32::from_rgb(100, 150, 255)
-                    } else {
-                        egui::Color32::from_rgb(50, 100, 200)
-                    };
-                    painter.add(egui::Shape::line(
-                        points,
-                        egui::Stroke::new(2.0, line_color),
-                    ));
+                    painter.rect_filled(bar_rect, 1.0, fill_color);
+                    painter.rect_stroke(bar_rect, 1.0, egui::Stroke::new(0.5, stroke_color));
                 }
             }
 
