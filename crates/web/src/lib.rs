@@ -1668,6 +1668,25 @@ impl PcapViewerApp {
         let total = self.messages.len();
         let time_filter = self.messages_scrubber.get_selected_range().cloned();
 
+        // Collect timestamps of messages matching search (for highlighting on scrubber)
+        if !search.is_empty() {
+            let search_matched_timestamps: Vec<f64> = self
+                .messages
+                .iter()
+                .filter(|m| {
+                    let type_matches = m.message_type.to_lowercase().contains(&search);
+                    let data_matches = json_contains_string(&m.data, &search);
+                    type_matches || data_matches
+                })
+                .map(|m| m.timestamp)
+                .collect();
+            self.messages_scrubber
+                .set_highlighted_timestamps(search_matched_timestamps);
+        } else {
+            self.messages_scrubber
+                .set_highlighted_timestamps(Vec::new());
+        }
+
         let mut filtered: Vec<(usize, usize, String, String, String)> = self
             .messages
             .iter()

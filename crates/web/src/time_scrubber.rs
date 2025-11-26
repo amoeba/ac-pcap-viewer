@@ -37,6 +37,8 @@ pub struct TimeScrubber {
     drag_start: Option<f64>,
     /// Hover position
     hover_time: Option<f64>,
+    /// Highlighted timestamps (e.g., search results)
+    highlighted_timestamps: Vec<f64>,
 }
 
 impl Default for TimeScrubber {
@@ -53,6 +55,7 @@ impl TimeScrubber {
             density_data: Vec::new(),
             drag_start: None,
             hover_time: None,
+            highlighted_timestamps: Vec::new(),
         }
     }
 
@@ -105,6 +108,11 @@ impl TimeScrubber {
     /// Check if we have data
     pub fn has_data(&self) -> bool {
         self.data_range.is_some() && !self.density_data.is_empty()
+    }
+
+    /// Set highlighted timestamps (e.g., search results)
+    pub fn set_highlighted_timestamps(&mut self, timestamps: Vec<f64>) {
+        self.highlighted_timestamps = timestamps;
     }
 
     /// Render the time scrubber UI
@@ -197,6 +205,16 @@ impl TimeScrubber {
 
                     painter.rect_filled(bar_rect, 1.0, fill_color);
                     painter.rect_stroke(bar_rect, 1.0, egui::Stroke::new(0.5, stroke_color));
+                }
+            }
+
+            // Draw highlighted timestamps (search results) as yellow vertical lines
+            if !self.highlighted_timestamps.is_empty() {
+                let highlight_color = egui::Color32::from_rgb(255, 220, 0); // Bright yellow
+                for &timestamp in &self.highlighted_timestamps {
+                    let x = rect.min.x
+                        + ((timestamp - data_range.min) / time_range) as f32 * rect.width();
+                    painter.vline(x, rect.y_range(), egui::Stroke::new(2.0, highlight_color));
                 }
             }
 
