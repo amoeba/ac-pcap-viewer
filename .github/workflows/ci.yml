@@ -115,7 +115,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wasm-pkg
-          path: crates/app/pkg/
+          path: crates/web/pkg/
           retention-days: 1
 
   # ====================
