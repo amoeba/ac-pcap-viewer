@@ -1,8 +1,7 @@
 use crate::properties::{
-    self, appraisal_flags, ArmorProfile, CreatureProfile, HookProfile,
-    WeaponProfile,
+    self, appraisal_flags, ArmorProfile, CreatureProfile, HookProfile, WeaponProfile,
 };
-use crate::reader::BinaryReader;
+use crate::protocol::BinaryReader;
 use anyhow::Result;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -360,7 +359,7 @@ impl ItemServerSaysContainId {
                     object_id,
                     container_id,
                     slot_index,
-                    container_type: format!("ContainerType_{}", container_type_raw),
+                    container_type: format!("ContainerType_{container_type_raw}"),
                     ordered_object_id,
                     ordered_sequence,
                     event_type: "Item_ServerSaysContainId".to_string(),

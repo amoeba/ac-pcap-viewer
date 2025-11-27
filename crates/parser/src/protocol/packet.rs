@@ -1,4 +1,4 @@
-use crate::reader::BinaryReader;
+use super::reader::BinaryReader;
 use anyhow::{bail, Result};
 use serde::Serialize;
 

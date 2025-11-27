@@ -18,6 +18,7 @@ default = []
 desktop = ["rfd", "env_logger"]
 
 [dependencies]
+ac-pcap-lib = { path = "../lib" }
 ac-parser = { path = "../parser" }
 anyhow.workspace = true
 serde.workspace = true

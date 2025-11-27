@@ -2,7 +2,7 @@ pub mod c2s;
 pub mod s2c;
 
 use crate::enums::{C2SMessageType, S2CMessageType};
-use crate::reader::BinaryReader;
+use crate::protocol::BinaryReader;
 use anyhow::Result;
 use serde::Serialize;
 
@@ -50,7 +50,7 @@ pub fn parse_message(data: &[u8], id: usize) -> Result<ParsedMessage> {
                 "RawData": hex::encode(&data[4..]),
             }),
             direction: "Unknown".to_string(),
-            opcode: format!("{:04X}", opcode),
+            opcode: format!("{opcode:04X}"),
             timestamp: 0.0,
             raw_bytes: Vec::new(),
         }
@@ -153,7 +153,7 @@ fn parse_s2c_message(
                 vec![]
             };
             (
-                format!("{:?}", msg_type),
+                format!("{msg_type:?}"),
                 serde_json::json!({
                     "OpCode": opcode,
                     "MessageType": format!("{:?}", msg_type),
@@ -169,7 +169,7 @@ fn parse_s2c_message(
         message_type: type_name,
         data,
         direction: "Recv".to_string(),
-        opcode: format!("{:04X}", opcode),
+        opcode: format!("{opcode:04X}"),
         timestamp: 0.0,
         raw_bytes: Vec::new(),
     })
@@ -199,7 +199,7 @@ fn parse_c2s_message(
                 vec![]
             };
             (
-                format!("{:?}", msg_type),
+                format!("{msg_type:?}"),
                 serde_json::json!({
                     "OpCode": opcode,
                     "MessageType": format!("{:?}", msg_type),
@@ -215,7 +215,7 @@ fn parse_c2s_message(
         message_type: type_name,
         data,
         direction: "Send".to_string(),
-        opcode: format!("{:04X}", opcode),
+        opcode: format!("{opcode:04X}"),
         timestamp: 0.0,
         raw_bytes: Vec::new(),
     })

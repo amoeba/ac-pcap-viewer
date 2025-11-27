@@ -21,14 +21,25 @@ fn main() {
     println!("Total messages: {}", messages.len());
 
     // Find all messages containing "pantaloons"
-    let pantaloons_msgs: Vec<_> = messages.iter()
+    let pantaloons_msgs: Vec<_> = messages
+        .iter()
         .filter(|m| json_contains_string(&m.data, "pantaloons"))
         .collect();
 
-    println!("\nMessages containing 'pantaloons': {}", pantaloons_msgs.len());
+    println!(
+        "\nMessages containing 'pantaloons': {}",
+        pantaloons_msgs.len()
+    );
     for msg in pantaloons_msgs.iter().take(3) {
         println!("\n--- Message ID {} ---", msg.id);
         println!("Type: {}", msg.message_type);
-        println!("Data snippet: {}", serde_json::to_string(&msg.data).unwrap_or_default().chars().take(200).collect::<String>());
+        println!(
+            "Data snippet: {}",
+            serde_json::to_string(&msg.data)
+                .unwrap_or_default()
+                .chars()
+                .take(200)
+                .collect::<String>()
+        );
     }
 }

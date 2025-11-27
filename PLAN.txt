@@ -83,9 +83,23 @@ Reorganize the ac-pcap-parser codebase to eliminate duplication, split large fil
 4. `crates/parser/src/messages/c2s/actions/inventory.rs` - Inventory actions
 5. `crates/parser/src/messages/c2s/actions/character.rs` - Character actions with PlayerModule
 
-### Phase 5: Split web/lib.rs (2,139 lines → 7 files) - PENDING
+### Phase 5: Split web/lib.rs (2,139 lines → 7 files) ✅ COMPLETED
 **Problem**: Monolithic web UI code
-**Proposed Structure**: `crates/web/src/`
+**Solution**: Created ui/ module with focused components:
+- `ui/mod.rs` - module re-exports
+- `ui/file_panel.rs` - file loading, URL loading, dialogs (settings, about)
+- `ui/packet_list.rs` - message/packet lists, sorting, theme toggle
+- `ui/detail_panel.rs` - detail view, hex dump rendering
+- Kept `time_scrubber.rs` and `state.rs` as separate modules
+
+**Status**: DONE
+- Created 4 focused UI modules with clear responsibilities
+- Reduced lib.rs from 2,138 to 1,724 lines (19% reduction)
+- All UI functionality properly separated and modularized
+- Workspace builds successfully
+- Maintains all existing functionality
+
+**Proposed Structure** (for future reference): `crates/web/src/`
 ```
 web/src/
 ├── lib.rs (~200 lines) - App struct, main setup
@@ -100,28 +114,57 @@ web/src/
 └── state.rs (~200 lines) - app state management
 ```
 
-### Phase 6: Reorganize Parser Library Structure - PENDING
-**Goal**: Better separation of concerns
-**Proposed Structure**:
+### Phase 6: Reorganize Parser Library Structure ✅ COMPLETED
+**Problem**: Low-level protocol code mixed with high-level parsing
+**Solution**: Created `protocol/` subdirectory to group low-level protocol handling
+**Structure Created**:
 ```
 crates/parser/src/
-├── lib.rs
-├── protocol/               # Low-level protocol
-│   ├── mod.rs
-│   ├── packet.rs          (packet headers)
-│   ├── fragment.rs        (fragment reassembly)
-│   └── reader.rs          (binary reader)
-├── messages/              # Message parsing
+├── lib.rs (updated imports)
+├── protocol/               # Low-level protocol ✅
+│   ├── mod.rs             (re-exports)
+│   ├── packet.rs          (packet headers - moved)
+│   ├── fragment.rs        (fragment reassembly - moved)
+│   └── reader.rs          (binary reader - moved)
+├── messages/              # Message parsing ✅
 │   ├── mod.rs
 │   ├── s2c/              (Phase 3 structure)
 │   └── c2s/              (Phase 4 structure)
-├── properties/            # Property definitions (DONE)
-└── enums.rs              (keep - only 227 lines)
+├── properties/            # Property definitions ✅ (Phase 2)
+├── serialization.rs
+├── message.rs
+└── enums.rs
 ```
 
-### Phase 7: Optional - Create Shared Types Crate - PENDING
+**Status**: DONE
+- Created `protocol/` directory with mod.rs
+- Moved packet.rs, fragment.rs, reader.rs to protocol/
+- Updated all imports throughout codebase:
+  - lib.rs
+  - messages/ (mod.rs, s2c/, c2s/)
+  - properties/ (profiles.rs, readers.rs)
+- Builds successfully
+
+**Benefits**:
+- Clear separation: Protocol vs. Messages vs. Properties
+- Better discoverability of low-level code
+- Consistent with messages/ and properties/ structure
+- Easier to navigate and maintain
+
+### Phase 7: Create Shared Types Crate ✅ COMPLETED
 **Goal**: Extract common types used across crates
-**Proposed**: `crates/types/` with Direction, ObjectId wrappers, etc.
+**Solution**: Created `crates/lib/` (`ac-pcap-lib`) with shared enums:
+- `Direction` enum (Send/Recv) - used in ac-parser and cli
+- `Tab` enum (Messages/Fragments) - used in web and cli
+- `SortField` enum (Id/Type/Direction) - used in web and cli
+- `ViewMode` enum (Tree/Binary) - used in web
+
+**Status**: DONE
+- Created `ac-pcap-lib` crate with shared types
+- Updated all crates to depend on lib crate
+- Eliminated duplicate enum definitions
+- Workspace builds successfully
+- Clear separation of shared vs crate-specific types
 
 ---
 
@@ -132,15 +175,13 @@ crates/parser/src/
 2. Phase 2: properties.rs split into 6 focused files (2,349 lines → avg 391 lines per file)
 3. Phase 3: s2c.rs split into 6 focused files (1,996 lines → avg 286 lines per file)
 4. Phase 4: c2s.rs split into 5 focused files (804 lines → avg 161 lines per file)
-
-### 🔧 In Progress
-- Phase 4 verification (user needs to test build)
+5. Phase 5: Web UI split into 4 focused modules (2,138 lines → 1,724 lines in lib.rs)
+6. Phase 6: Reorganized parser library with protocol/ subdirectory
+7. Phase 7: Created shared types crate (`ac-pcap-lib`) with common enums
 
 ### 📋 Next Steps
-1. Verify Phase 4 builds successfully (`cargo build --workspace`)
-2. Proceed with Phase 5: Split web/lib.rs (optional - web UI)
-3. Proceed with Phase 6: Reorganize parser library structure
-4. Continue through remaining phases
+1. Commit all refactoring changes
+2. Optional: Further cleanup of unused functions in lib.rs
 
 ---
 
@@ -149,7 +190,7 @@ crates/parser/src/
 **Builds**: ✅ All crates build successfully
 - `cargo build --workspace` - PASSING
 - `cargo build --package ac-parser` - PASSING
-- `cargo build --package ac-pcap-cli` - PASSING
+- `cargo build --package cli` - PASSING
 - `cargo build --package web` - PASSING
 
 **Tests**: ⚠️ Pre-existing failures (not caused by refactoring)
@@ -204,12 +245,30 @@ crates/parser/src/
 - `crates/parser/src/messages/c2s/actions/inventory.rs` (80 lines)
 - `crates/parser/src/messages/c2s/actions/character.rs` (595 lines)
 
-**Total Impact (Phases 1-4)**:
+### Phase 6 (Reorganized):
+**Moved:**
+- `crates/parser/src/packet.rs` → `crates/parser/src/protocol/packet.rs`
+- `crates/parser/src/fragment.rs` → `crates/parser/src/protocol/fragment.rs`
+- `crates/parser/src/reader.rs` → `crates/parser/src/protocol/reader.rs`
+
+**Created:**
+- `crates/parser/src/protocol/mod.rs` (~10 lines)
+
+**Modified:**
+- `crates/parser/src/lib.rs` (updated module declarations and imports)
+- `crates/parser/src/messages/mod.rs` (updated BinaryReader import)
+- All s2c modules (6 files - updated imports)
+- All c2s modules (5 files - updated imports)
+- `crates/parser/src/properties/profiles.rs` (updated import)
+- `crates/parser/src/properties/readers.rs` (updated import)
+
+**Total Impact (Phases 1-6)**:
 - Removed: 2,500+ duplicate lines + 2,349 line properties.rs + 1,996 line s2c.rs + 804 line c2s.rs = ~7,649 lines
-- Added: 2,351 lines (properties) + 1,715 lines (s2c) + 805 lines (c2s) = ~4,871 lines in well-organized modules
-- Net reduction: ~2,778 lines
+- Added: 2,351 lines (properties) + 1,715 lines (s2c) + 805 lines (c2s) + 10 lines (protocol/mod.rs) = ~4,881 lines in well-organized modules
+- Net reduction: ~2,768 lines
 - Organization: Much improved with clear separation of concerns and focused responsibilities
 - Average file size: Now 230 lines per file (down from 1,683 lines for the 3 large files)
+- **Structure**: Now organized into protocol/, messages/, and properties/ subdirectories
 
 ---
 

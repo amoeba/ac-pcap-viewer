@@ -137,7 +137,7 @@ impl<'a> BinaryReader<'a> {
             self.read_i32()? as usize
         } else if len < 0 {
             // Invalid negative length (not -1), probably misaligned
-            anyhow::bail!("Invalid string length: {}", len);
+            anyhow::bail!("Invalid string length: {len}");
         } else {
             len as usize
         };
@@ -145,8 +145,7 @@ impl<'a> BinaryReader<'a> {
         // Sanity check - strings shouldn't be huge
         if actual_len > 10000 {
             anyhow::bail!(
-                "String length too large: {} (likely misaligned)",
-                actual_len
+                "String length too large: {actual_len} (likely misaligned)"
             );
         }
 

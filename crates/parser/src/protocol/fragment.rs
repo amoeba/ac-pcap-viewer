@@ -78,7 +78,7 @@ mod hex_bytes {
     where
         S: Serializer,
     {
-        let hex_string: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
+        let hex_string: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
         serializer.serialize_str(&hex_string)
     }
 }

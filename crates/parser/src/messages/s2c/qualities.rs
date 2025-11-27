@@ -1,5 +1,5 @@
 use crate::properties;
-use crate::reader::BinaryReader;
+use crate::protocol::BinaryReader;
 use anyhow::Result;
 use serde::Serialize;
 
@@ -150,7 +150,7 @@ fn vital_name(key: u32) -> String {
         2 => "Health".to_string(),
         4 => "Stamina".to_string(),
         6 => "Mana".to_string(),
-        _ => format!("Vital_{}", key),
+        _ => format!("Vital_{key}"),
     }
 }
 
@@ -159,6 +159,6 @@ fn property_instance_id_name(key: u32) -> String {
         1 => "Owner".to_string(),
         2 => "Container".to_string(),
         3 => "Wielder".to_string(),
-        _ => format!("PropertyInstanceId_{}", key),
+        _ => format!("PropertyInstanceId_{key}"),
     }
 }

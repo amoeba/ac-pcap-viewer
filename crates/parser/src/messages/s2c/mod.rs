@@ -1,4 +1,4 @@
-use crate::reader::BinaryReader;
+use crate::protocol::BinaryReader;
 use anyhow::Result;
 use serde::Serialize;
 
@@ -404,7 +404,7 @@ pub fn parse_game_event(
             let type_name = if evt_type != GameEventType::Unknown {
                 evt_type.name().to_string()
             } else {
-                format!("GameEvent_{:04X}", event_type)
+                format!("GameEvent_{event_type:04X}")
             };
             let remaining = reader.remaining();
             let raw_data = if remaining > 0 {
@@ -691,7 +691,7 @@ fn stance_mode_name(value: u16) -> String {
         0x0048 => "BowNoAmmo".to_string(),
         0x0049 => "CrossBowNoAmmo".to_string(),
         0x0050 => "AtlatlCombat".to_string(),
-        _ => format!("Stance_{}", value),
+        _ => format!("Stance_{value}"),
     }
 }
 
@@ -849,7 +849,7 @@ impl CommunicationTextboxString {
             _ => {
                 return Ok(Self {
                     text,
-                    chat_type: format!("Unknown_{}", chat_type_raw),
+                    chat_type: format!("Unknown_{chat_type_raw}"),
                     opcode: 0xF7E0,
                     message_type: "Communication_TextboxString".to_string(),
                     message_direction: "ServerToClient".to_string(),
@@ -943,10 +943,7 @@ impl ObjectDescription {
 
         if palette_count > 100 || texture_count > 100 || model_count > 100 {
             anyhow::bail!(
-                "Suspicious ObjDesc counts: pal={} tex={} model={}",
-                palette_count,
-                texture_count,
-                model_count
+                "Suspicious ObjDesc counts: pal={palette_count} tex={texture_count} model={model_count}"
             );
         }
 

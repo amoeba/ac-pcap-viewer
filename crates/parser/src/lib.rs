@@ -12,36 +12,14 @@ use std::collections::HashMap;
 use std::io::Read;
 
 pub mod enums;
-pub mod fragment;
 pub mod message;
 pub mod messages;
-pub mod packet;
 pub mod properties;
-pub mod reader;
+pub mod protocol;
 pub mod serialization;
 
-use fragment::{Fragment, FragmentHeader};
-use packet::{PacketHeader, PacketHeaderFlags};
-use reader::BinaryReader;
-
-/// Direction of packet flow
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Direction {
-    Send, // Client to Server
-    Recv, // Server to Client
-}
-
-impl Serialize for Direction {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        match self {
-            Direction::Send => serializer.serialize_str("Send"),
-            Direction::Recv => serializer.serialize_str("Recv"),
-        }
-    }
-}
+use protocol::{BinaryReader, Fragment, FragmentHeader, PacketHeader, PacketHeaderFlags};
+use ac_pcap_lib::Direction;
 
 /// Fragment info as stored in packets
 #[derive(Debug, Clone, Serialize)]
@@ -257,7 +235,7 @@ impl PacketParser {
         let _group = reader.read_u16()?;
 
         if size < 16 {
-            anyhow::bail!("Invalid fragment size: {}", size);
+            anyhow::bail!("Invalid fragment size: {size}");
         }
 
         let frag_length = size as usize - 16;

@@ -1,9 +1,9 @@
-use crate::reader::BinaryReader;
+use crate::protocol::BinaryReader;
 use anyhow::Result;
 use std::collections::HashMap;
 
-use super::property_names::*;
 use super::profiles::LayeredSpellId;
+use super::property_names::*;
 
 /// Read a PackableHashTable<u32, i32> (property int)
 pub fn read_int_properties(reader: &mut BinaryReader) -> Result<HashMap<String, i32>> {

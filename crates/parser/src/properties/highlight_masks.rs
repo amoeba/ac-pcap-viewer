@@ -20,7 +20,7 @@ pub fn armor_highlight_mask_name(key: u16) -> String {
         .collect();
 
     if names.is_empty() {
-        format!("ArmorHighlight_{}", key)
+        format!("ArmorHighlight_{key}")
     } else {
         names.join(", ")
     }
@@ -44,7 +44,7 @@ pub fn weapon_highlight_mask_name(key: u16) -> String {
         .collect();
 
     if names.is_empty() {
-        format!("WeaponHighlight_{}", key)
+        format!("WeaponHighlight_{key}")
     } else {
         names.join(", ")
     }
@@ -77,7 +77,7 @@ pub fn resist_highlight_mask_name(key: u16) -> String {
         .collect();
 
     if names.is_empty() {
-        format!("ResistHighlight_{}", key)
+        format!("ResistHighlight_{key}")
     } else {
         names.join(", ")
     }

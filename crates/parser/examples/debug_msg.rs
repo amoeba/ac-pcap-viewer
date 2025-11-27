@@ -16,6 +16,9 @@ fn main() {
     } else {
         println!("Message ID 9 NOT found");
         println!("Total messages: {}", messages.len());
-        println!("First few message IDs: {:?}", messages.iter().take(15).map(|m| m.id).collect::<Vec<_>>());
+        println!(
+            "First few message IDs: {:?}",
+            messages.iter().take(15).map(|m| m.id).collect::<Vec<_>>()
+        );
     }
 }

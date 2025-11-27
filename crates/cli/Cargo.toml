@@ -1,5 +1,5 @@
 [package]
-name = "ac-pcap-cli"
+name = "cli"
 version.workspace = true
 edition.workspace = true
 description = "CLI for Asheron's Call PCAP parser"
@@ -9,6 +9,7 @@ name = "ac-pcap-parser"
 path = "src/main.rs"
 
 [dependencies]
+ac-pcap-lib = { path = "../lib" }
 ac-parser = { path = "../parser" }
 anyhow.workspace = true
 serde.workspace = true

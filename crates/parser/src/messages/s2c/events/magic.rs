@@ -1,5 +1,5 @@
 use crate::properties::LayeredSpellId;
-use crate::reader::BinaryReader;
+use crate::protocol::BinaryReader;
 use anyhow::Result;
 use serde::Serialize;
 
@@ -195,7 +195,7 @@ fn spell_category_name(id: u16) -> String {
         4 => "QuicknessRaising".to_string(),
         5 => "FocusRaising".to_string(),
         6 => "SelfRaising".to_string(),
-        _ => format!("Category_{}", id),
+        _ => format!("Category_{id}"),
     }
 }
 
@@ -262,7 +262,7 @@ fn stat_mod_type_name(flags: u32) -> String {
     }
 
     if parts.is_empty() {
-        format!("StatModType_{}", flags)
+        format!("StatModType_{flags}")
     } else {
         parts.join(", ")
     }
@@ -312,7 +312,7 @@ fn equipment_set_name(id: u32) -> String {
         39 => "AetheriaVigor",
         40 => "RareDamageResistance",
         41 => "RareDamageBoost",
-        _ => return format!("Set_{}", id),
+        _ => return format!("Set_{id}"),
     }
     .to_string()
 }

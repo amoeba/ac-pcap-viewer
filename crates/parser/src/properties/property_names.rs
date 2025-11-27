@@ -392,7 +392,7 @@ pub fn property_int_name(key: u32) -> String {
         388 => "GearOverpower",
         389 => "GearOverpowerResist",
         390 => "Enlightenment",
-        _ => return format!("PropertyInt_{}", key),
+        _ => return format!("PropertyInt_{key}"),
     }
     .to_string()
 }
@@ -407,7 +407,7 @@ pub fn property_int64_name(key: u32) -> String {
         6 => "AvailableLuminance",
         7 => "MaximumLuminance",
         8 => "InteractionReqs",
-        _ => return format!("Int64_{}", key),
+        _ => return format!("Int64_{key}"),
     }
     .to_string()
 }
@@ -546,7 +546,7 @@ pub fn property_bool_name(key: u32) -> String {
         128 => "HadNoVitae",
         129 => "NoOlthoiTalk",
         130 => "AutowieldLeft",
-        _ => return format!("Bool_{}", key),
+        _ => return format!("Bool_{key}"),
     }
     .to_string()
 }
@@ -726,7 +726,7 @@ pub fn property_float_name(key: u32) -> String {
         169 => "WeaponAuraDefense",
         170 => "WeaponAuraElemental",
         171 => "WeaponAuraManaConv",
-        _ => return format!("Float_{}", key),
+        _ => return format!("Float_{key}"),
     }
     .to_string()
 }
@@ -786,7 +786,7 @@ pub fn property_string_name(key: u32) -> String {
         50 => "KillQuest3",
         51 => "UseSendsSignal",
         52 => "GearPlatingName",
-        _ => return format!("String_{}", key),
+        _ => return format!("String_{key}"),
     }
     .to_string()
 }
@@ -855,7 +855,7 @@ pub fn property_dataid_name(key: u32) -> String {
         59 => "YellowSurgeSpell",
         60 => "RedSurgeSpell",
         61 => "OlthoiDeathTreasureType",
-        _ => return format!("DataId_{}", key),
+        _ => return format!("DataId_{key}"),
     }
     .to_string()
 }
@@ -1023,7 +1023,7 @@ pub fn sound_type_name(key: u32) -> String {
             if (0x98..=0xC9).contains(&key) {
                 return format!("TriggerActivated{}", key - 0x97);
             }
-            return format!("Sound_{}", key);
+            return format!("Sound_{key}");
         }
     }
     .to_string()

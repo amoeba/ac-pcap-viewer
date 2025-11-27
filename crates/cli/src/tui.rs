@@ -13,13 +13,8 @@ use ratatui::{
 };
 use std::io::{self, Stdout};
 
-use ac_parser::{messages::ParsedMessage, Direction as PktDirection, ParsedPacket};
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Tab {
-    Messages,
-    Fragments,
-}
+use ac_parser::{messages::ParsedMessage, ParsedPacket};
+use ac_pcap_lib::{Direction as PktDirection, Tab};
 
 pub struct App {
     pub messages: Vec<ParsedMessage>,
@@ -388,8 +383,7 @@ fn ui(f: &mut Frame, app: &mut App) {
             },
         };
         format!(
-            "q:Quit Tab:Switch ↑↓/jk:Nav PgUp/PgDn:Page s:Sort({}{}) r:Reverse Enter:Detail /:Search",
-            sort_field, sort_indicator
+            "q:Quit Tab:Switch ↑↓/jk:Nav PgUp/PgDn:Page s:Sort({sort_field}{sort_indicator}) r:Reverse Enter:Detail /:Search"
         )
     };
 

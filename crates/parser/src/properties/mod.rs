@@ -19,11 +19,11 @@ pub mod appraisal_flags {
     pub const BASE_ARMOR: u32 = 0x00004000;
 }
 
-mod profiles;
-mod readers;
-mod property_names;
 mod enum_names;
 mod highlight_masks;
+mod profiles;
+mod property_names;
+mod readers;
 
 // Re-export commonly used items
 pub use profiles::{ArmorProfile, CreatureProfile, HookProfile, LayeredSpellId, WeaponProfile};
