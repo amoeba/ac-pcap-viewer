@@ -1,8 +1,8 @@
 //! File loading and management UI components
 
 use crate::{PcapViewerApp, Tab};
-use ac_parser::PacketParser;
 use eframe::egui;
+use lib::PacketParser;
 
 /// Parse PCAP data and update the app state
 pub fn parse_pcap_data(app: &mut PcapViewerApp, data: &[u8]) {
@@ -148,8 +148,8 @@ async fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {
     Ok(uint8_array.to_vec())
 }
 
-/// Open file dialog (native only)
-#[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
+/// Open file dialog (desktop only)
+#[cfg(feature = "desktop")]
 pub fn open_file_dialog(app: &mut PcapViewerApp) {
     use rfd::FileDialog;
 

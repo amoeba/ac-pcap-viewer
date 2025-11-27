@@ -50,14 +50,14 @@ jobs:
       - name: Run tests
         run: cargo test --all
 
-      - name: Build parser library
-        run: cargo build -p ac-parser
+      - name: Build library
+        run: cargo build -p lib
 
       - name: Build CLI
         run: cargo build -p cli
 
-      - name: Build web app
-        run: cargo build -p web
+      - name: Build app
+        run: cargo build -p app
 
   # ====================
   # Build WASM (after CI passes)
@@ -89,11 +89,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-wasm-
 
-      - name: Force rebuild of web crate (embeds git SHA)
+      - name: Force rebuild of app crate (embeds git SHA)
         run: |
-          rm -rf target/wasm32-unknown-unknown/release/web.wasm
-          rm -rf target/wasm32-unknown-unknown/release/.fingerprint/web-*
-          rm -rf target/wasm32-unknown-unknown/release/deps/web-*
+          rm -rf target/wasm32-unknown-unknown/release/app.wasm
+          rm -rf target/wasm32-unknown-unknown/release/.fingerprint/app-*
+          rm -rf target/wasm32-unknown-unknown/release/deps/app-*
 
       - name: Install wasm-bindgen-cli
         run: |
@@ -115,7 +115,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wasm-pkg
-          path: crates/web/pkg/
+          path: crates/app/pkg/
           retention-days: 1
 
   # ====================

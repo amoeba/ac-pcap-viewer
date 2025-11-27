@@ -1,9 +1,15 @@
 [package]
-name = "ac-pcap-lib"
+name = "lib"
 version.workspace = true
 edition.workspace = true
-description = "Shared types and utilities for AC PCAP parser"
+description = "AC PCAP parser library with shared types"
 
 [dependencies]
-serde.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+serde = { workspace = true }
 serde_json.workspace = true
+pcap-parser = "0.15"
+bitflags = "2.4"
+hex = "0.4"
+base64 = "0.22"

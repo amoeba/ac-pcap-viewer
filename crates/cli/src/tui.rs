@@ -13,8 +13,7 @@ use ratatui::{
 };
 use std::io::{self, Stdout};
 
-use ac_parser::{messages::ParsedMessage, ParsedPacket};
-use ac_pcap_lib::{Direction as PktDirection, Tab};
+use lib::{messages::ParsedMessage, Direction as PktDirection, ParsedPacket, Tab};
 
 use crate::filter;
 
@@ -492,7 +491,7 @@ fn ui(f: &mut Frame, app: &mut App) {
 
         let opcode_filter = match app.filter_opcode {
             None => "None".to_string(),
-            Some(oc) => format!("{:04X}", oc),
+            Some(oc) => format!("{oc:04X}"),
         };
 
         format!(

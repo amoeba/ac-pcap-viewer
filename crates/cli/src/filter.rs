@@ -11,11 +11,11 @@ pub fn parse_opcode_filter(s: &str) -> Result<u32> {
     if s.starts_with("0x") || s.starts_with("0X") {
         // Parse as hex
         u32::from_str_radix(&s[2..], 16)
-            .map_err(|e| anyhow::anyhow!("Invalid hex opcode '{}': {}", s, e))
+            .map_err(|e| anyhow::anyhow!("Invalid hex opcode '{s}': {e}"))
     } else {
         // Parse as decimal
         s.parse::<u32>()
-            .map_err(|e| anyhow::anyhow!("Invalid decimal opcode '{}': {}", s, e))
+            .map_err(|e| anyhow::anyhow!("Invalid decimal opcode '{s}': {e}"))
     }
 }
 

@@ -92,8 +92,7 @@ fn run_command(program: &str, args: &[&str]) -> Result<()> {
 
 fn build_web(serve: bool, port: u16, small: bool) -> Result<()> {
     let root = project_root()?;
-    let web_dir = root.join("crates/web");
-    let pkg_dir = web_dir.join("pkg");
+    let pkg_dir = root.join("crates/web/pkg");
 
     // Clean and recreate pkg directory (removes stale files from previous builds)
     if pkg_dir.exists() {
@@ -143,7 +142,8 @@ fn build_web(serve: bool, port: u16, small: bool) -> Result<()> {
 
     // Copy index.html with cache-busted references
     println!("Copying assets...");
-    let index_src = web_dir.join("index.html");
+    let web_root = root.join("crates/web");
+    let index_src = web_root.join("index.html");
     let index_content = std::fs::read_to_string(&index_src).context("Failed to read index.html")?;
     let index_content = index_content.replace("./web.js", &format!("./web.{hash}.js"));
     let index_dst = pkg_dir.join("index.html");
@@ -192,15 +192,7 @@ fn build_desktop(release: bool, run: bool) -> Result<()> {
 
     println!("Building desktop application...");
 
-    let mut args = vec![
-        "build",
-        "-p",
-        "web",
-        "--bin",
-        "ac-pcap-viewer",
-        "--features",
-        "desktop",
-    ];
+    let mut args = vec!["build", "-p", "app", "--bin", "ac-pcap-viewer"];
     if release {
         args.push("--release");
     }
