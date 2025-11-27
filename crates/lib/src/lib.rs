@@ -50,9 +50,9 @@ pub enum Tab {
 /// UI view mode
 #[derive(Default, PartialEq, Eq, Clone, Copy)]
 pub enum ViewMode {
-    TreeClassic,
     #[default]
-    TreeAC,
+    Tree,
+    JSON,
     Binary,
 }
 

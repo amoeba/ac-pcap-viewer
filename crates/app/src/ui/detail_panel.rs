@@ -3,15 +3,14 @@
 use crate::ui::ac_json_tree::AcJsonTree;
 use crate::{PcapViewerApp, Tab, ViewMode};
 use eframe::egui;
-use egui_json_tree::JsonTree;
 use lib::{messages::ParsedMessage, ParsedPacket};
 
 /// Show detail content in the detail panel
 pub fn show_detail_content(app: &mut PcapViewerApp, ui: &mut egui::Ui) {
     // View mode toggle buttons
     ui.horizontal(|ui| {
-        ui.selectable_value(&mut app.view_mode, ViewMode::TreeClassic, "Tree");
-        ui.selectable_value(&mut app.view_mode, ViewMode::TreeAC, "Tree (AC)");
+        ui.selectable_value(&mut app.view_mode, ViewMode::Tree, "Tree");
+        ui.selectable_value(&mut app.view_mode, ViewMode::JSON, "JSON");
         ui.selectable_value(&mut app.view_mode, ViewMode::Binary, "Binary");
     });
     ui.separator();
@@ -20,14 +19,11 @@ pub fn show_detail_content(app: &mut PcapViewerApp, ui: &mut egui::Ui) {
     let mut filter_value: Option<String> = None;
 
     match app.view_mode {
-        ViewMode::TreeClassic => match app.current_tab {
+        ViewMode::JSON => match app.current_tab {
             Tab::Messages => {
                 if let Some(idx) = app.selected_message {
                     if idx < app.messages.len() {
-                        let tree_id = format!("message_tree_classic_{idx}");
-                        JsonTree::new(&tree_id, &app.messages[idx].data)
-                            .default_expand(egui_json_tree::DefaultExpand::ToLevel(1))
-                            .show(ui);
+                        show_pretty_json(ui, &app.messages[idx].data);
                     } else {
                         ui.label("No message selected");
                     }
@@ -39,10 +35,7 @@ pub fn show_detail_content(app: &mut PcapViewerApp, ui: &mut egui::Ui) {
                 if let Some(idx) = app.selected_packet {
                     if idx < app.packets.len() {
                         if let Ok(value) = serde_json::to_value(&app.packets[idx]) {
-                            let tree_id = format!("packet_tree_classic_{idx}");
-                            JsonTree::new(&tree_id, &value)
-                                .default_expand(egui_json_tree::DefaultExpand::ToLevel(1))
-                                .show(ui);
+                            show_pretty_json(ui, &value);
                         } else {
                             ui.label("Error displaying packet");
                         }
@@ -54,7 +47,7 @@ pub fn show_detail_content(app: &mut PcapViewerApp, ui: &mut egui::Ui) {
                 }
             }
         },
-        ViewMode::TreeAC => match app.current_tab {
+        ViewMode::Tree => match app.current_tab {
             Tab::Messages => {
                 if let Some(idx) = app.selected_message {
                     if idx < app.messages.len() {
@@ -289,6 +282,85 @@ fn render_hex_dump(ui: &mut egui::Ui, data: &[u8]) {
         .auto_shrink([false, false])
         .show(ui, |ui| {
             // Set layout to prevent wrapping
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
+                ui.add(egui::Label::new(job).extend());
+            });
+        });
+}
+
+/// Show pretty-printed JSON
+fn show_pretty_json(ui: &mut egui::Ui, value: &serde_json::Value) {
+    use egui::text::LayoutJob;
+    use egui::{FontId, TextFormat};
+
+    let json_str = match serde_json::to_string_pretty(value) {
+        Ok(s) => s,
+        Err(e) => {
+            ui.label(format!("Error formatting JSON: {e}"));
+            return;
+        }
+    };
+
+    let mut job = LayoutJob::default();
+    let font_id = FontId::monospace(12.0);
+    let text_color = ui.visuals().text_color();
+
+    // Simple syntax highlighting
+    for line in json_str.lines() {
+        let trimmed = line.trim_start();
+
+        // Determine color based on line content
+        let color = if trimmed.starts_with('"') && trimmed.contains(':') {
+            // Field names (keys)
+            if ui.visuals().dark_mode {
+                egui::Color32::from_rgb(156, 220, 254) // Light blue
+            } else {
+                egui::Color32::from_rgb(0, 92, 197) // Dark blue
+            }
+        } else if trimmed.starts_with('"') {
+            // String values
+            if ui.visuals().dark_mode {
+                egui::Color32::from_rgb(206, 145, 120) // Peach
+            } else {
+                egui::Color32::from_rgb(163, 21, 21) // Dark red
+            }
+        } else if trimmed.starts_with(|c: char| c.is_ascii_digit())
+               || trimmed.starts_with("true")
+               || trimmed.starts_with("false")
+               || trimmed.starts_with("null") {
+            // Numbers and literals
+            if ui.visuals().dark_mode {
+                egui::Color32::from_rgb(181, 206, 168) // Light green
+            } else {
+                egui::Color32::from_rgb(9, 134, 88) // Dark green
+            }
+        } else {
+            text_color
+        };
+
+        job.append(
+            line,
+            0.0,
+            TextFormat {
+                font_id: font_id.clone(),
+                color,
+                ..Default::default()
+            },
+        );
+        job.append(
+            "\n",
+            0.0,
+            TextFormat {
+                font_id: font_id.clone(),
+                color: text_color,
+                ..Default::default()
+            },
+        );
+    }
+
+    egui::ScrollArea::both()
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
             ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
                 ui.add(egui::Label::new(job).extend());
             });
