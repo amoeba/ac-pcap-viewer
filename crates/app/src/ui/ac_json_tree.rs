@@ -55,8 +55,7 @@ impl AcJsonTree {
                         Value::Object(_) | Value::Array(_) => {
                             // Collapsible header for nested structures
                             let header_id = egui::Id::new(format!("{}_{}", self.id, item_path));
-                            let is_expanded = self.expanded_paths.contains(&item_path)
-                                || depth < 1; // Auto-expand first level
+                            let is_expanded = self.expanded_paths.contains(&item_path) || depth < 1; // Auto-expand first level
 
                             let header_response = egui::CollapsingHeader::new(key)
                                 .id_salt(header_id)
@@ -143,7 +142,11 @@ impl AcJsonTree {
                     if let Ok(num) = u64::from_str_radix(s, 16) {
                         ui.horizontal(|ui| {
                             let response = ui
-                                .selectable_label(false, egui::RichText::new(format!("0x{s}")).color(ui.visuals().hyperlink_color))
+                                .selectable_label(
+                                    false,
+                                    egui::RichText::new(format!("0x{s}"))
+                                        .color(ui.visuals().hyperlink_color),
+                                )
                                 .on_hover_text("Click to filter")
                                 .on_hover_cursor(egui::CursorIcon::PointingHand);
 
@@ -156,7 +159,11 @@ impl AcJsonTree {
                     } else {
                         // Just a regular string that happens to look hex-like
                         let response = ui
-                            .selectable_label(false, egui::RichText::new(format!("\"{s}\"")).color(ui.visuals().hyperlink_color))
+                            .selectable_label(
+                                false,
+                                egui::RichText::new(format!("\"{s}\""))
+                                    .color(ui.visuals().hyperlink_color),
+                            )
                             .on_hover_text("Click to filter")
                             .on_hover_cursor(egui::CursorIcon::PointingHand);
 
@@ -167,7 +174,11 @@ impl AcJsonTree {
                 } else {
                     // Regular string
                     let response = ui
-                        .selectable_label(false, egui::RichText::new(format!("\"{s}\"")).color(ui.visuals().hyperlink_color))
+                        .selectable_label(
+                            false,
+                            egui::RichText::new(format!("\"{s}\""))
+                                .color(ui.visuals().hyperlink_color),
+                        )
                         .on_hover_text("Click to filter")
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
 
@@ -199,7 +210,11 @@ impl AcJsonTree {
             DisplayFormat::Hex => {
                 ui.horizontal(|ui| {
                     let response = ui
-                        .selectable_label(false, egui::RichText::new(format!("0x{num:X}")).color(ui.visuals().hyperlink_color))
+                        .selectable_label(
+                            false,
+                            egui::RichText::new(format!("0x{num:X}"))
+                                .color(ui.visuals().hyperlink_color),
+                        )
                         .on_hover_text("Click to filter")
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
 
@@ -212,7 +227,10 @@ impl AcJsonTree {
             }
             DisplayFormat::Decimal => {
                 let response = ui
-                    .selectable_label(false, egui::RichText::new(num.to_string()).color(ui.visuals().hyperlink_color))
+                    .selectable_label(
+                        false,
+                        egui::RichText::new(num.to_string()).color(ui.visuals().hyperlink_color),
+                    )
                     .on_hover_text("Click to filter")
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
 
@@ -225,7 +243,11 @@ impl AcJsonTree {
                 if num > 255 {
                     ui.horizontal(|ui| {
                         let response = ui
-                            .selectable_label(false, egui::RichText::new(format!("0x{num:X}")).color(ui.visuals().hyperlink_color))
+                            .selectable_label(
+                                false,
+                                egui::RichText::new(format!("0x{num:X}"))
+                                    .color(ui.visuals().hyperlink_color),
+                            )
                             .on_hover_text("Click to filter")
                             .on_hover_cursor(egui::CursorIcon::PointingHand);
 
@@ -237,7 +259,11 @@ impl AcJsonTree {
                     });
                 } else {
                     let response = ui
-                        .selectable_label(false, egui::RichText::new(num.to_string()).color(ui.visuals().hyperlink_color))
+                        .selectable_label(
+                            false,
+                            egui::RichText::new(num.to_string())
+                                .color(ui.visuals().hyperlink_color),
+                        )
                         .on_hover_text("Click to filter")
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
 
@@ -255,7 +281,11 @@ impl AcJsonTree {
             DisplayFormat::Hex if num >= 0 => {
                 ui.horizontal(|ui| {
                     let response = ui
-                        .selectable_label(false, egui::RichText::new(format!("0x{num:X}")).color(ui.visuals().hyperlink_color))
+                        .selectable_label(
+                            false,
+                            egui::RichText::new(format!("0x{num:X}"))
+                                .color(ui.visuals().hyperlink_color),
+                        )
                         .on_hover_text("Click to filter")
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
 
@@ -268,7 +298,10 @@ impl AcJsonTree {
             }
             _ => {
                 let response = ui
-                    .selectable_label(false, egui::RichText::new(num.to_string()).color(ui.visuals().hyperlink_color))
+                    .selectable_label(
+                        false,
+                        egui::RichText::new(num.to_string()).color(ui.visuals().hyperlink_color),
+                    )
                     .on_hover_text("Click to filter")
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
 

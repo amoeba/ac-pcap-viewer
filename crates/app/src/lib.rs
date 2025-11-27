@@ -88,7 +88,7 @@ impl Default for PcapViewerApp {
             search_query: String::new(),
             sort_field: SortField::Id,
             sort_ascending: true,
-            view_mode: ViewMode::Tree,
+            view_mode: ViewMode::TreeAC,
             status_message: "Drag & drop a PCAP file or click 'Load Example'".to_string(),
             is_loading: false,
             dark_mode: true,
