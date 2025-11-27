@@ -52,6 +52,7 @@ pub enum Tab {
 pub enum ViewMode {
     #[default]
     Tree,
+    JSON,
     Binary,
 }
 

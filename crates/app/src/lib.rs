@@ -449,27 +449,43 @@ impl eframe::App for PcapViewerApp {
 
                         ui.separator();
 
-                        // Compact search
+                        // Search section
                         ui.add(
                             egui::TextEdit::singleline(&mut self.search_query)
-                                .hint_text("Search...")
-                                .desired_width(ui.available_width() - 120.0),
+                                .hint_text("Filter...")
+                                .desired_width(60.0),
                         );
+
+                        // Reset search button
+                        ui.add_enabled_ui(!self.search_query.is_empty(), |ui| {
+                            if ui.button("✕").on_hover_text("Clear filter").clicked() {
+                                self.search_query.clear();
+                            }
+                        });
+
+                        ui.separator();
+
+                        // Mark section
+                        ui.label("Mark:");
 
                         // Mark button (enabled when filter is active)
                         ui.add_enabled_ui(!self.search_query.is_empty(), |ui| {
-                            if ui.button("Mark").clicked() {
+                            if ui
+                                .button("◉")
+                                .on_hover_text("Mark filtered items")
+                                .clicked()
+                            {
                                 self.mark_filtered_items();
                             }
                         });
 
-                        // Reset Marks button (enabled when there are marks)
+                        // Reset marks button (enabled when there are marks)
                         let has_marks = match self.current_tab {
                             Tab::Messages => !self.marked_messages.is_empty(),
                             Tab::Fragments => !self.marked_packets.is_empty(),
                         };
                         ui.add_enabled_ui(has_marks, |ui| {
-                            if ui.button("Reset").clicked() {
+                            if ui.button("✕").on_hover_text("Clear marks").clicked() {
                                 match self.current_tab {
                                     Tab::Messages => {
                                         self.marked_messages.clear();
@@ -524,30 +540,46 @@ impl eframe::App for PcapViewerApp {
 
                     ui.separator();
 
-                    // Search box
+                    // Search section
                     if !is_tablet {
                         ui.label("Search:");
                     }
                     ui.add(
                         egui::TextEdit::singleline(&mut self.search_query)
-                            .hint_text("Search...")
-                            .desired_width(if is_tablet { 120.0 } else { 150.0 }),
+                            .hint_text("Filter...")
+                            .desired_width(if is_tablet { 100.0 } else { 120.0 }),
                     );
+
+                    // Reset search button
+                    ui.add_enabled_ui(!self.search_query.is_empty(), |ui| {
+                        if ui.button("Reset").on_hover_text("Clear filter").clicked() {
+                            self.search_query.clear();
+                        }
+                    });
+
+                    ui.separator();
+
+                    // Mark section
+                    ui.label("Mark");
 
                     // Mark button (enabled when filter is active)
                     ui.add_enabled_ui(!self.search_query.is_empty(), |ui| {
-                        if ui.button("Mark").clicked() {
+                        if ui
+                            .button("Mark")
+                            .on_hover_text("Mark filtered items")
+                            .clicked()
+                        {
                             self.mark_filtered_items();
                         }
                     });
 
-                    // Reset Marks button (enabled when there are marks)
+                    // Reset marks button (enabled when there are marks)
                     let has_marks = match self.current_tab {
                         Tab::Messages => !self.marked_messages.is_empty(),
                         Tab::Fragments => !self.marked_packets.is_empty(),
                     };
                     ui.add_enabled_ui(has_marks, |ui| {
-                        if ui.button("Reset Marks").clicked() {
+                        if ui.button("Reset").on_hover_text("Clear marks").clicked() {
                             match self.current_tab {
                                 Tab::Messages => {
                                     self.marked_messages.clear();
