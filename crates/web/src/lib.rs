@@ -654,7 +654,7 @@ impl eframe::App for PcapViewerApp {
                         };
 
                         // Check if user clicked
-                        if result.is_some() {
+                        if result.clicked_index.is_some() {
                             clicked_time = match self.current_tab {
                                 Tab::Messages => self.messages_scrubber.get_hover_time(),
                                 Tab::Fragments => self.fragments_scrubber.get_hover_time(),

@@ -2,7 +2,8 @@
 
 use crate::{PcapViewerApp, SortField};
 use crate::state::json_contains_string;
-use ac_parser::messages::ParsedMessage;
+// TODO: Re-enable this import when needed
+// use ac_parser::messages::ParsedMessage;
 use eframe::egui;
 
 /// Draw sort button

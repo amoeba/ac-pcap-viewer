@@ -1,7 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 // Re-export shared enums from lib crate
-pub use ac_pcap_lib::{Tab, ViewMode, SortField};
+// TODO: Re-enable these imports when needed for web UI
+// pub use ac_pcap_lib::{Tab, ViewMode, SortField};
 
 // Responsive breakpoints
 pub const MOBILE_BREAKPOINT: f32 = 768.0;
