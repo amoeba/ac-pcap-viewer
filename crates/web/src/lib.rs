@@ -67,6 +67,10 @@ pub struct PcapViewerApp {
     messages_scrubber: TimeScrubber,
     fragments_scrubber: TimeScrubber,
 
+    // Marking state for filtered items
+    marked_messages: std::collections::HashSet<usize>,
+    marked_packets: std::collections::HashSet<usize>,
+
     // Desktop: pending file from file dialog
     #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
     pending_file_path: Option<std::path::PathBuf>,
@@ -100,6 +104,8 @@ impl Default for PcapViewerApp {
             show_about: false,
             messages_scrubber: TimeScrubber::new(),
             fragments_scrubber: TimeScrubber::new(),
+            marked_messages: std::collections::HashSet::new(),
+            marked_packets: std::collections::HashSet::new(),
             #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
             pending_file_path: None,
         }
@@ -122,6 +128,103 @@ impl PcapViewerApp {
         }
 
         app
+    }
+
+    /// Mark all currently filtered items for visual tracking
+    fn mark_filtered_items(&mut self) {
+        let search = self.search_query.to_lowercase();
+
+        match self.current_tab {
+            Tab::Messages => {
+                let time_filter = self.messages_scrubber.get_selected_range().cloned();
+
+                // Filter messages based on search and time
+                let filtered_indices: Vec<usize> = self
+                    .messages
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, m)| {
+                        // Apply search filter (search both message type and data)
+                        let matches_search = if search.is_empty() {
+                            true
+                        } else {
+                            // Search in message ID
+                            let id_matches = m.id.to_string().contains(&search);
+                            // Search in message type
+                            let type_matches = m.message_type.to_lowercase().contains(&search);
+                            // Search in direction
+                            let direction_matches = m.direction.to_lowercase().contains(&search);
+                            // Search in opcode
+                            let opcode_matches = m.opcode.to_lowercase().contains(&search);
+                            // Search in message data (deep search including field names and numeric values)
+                            let data_matches = crate::state::json_contains_string(&m.data, &search);
+
+                            // Match if any field contains the search string
+                            id_matches || type_matches || direction_matches || opcode_matches || data_matches
+                        };
+
+                        // Apply time filter
+                        let matches_time = if let Some(ref range) = time_filter {
+                            range.contains(m.timestamp)
+                        } else {
+                            true
+                        };
+
+                        matches_search && matches_time
+                    })
+                    .map(|(idx, _)| idx)
+                    .collect();
+
+                // Add all filtered indices to marked_messages
+                for idx in filtered_indices {
+                    self.marked_messages.insert(idx);
+                }
+
+                // Update scrubber with marked timestamps
+                let marked_timestamps: Vec<f64> = self
+                    .messages
+                    .iter()
+                    .enumerate()
+                    .filter(|(idx, _)| self.marked_messages.contains(idx))
+                    .map(|(_, m)| m.timestamp)
+                    .collect();
+                self.messages_scrubber.set_marked_timestamps(marked_timestamps);
+            }
+            Tab::Fragments => {
+                let time_filter = self.fragments_scrubber.get_selected_range().cloned();
+
+                // Filter packets based on time (fragments don't have search yet)
+                let filtered_indices: Vec<usize> = self
+                    .packets
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, p)| {
+                        // Apply time filter
+                        if let Some(ref range) = time_filter {
+                            range.contains(p.timestamp)
+                        } else {
+                            true
+                        }
+                    })
+                    .map(|(idx, _)| idx)
+                    .collect();
+
+                // Add all filtered indices to marked_packets
+                for idx in filtered_indices {
+                    self.marked_packets.insert(idx);
+                }
+
+                // Update scrubber with marked timestamps
+                let marked_timestamps: Vec<f64> = self
+                    .packets
+                    .iter()
+                    .enumerate()
+                    .filter(|(idx, _)| self.marked_packets.contains(idx))
+                    .map(|(_, p)| p.timestamp)
+                    .collect();
+                self.fragments_scrubber.set_marked_timestamps(marked_timestamps);
+            }
+        }
     }
 }
 
@@ -350,8 +453,35 @@ impl eframe::App for PcapViewerApp {
                         ui.add(
                             egui::TextEdit::singleline(&mut self.search_query)
                                 .hint_text("Search...")
-                                .desired_width(ui.available_width() - 40.0),
+                                .desired_width(ui.available_width() - 120.0),
                         );
+
+                        // Mark button (enabled when filter is active)
+                        ui.add_enabled_ui(!self.search_query.is_empty(), |ui| {
+                            if ui.button("Mark").clicked() {
+                                self.mark_filtered_items();
+                            }
+                        });
+
+                        // Reset Marks button (enabled when there are marks)
+                        let has_marks = match self.current_tab {
+                            Tab::Messages => !self.marked_messages.is_empty(),
+                            Tab::Fragments => !self.marked_packets.is_empty(),
+                        };
+                        ui.add_enabled_ui(has_marks, |ui| {
+                            if ui.button("Reset").clicked() {
+                                match self.current_tab {
+                                    Tab::Messages => {
+                                        self.marked_messages.clear();
+                                        self.messages_scrubber.clear_marked_timestamps();
+                                    }
+                                    Tab::Fragments => {
+                                        self.marked_packets.clear();
+                                        self.fragments_scrubber.clear_marked_timestamps();
+                                    }
+                                }
+                            }
+                        });
 
                         // Sort direction only
                         if ui::packet_list::draw_sort_button(self, ui) {
@@ -403,6 +533,33 @@ impl eframe::App for PcapViewerApp {
                             .hint_text("Search...")
                             .desired_width(if is_tablet { 120.0 } else { 150.0 }),
                     );
+
+                    // Mark button (enabled when filter is active)
+                    ui.add_enabled_ui(!self.search_query.is_empty(), |ui| {
+                        if ui.button("Mark").clicked() {
+                            self.mark_filtered_items();
+                        }
+                    });
+
+                    // Reset Marks button (enabled when there are marks)
+                    let has_marks = match self.current_tab {
+                        Tab::Messages => !self.marked_messages.is_empty(),
+                        Tab::Fragments => !self.marked_packets.is_empty(),
+                    };
+                    ui.add_enabled_ui(has_marks, |ui| {
+                        if ui.button("Reset Marks").clicked() {
+                            match self.current_tab {
+                                Tab::Messages => {
+                                    self.marked_messages.clear();
+                                    self.messages_scrubber.clear_marked_timestamps();
+                                }
+                                Tab::Fragments => {
+                                    self.marked_packets.clear();
+                                    self.fragments_scrubber.clear_marked_timestamps();
+                                }
+                            }
+                        }
+                    });
 
                     ui.separator();
 
@@ -610,6 +767,20 @@ impl eframe::App for PcapViewerApp {
                                 Tab::Messages => self.messages_scrubber.get_hover_time(),
                                 Tab::Fragments => self.fragments_scrubber.get_hover_time(),
                             };
+                        }
+
+                        // Handle reset marks button
+                        if result.reset_marks_clicked {
+                            match self.current_tab {
+                                Tab::Messages => {
+                                    self.marked_messages.clear();
+                                    self.messages_scrubber.clear_marked_timestamps();
+                                }
+                                Tab::Fragments => {
+                                    self.marked_packets.clear();
+                                    self.fragments_scrubber.clear_marked_timestamps();
+                                }
+                            }
                         }
                     });
             }
