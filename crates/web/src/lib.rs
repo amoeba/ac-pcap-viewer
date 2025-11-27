@@ -13,8 +13,8 @@ use std::sync::{Arc, Mutex};
 use time_scrubber::TimeScrubber;
 
 // Re-export state types for convenience
-use state::{json_contains_string, MOBILE_BREAKPOINT, TABLET_BREAKPOINT, MOBILE_SCALE};
-pub use ac_pcap_lib::{Tab, ViewMode, SortField};
+pub use ac_pcap_lib::{SortField, Tab, ViewMode};
+use state::{json_contains_string, MOBILE_BREAKPOINT, MOBILE_SCALE, TABLET_BREAKPOINT};
 
 // Shared state for async loading
 type SharedData = Arc<Mutex<Option<Vec<u8>>>>;
@@ -545,9 +545,7 @@ impl eframe::App for PcapViewerApp {
                         };
                         ui.hyperlink_to(
                             egui::RichText::new(format!("#{short_sha}")).small(),
-                            format!(
-                                "https://github.com/amoeba/ac-pcap-parser/commit/{git_sha}"
-                            ),
+                            format!("https://github.com/amoeba/ac-pcap-parser/commit/{git_sha}"),
                         );
                         ui.hyperlink_to(
                             egui::RichText::new("GitHub").small(),
@@ -777,8 +775,8 @@ impl eframe::App for PcapViewerApp {
                                 .desired_width(input_width),
                         );
                         if ui.button("Load").clicked() && !self.url_input.is_empty() {
-                        let url = self.url_input.clone();
-                        ui::file_panel::load_from_url(self, url, ctx);
+                            let url = self.url_input.clone();
+                            ui::file_panel::load_from_url(self, url, ctx);
                         }
                     });
 
@@ -858,8 +856,6 @@ impl eframe::App for PcapViewerApp {
                 }
             }
         });
-
-
 
         // URL input dialog
         if self.show_url_dialog {

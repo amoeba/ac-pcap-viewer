@@ -144,9 +144,7 @@ impl<'a> BinaryReader<'a> {
 
         // Sanity check - strings shouldn't be huge
         if actual_len > 10000 {
-            anyhow::bail!(
-                "String length too large: {actual_len} (likely misaligned)"
-            );
+            anyhow::bail!("String length too large: {actual_len} (likely misaligned)");
         }
 
         if actual_len == 0 {

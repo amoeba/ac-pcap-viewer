@@ -1,7 +1,7 @@
 //! Packet and message list UI components
 
-use crate::{PcapViewerApp, SortField};
 use crate::state::json_contains_string;
+use crate::{PcapViewerApp, SortField};
 // TODO: Re-enable this import when needed
 // use ac_parser::messages::ParsedMessage;
 use eframe::egui;
@@ -12,7 +12,11 @@ pub fn draw_sort_button(app: &mut PcapViewerApp, ui: &mut egui::Ui) -> bool {
     if response.clicked() {
         return true;
     }
-    response.on_hover_text(if app.sort_ascending { "Sort descending" } else { "Sort ascending" });
+    response.on_hover_text(if app.sort_ascending {
+        "Sort descending"
+    } else {
+        "Sort ascending"
+    });
 
     let painter = ui.painter();
     let center = rect.center();
@@ -25,7 +29,11 @@ pub fn draw_sort_button(app: &mut PcapViewerApp, ui: &mut egui::Ui) -> bool {
             center + egui::vec2(0.0, -2.0),
             center + egui::vec2(4.0, 2.0),
         ];
-        painter.add(egui::Shape::convex_polygon(points.into(), color, egui::Stroke::NONE));
+        painter.add(egui::Shape::convex_polygon(
+            points.into(),
+            color,
+            egui::Stroke::NONE,
+        ));
     } else {
         // Draw down arrow
         let points = [
@@ -33,7 +41,11 @@ pub fn draw_sort_button(app: &mut PcapViewerApp, ui: &mut egui::Ui) -> bool {
             center + egui::vec2(0.0, 2.0),
             center + egui::vec2(4.0, -2.0),
         ];
-        painter.add(egui::Shape::convex_polygon(points.into(), color, egui::Stroke::NONE));
+        painter.add(egui::Shape::convex_polygon(
+            points.into(),
+            color,
+            egui::Stroke::NONE,
+        ));
     }
 
     false
@@ -118,7 +130,8 @@ fn mobile_cell(
             },
             |ui| {
                 if selected {
-                    ui.visuals_mut().override_text_color = Some(egui::Color32::from_rgb(255, 255, 0));
+                    ui.visuals_mut().override_text_color =
+                        Some(egui::Color32::from_rgb(255, 255, 0));
                 }
                 ui.selectable_label(selected, text)
             },
@@ -152,8 +165,7 @@ pub fn show_messages_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile:
         app.messages_scrubber
             .set_highlighted_timestamps(search_matched_timestamps);
     } else {
-        app.messages_scrubber
-            .set_highlighted_timestamps(Vec::new());
+        app.messages_scrubber.set_highlighted_timestamps(Vec::new());
     }
 
     let mut filtered: Vec<(usize, usize, String, String, String)> = app
@@ -248,8 +260,7 @@ pub fn show_messages_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile:
                     for (original_idx, id, msg_type, direction, _opcode) in &filtered {
                         let is_selected = app.selected_message == Some(*original_idx);
 
-                        if mobile_cell(ui, widths[0], false, is_selected, id.to_string())
-                            .clicked()
+                        if mobile_cell(ui, widths[0], false, is_selected, id.to_string()).clicked()
                         {
                             app.selected_message = Some(*original_idx);
                             app.show_detail_panel = true;
@@ -260,9 +271,7 @@ pub fn show_messages_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile:
                         } else {
                             msg_type.clone()
                         };
-                        if mobile_cell(ui, widths[1], false, is_selected, display_type)
-                            .clicked()
-                        {
+                        if mobile_cell(ui, widths[1], false, is_selected, display_type).clicked() {
                             app.selected_message = Some(*original_idx);
                             app.show_detail_panel = true;
                         }
@@ -432,15 +441,13 @@ pub fn show_packets_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: 
                     for (original_idx, id, seq, direction, flags, size) in &filtered {
                         let is_selected = app.selected_packet == Some(*original_idx);
 
-                        if mobile_cell(ui, widths[0], false, is_selected, id.to_string())
-                            .clicked()
+                        if mobile_cell(ui, widths[0], false, is_selected, id.to_string()).clicked()
                         {
                             app.selected_packet = Some(*original_idx);
                             app.show_detail_panel = true;
                         }
 
-                        if mobile_cell(ui, widths[1], false, is_selected, seq.to_string())
-                            .clicked()
+                        if mobile_cell(ui, widths[1], false, is_selected, seq.to_string()).clicked()
                         {
                             app.selected_packet = Some(*original_idx);
                             app.show_detail_panel = true;
@@ -451,7 +458,11 @@ pub fn show_packets_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: 
                         } else {
                             egui::Color32::from_rgb(100, 255, 150)
                         };
-                        let dir_text = if direction == "ClientToServer" { "C→S" } else { "S→C" };
+                        let dir_text = if direction == "ClientToServer" {
+                            "C→S"
+                        } else {
+                            "S→C"
+                        };
                         if mobile_cell(
                             ui,
                             widths[2],
@@ -520,7 +531,10 @@ pub fn show_packets_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: 
                         {
                             app.selected_packet = Some(*original_idx);
                         }
-                        if ui.selectable_label(is_selected, format!("{:08X}", flags)).clicked() {
+                        if ui
+                            .selectable_label(is_selected, format!("{:08X}", flags))
+                            .clicked()
+                        {
                             app.selected_packet = Some(*original_idx);
                         }
                         if ui.selectable_label(is_selected, size.to_string()).clicked() {

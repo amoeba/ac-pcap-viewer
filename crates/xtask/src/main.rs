@@ -49,9 +49,15 @@ fn main() -> Result<()> {
 /// Find the project root directory
 fn project_root() -> Result<PathBuf> {
     // Use cargo locate-project which returns the path to Cargo.toml
-    let output = cmd!("cargo", "locate-project", "--workspace", "--message-format", "plain")
-        .read()
-        .context("Failed to locate project root with cargo locate-project")?;
+    let output = cmd!(
+        "cargo",
+        "locate-project",
+        "--workspace",
+        "--message-format",
+        "plain"
+    )
+    .read()
+    .context("Failed to locate project root with cargo locate-project")?;
 
     let cargo_toml_path = PathBuf::from(output.trim());
     let root = cargo_toml_path
@@ -117,14 +123,18 @@ fn build_web(serve: bool, port: u16, small: bool) -> Result<()> {
     let pkg_dir_str = pkg_dir.to_string_lossy().to_string();
     let wasm_file_str = wasm_file.to_string_lossy().to_string();
 
-    run_command("wasm-bindgen", &[
-        "--target",
-        "web",
-        "--out-dir",
-        &pkg_dir_str,
-        "--no-typescript",
-        &wasm_file_str,
-    ]).context("Failed to run wasm-bindgen. Is it installed? Run: cargo install wasm-bindgen-cli")?;
+    run_command(
+        "wasm-bindgen",
+        &[
+            "--target",
+            "web",
+            "--out-dir",
+            &pkg_dir_str,
+            "--no-typescript",
+            &wasm_file_str,
+        ],
+    )
+    .context("Failed to run wasm-bindgen. Is it installed? Run: cargo install wasm-bindgen-cli")?;
 
     // Apply cache busting to generated files
     println!("Applying cache busting...");

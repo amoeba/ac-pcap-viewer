@@ -35,13 +35,11 @@ pub fn parse_pcap_data(app: &mut PcapViewerApp, data: &[u8]) {
 
             // Update time scrubbers
             // Messages scrubber uses message timestamps
-            let message_timestamps: Vec<f64> =
-                app.messages.iter().map(|m| m.timestamp).collect();
+            let message_timestamps: Vec<f64> = app.messages.iter().map(|m| m.timestamp).collect();
             app.messages_scrubber.update_density(&message_timestamps);
 
             // Fragments scrubber uses packet timestamps
-            let packet_timestamps: Vec<f64> =
-                app.packets.iter().map(|p| p.timestamp).collect();
+            let packet_timestamps: Vec<f64> = app.packets.iter().map(|p| p.timestamp).collect();
             app.fragments_scrubber.update_density(&packet_timestamps);
         }
         Err(e) => {
@@ -130,8 +128,7 @@ async fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {
     let request = Request::new_with_str_and_init(url, &opts)
         .map_err(|e| format!("Failed to create request: {:?}", e))?;
 
-    let window = web_sys::window()
-        .ok_or_else(|| "No window object".to_string())?;
+    let window = web_sys::window().ok_or_else(|| "No window object".to_string())?;
     let resp_value = JsFuture::from(window.fetch_with_request(&request))
         .await
         .map_err(|e| format!("Fetch failed: {:?}", e))?;
@@ -150,8 +147,6 @@ async fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {
     let uint8_array = js_sys::Uint8Array::new(&array_buffer);
     Ok(uint8_array.to_vec())
 }
-
-
 
 /// Open file dialog (native only)
 #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
@@ -338,10 +333,7 @@ pub fn show_about_dialog(app: &mut PcapViewerApp, ctx: &egui::Context) {
 
                 ui.add_space(10.0);
 
-                ui.hyperlink_to(
-                    "View on GitHub",
-                    "https://github.com/amoeba/ac-pcap-parser",
-                );
+                ui.hyperlink_to("View on GitHub", "https://github.com/amoeba/ac-pcap-parser");
 
                 ui.add_space(10.0);
                 ui.separator();
@@ -351,8 +343,8 @@ pub fn show_about_dialog(app: &mut PcapViewerApp, ctx: &egui::Context) {
                 let claude_color = egui::Color32::from_rgb(217, 119, 87);
                 ui.horizontal(|ui| {
                     // Claude logo
-                    let (rect, _) = ui
-                        .allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
+                    let (rect, _) =
+                        ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
                     ui.painter().circle_filled(rect.center(), 6.0, claude_color);
                     ui.hyperlink_to(
                         egui::RichText::new("Made with Claude").color(claude_color),

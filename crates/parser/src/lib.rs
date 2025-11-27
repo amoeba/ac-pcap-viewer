@@ -18,8 +18,8 @@ pub mod properties;
 pub mod protocol;
 pub mod serialization;
 
-use protocol::{BinaryReader, Fragment, FragmentHeader, PacketHeader, PacketHeaderFlags};
 use ac_pcap_lib::Direction;
+use protocol::{BinaryReader, Fragment, FragmentHeader, PacketHeader, PacketHeaderFlags};
 
 /// Fragment info as stored in packets
 #[derive(Debug, Clone, Serialize)]
