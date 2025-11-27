@@ -1,8 +1,8 @@
 //! Detail panel UI components for displaying message/packet details
 
+use crate::ui::ac_json_tree::AcJsonTree;
 use crate::{PcapViewerApp, Tab, ViewMode};
 use eframe::egui;
-use egui_json_tree::JsonTree;
 use lib::{messages::ParsedMessage, ParsedPacket};
 
 /// Show detail content in the detail panel
@@ -14,15 +14,19 @@ pub fn show_detail_content(app: &mut PcapViewerApp, ui: &mut egui::Ui) {
     });
     ui.separator();
 
+    // Track filter clicks to update after the match block
+    let mut filter_value: Option<String> = None;
+
     match app.view_mode {
         ViewMode::Tree => match app.current_tab {
             Tab::Messages => {
                 if let Some(idx) = app.selected_message {
                     if idx < app.messages.len() {
                         let tree_id = format!("message_tree_{idx}");
-                        JsonTree::new(&tree_id, &app.messages[idx].data)
-                            .default_expand(egui_json_tree::DefaultExpand::ToLevel(1))
-                            .show(ui);
+                        let response = AcJsonTree::new(&tree_id).show(ui, &app.messages[idx].data);
+                        if let Some(value) = response.filter_clicked {
+                            filter_value = Some(value);
+                        }
                     } else {
                         ui.label("No message selected");
                     }
@@ -35,9 +39,10 @@ pub fn show_detail_content(app: &mut PcapViewerApp, ui: &mut egui::Ui) {
                     if idx < app.packets.len() {
                         if let Ok(value) = serde_json::to_value(&app.packets[idx]) {
                             let tree_id = format!("packet_tree_{idx}");
-                            JsonTree::new(&tree_id, &value)
-                                .default_expand(egui_json_tree::DefaultExpand::ToLevel(1))
-                                .show(ui);
+                            let response = AcJsonTree::new(&tree_id).show(ui, &value);
+                            if let Some(value) = response.filter_clicked {
+                                filter_value = Some(value);
+                            }
                         } else {
                             ui.label("Error displaying packet");
                         }
@@ -73,6 +78,11 @@ pub fn show_detail_content(app: &mut PcapViewerApp, ui: &mut egui::Ui) {
                 }
             }
         },
+    }
+
+    // Handle filter click - update search query
+    if let Some(value) = filter_value {
+        app.search_query = value;
     }
 }
 
