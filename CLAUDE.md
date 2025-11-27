@@ -1,5 +1,23 @@
 # AC PCAP Parser - Codebase Documentation
 
+## Agent Workflow
+
+When working on this codebase, follow these guidelines:
+
+- **Do all work on branches**, never on main and never push to main
+- **Name branches** with a prefix matching your agent name in lowercase (e.g., `claude/some-long-string` or `amp/some-long-string`). The descriptive part should be a clear, unique identifier
+- **After committing work**, add the agent as co-author using: `git commit -m "message" --co-authored-by="Agent Name <agent@email.com>"`
+- **Before pushing**, run the same checks as CI locally:
+  - `cargo fmt --all -- --check` (formatting)
+  - `cargo clippy --all-targets --all-features` (linting)
+  - `cargo test --all` (tests)
+  - `cargo build -p lib && cargo build -p cli && cargo build -p app` (builds)
+- **After all checks pass locally**, push and create a PR
+- **After PR is created**, watch CI for failures
+- **Fix any CI failures** and repeat the last step until CI passes
+
+---
+
 ## Project Overview
 
 **ac-pcap-parser** is a Rust application that parses PCAP (packet capture) files containing Asheron's Call (AC) game network traffic. It extracts, reassembles fragmented UDP packets, and decodes binary messages from the AC network protocol into JSON format.
