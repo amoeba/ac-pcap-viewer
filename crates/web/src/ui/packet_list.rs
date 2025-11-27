@@ -476,7 +476,7 @@ pub fn show_packets_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: 
                             app.show_detail_panel = true;
                         }
 
-                        if mobile_cell(ui, widths[3], false, is_selected, format!("{:08X}", flags))
+                        if mobile_cell(ui, widths[3], false, is_selected, format!("{flags:08X}"))
                             .clicked()
                         {
                             app.selected_packet = Some(*original_idx);
@@ -532,7 +532,7 @@ pub fn show_packets_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: 
                             app.selected_packet = Some(*original_idx);
                         }
                         if ui
-                            .selectable_label(is_selected, format!("{:08X}", flags))
+                            .selectable_label(is_selected, format!("{flags:08X}"))
                             .clicked()
                         {
                             app.selected_packet = Some(*original_idx);
