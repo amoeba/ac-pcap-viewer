@@ -34,7 +34,7 @@ jobs:
             binary: ac-pcap-viewer
             archive: tar.gz
             build_type: desktop
-            build_cmd: cargo build -p web --bin ac-pcap-viewer --features desktop --release --target x86_64-unknown-linux-gnu
+            build_cmd: cargo build -p app --bin ac-pcap-viewer --features desktop --release --target x86_64-unknown-linux-gnu
 
           # macOS x86_64
           - os: macos-13
@@ -43,7 +43,7 @@ jobs:
             binary: ac-pcap-viewer
             archive: tar.gz
             build_type: desktop
-            build_cmd: cargo build -p web --bin ac-pcap-viewer --features desktop --release --target x86_64-apple-darwin
+            build_cmd: cargo build -p app --bin ac-pcap-viewer --features desktop --release --target x86_64-apple-darwin
 
           # macOS ARM64 (Apple Silicon)
           - os: macos-14
@@ -52,7 +52,7 @@ jobs:
             binary: ac-pcap-viewer
             archive: tar.gz
             build_type: desktop
-            build_cmd: cargo build -p web --bin ac-pcap-viewer --features desktop --release --target aarch64-apple-darwin
+            build_cmd: cargo build -p app --bin ac-pcap-viewer --features desktop --release --target aarch64-apple-darwin
 
           # Windows x86_64
           - os: windows-latest
@@ -61,44 +61,44 @@ jobs:
             binary: ac-pcap-viewer.exe
             archive: zip
             build_type: desktop
-            build_cmd: cargo build -p web --bin ac-pcap-viewer --features desktop --release --target x86_64-pc-windows-msvc
+            build_cmd: cargo build -p app --bin ac-pcap-viewer --features desktop --release --target x86_64-pc-windows-msvc
 
           # ---- CLI Builds ----
           # Linux x86_64
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact: ac-pcap-parser-linux-x86_64
-            binary: ac-pcap-parser
+            binary: cli
             archive: tar.gz
             build_type: cli
-            build_cmd: cargo build -p ac-pcap-cli --release --target x86_64-unknown-linux-gnu
+            build_cmd: cargo build -p cli --release --target x86_64-unknown-linux-gnu
 
           # macOS x86_64
           - os: macos-13
             target: x86_64-apple-darwin
             artifact: ac-pcap-parser-macos-x86_64
-            binary: ac-pcap-parser
+            binary: cli
             archive: tar.gz
             build_type: cli
-            build_cmd: cargo build -p ac-pcap-cli --release --target x86_64-apple-darwin
+            build_cmd: cargo build -p cli --release --target x86_64-apple-darwin
 
           # macOS ARM64 (Apple Silicon)
           - os: macos-14
             target: aarch64-apple-darwin
             artifact: ac-pcap-parser-macos-arm64
-            binary: ac-pcap-parser
+            binary: cli
             archive: tar.gz
             build_type: cli
-            build_cmd: cargo build -p ac-pcap-cli --release --target aarch64-apple-darwin
+            build_cmd: cargo build -p cli --release --target aarch64-apple-darwin
 
           # Windows x86_64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: ac-pcap-parser-windows-x86_64
-            binary: ac-pcap-parser.exe
+            binary: cli.exe
             archive: zip
             build_type: cli
-            build_cmd: cargo build -p ac-pcap-cli --release --target x86_64-pc-windows-msvc
+            build_cmd: cargo build -p cli --release --target x86_64-pc-windows-msvc
 
     steps:
       - name: Checkout
