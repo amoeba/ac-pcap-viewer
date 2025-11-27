@@ -160,7 +160,11 @@ impl PcapViewerApp {
                             let data_matches = crate::state::json_contains_string(&m.data, &search);
 
                             // Match if any field contains the search string
-                            id_matches || type_matches || direction_matches || opcode_matches || data_matches
+                            id_matches
+                                || type_matches
+                                || direction_matches
+                                || opcode_matches
+                                || data_matches
                         };
 
                         // Apply time filter
@@ -188,7 +192,8 @@ impl PcapViewerApp {
                     .filter(|(idx, _)| self.marked_messages.contains(idx))
                     .map(|(_, m)| m.timestamp)
                     .collect();
-                self.messages_scrubber.set_marked_timestamps(marked_timestamps);
+                self.messages_scrubber
+                    .set_marked_timestamps(marked_timestamps);
             }
             Tab::Fragments => {
                 let time_filter = self.fragments_scrubber.get_selected_range().cloned();
@@ -222,7 +227,8 @@ impl PcapViewerApp {
                     .filter(|(idx, _)| self.marked_packets.contains(idx))
                     .map(|(_, p)| p.timestamp)
                     .collect();
-                self.fragments_scrubber.set_marked_timestamps(marked_timestamps);
+                self.fragments_scrubber
+                    .set_marked_timestamps(marked_timestamps);
             }
         }
     }

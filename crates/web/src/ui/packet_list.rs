@@ -154,8 +154,6 @@ fn mobile_header(ui: &mut egui::Ui, columns: &[MobileColumn], available_width: f
     ui.end_row();
 }
 
-
-
 /// Show messages list
 pub fn show_messages_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: bool) {
     // Pre-collect data to avoid borrow issues
@@ -286,7 +284,8 @@ pub fn show_messages_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile:
                         let is_selected = app.selected_message == Some(*original_idx);
                         let is_marked = app.marked_messages.contains(original_idx);
 
-                        if mobile_cell(ui, widths[0], false, is_selected, is_marked, id.to_string()).clicked()
+                        if mobile_cell(ui, widths[0], false, is_selected, is_marked, id.to_string())
+                            .clicked()
                         {
                             app.selected_message = Some(*original_idx);
                             app.show_detail_panel = true;
@@ -297,7 +296,9 @@ pub fn show_messages_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile:
                         } else {
                             msg_type.clone()
                         };
-                        if mobile_cell(ui, widths[1], false, is_selected, is_marked, display_type).clicked() {
+                        if mobile_cell(ui, widths[1], false, is_selected, is_marked, display_type)
+                            .clicked()
+                        {
                             app.selected_message = Some(*original_idx);
                             app.show_detail_panel = true;
                         }
@@ -342,10 +343,13 @@ pub fn show_messages_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile:
                         let is_selected = app.selected_message == Some(*original_idx);
                         let is_marked = app.marked_messages.contains(original_idx);
 
-                        if desktop_marked_cell(ui, is_selected, is_marked, id.to_string()).clicked() {
+                        if desktop_marked_cell(ui, is_selected, is_marked, id.to_string()).clicked()
+                        {
                             app.selected_message = Some(*original_idx);
                         }
-                        if desktop_marked_cell(ui, is_selected, is_marked, msg_type.to_string()).clicked() {
+                        if desktop_marked_cell(ui, is_selected, is_marked, msg_type.to_string())
+                            .clicked()
+                        {
                             app.selected_message = Some(*original_idx);
                         }
                         let dir_color = if direction == "Send" {
@@ -363,7 +367,9 @@ pub fn show_messages_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile:
                         {
                             app.selected_message = Some(*original_idx);
                         }
-                        if desktop_marked_cell(ui, is_selected, is_marked, opcode.to_string()).clicked() {
+                        if desktop_marked_cell(ui, is_selected, is_marked, opcode.to_string())
+                            .clicked()
+                        {
                             app.selected_message = Some(*original_idx);
                         }
                         ui.end_row();
@@ -471,13 +477,22 @@ pub fn show_packets_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: 
                         let is_selected = app.selected_packet == Some(*original_idx);
                         let is_marked = app.marked_packets.contains(original_idx);
 
-                        if mobile_cell(ui, widths[0], false, is_selected, is_marked, id.to_string()).clicked()
+                        if mobile_cell(ui, widths[0], false, is_selected, is_marked, id.to_string())
+                            .clicked()
                         {
                             app.selected_packet = Some(*original_idx);
                             app.show_detail_panel = true;
                         }
 
-                        if mobile_cell(ui, widths[1], false, is_selected, is_marked, seq.to_string()).clicked()
+                        if mobile_cell(
+                            ui,
+                            widths[1],
+                            false,
+                            is_selected,
+                            is_marked,
+                            seq.to_string(),
+                        )
+                        .clicked()
                         {
                             app.selected_packet = Some(*original_idx);
                             app.show_detail_panel = true;
@@ -507,15 +522,29 @@ pub fn show_packets_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: 
                             app.show_detail_panel = true;
                         }
 
-                        if mobile_cell(ui, widths[3], false, is_selected, is_marked, format!("{flags:08X}"))
-                            .clicked()
+                        if mobile_cell(
+                            ui,
+                            widths[3],
+                            false,
+                            is_selected,
+                            is_marked,
+                            format!("{flags:08X}"),
+                        )
+                        .clicked()
                         {
                             app.selected_packet = Some(*original_idx);
                             app.show_detail_panel = true;
                         }
 
-                        if mobile_cell(ui, widths[4], false, is_selected, is_marked, size.to_string())
-                            .clicked()
+                        if mobile_cell(
+                            ui,
+                            widths[4],
+                            false,
+                            is_selected,
+                            is_marked,
+                            size.to_string(),
+                        )
+                        .clicked()
                         {
                             app.selected_packet = Some(*original_idx);
                             app.show_detail_panel = true;
@@ -543,10 +572,13 @@ pub fn show_packets_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: 
                         let is_selected = app.selected_packet == Some(*original_idx);
                         let is_marked = app.marked_packets.contains(original_idx);
 
-                        if desktop_marked_cell(ui, is_selected, is_marked, id.to_string()).clicked() {
+                        if desktop_marked_cell(ui, is_selected, is_marked, id.to_string()).clicked()
+                        {
                             app.selected_packet = Some(*original_idx);
                         }
-                        if desktop_marked_cell(ui, is_selected, is_marked, seq.to_string()).clicked() {
+                        if desktop_marked_cell(ui, is_selected, is_marked, seq.to_string())
+                            .clicked()
+                        {
                             app.selected_packet = Some(*original_idx);
                         }
                         let dir_color = if direction == "ClientToServer" {
@@ -564,17 +596,14 @@ pub fn show_packets_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: 
                         {
                             app.selected_packet = Some(*original_idx);
                         }
-                        if desktop_marked_cell(
-                            ui,
-                            is_selected,
-                            is_marked,
-                            format!("{flags:08X}"),
-                        )
-                        .clicked()
+                        if desktop_marked_cell(ui, is_selected, is_marked, format!("{flags:08X}"))
+                            .clicked()
                         {
                             app.selected_packet = Some(*original_idx);
                         }
-                        if desktop_marked_cell(ui, is_selected, is_marked, size.to_string()).clicked() {
+                        if desktop_marked_cell(ui, is_selected, is_marked, size.to_string())
+                            .clicked()
+                        {
                             app.selected_packet = Some(*original_idx);
                         }
                         ui.end_row();
