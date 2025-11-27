@@ -740,6 +740,26 @@ impl eframe::App for PcapViewerApp {
                             }
                         });
 
+                        // Reset Marks button
+                        let has_marks = match self.current_tab {
+                            Tab::Messages => !self.marked_messages.is_empty(),
+                            Tab::Fragments => !self.marked_packets.is_empty(),
+                        };
+                        ui.add_enabled_ui(has_marks, |ui| {
+                            if ui.button("Reset Marks").clicked() {
+                                match self.current_tab {
+                                    Tab::Messages => {
+                                        self.marked_messages.clear();
+                                        self.messages_scrubber.clear_marked_timestamps();
+                                    }
+                                    Tab::Fragments => {
+                                        self.marked_packets.clear();
+                                        self.fragments_scrubber.clear_marked_timestamps();
+                                    }
+                                }
+                            }
+                        });
+
                         // Sort direction only
                         if self.draw_sort_button(ui) {
                             self.sort_ascending = !self.sort_ascending;
@@ -795,6 +815,26 @@ impl eframe::App for PcapViewerApp {
                     ui.add_enabled_ui(!self.search_query.is_empty(), |ui| {
                         if ui.button("Mark").clicked() {
                             self.mark_filtered_items();
+                        }
+                    });
+
+                    // Reset Marks button
+                    let has_marks = match self.current_tab {
+                        Tab::Messages => !self.marked_messages.is_empty(),
+                        Tab::Fragments => !self.marked_packets.is_empty(),
+                    };
+                    ui.add_enabled_ui(has_marks, |ui| {
+                        if ui.button("Reset Marks").clicked() {
+                            match self.current_tab {
+                                Tab::Messages => {
+                                    self.marked_messages.clear();
+                                    self.messages_scrubber.clear_marked_timestamps();
+                                }
+                                Tab::Fragments => {
+                                    self.marked_packets.clear();
+                                    self.fragments_scrubber.clear_marked_timestamps();
+                                }
+                            }
                         }
                     });
 
