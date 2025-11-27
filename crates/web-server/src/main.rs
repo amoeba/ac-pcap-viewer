@@ -80,7 +80,7 @@ async fn discord_pull(
     }
 
     // Check if token is available
-    let _token = std::env::var("DISCORD_OAUTH_TOKEN").map_err(|_| {
+    let token = std::env::var("DISCORD_OAUTH_TOKEN").map_err(|_| {
         (
             StatusCode::UNAUTHORIZED,
             Json(DiscordError {
@@ -89,16 +89,45 @@ async fn discord_pull(
         )
     })?;
 
-    // TODO: Implement Discord API call
-    // 1. Validate snowflake IDs
-    // 2. Fetch message details from Discord API
-    // 3. Extract PCAP attachment
-    // 4. Return binary PCAP data
+    // Fetch message from Discord API
+    let message = discord::fetch_message(&params.channel, &params.msg, &token)
+        .await
+        .map_err(|(status, error)| {
+            (
+                status,
+                Json(DiscordError { error }),
+            )
+        })?;
 
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        Json(DiscordError {
-            error: "Discord message pull not yet implemented".to_string(),
-        }),
-    ))
+    // Find first PCAP attachment
+    let pcap_attachment = message
+        .attachments
+        .iter()
+        .find(|a| a.filename.ends_with(".pcap") || a.filename.ends_with(".pcapng"))
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(DiscordError {
+                    error: "No PCAP attachments found in message".to_string(),
+                }),
+            )
+        })?;
+
+    // Download the attachment
+    let pcap_data = discord::download_attachment(&pcap_attachment.url)
+        .await
+        .map_err(|(status, error)| {
+            (
+                status,
+                Json(DiscordError { error }),
+            )
+        })?;
+
+    info!(
+        "Successfully fetched PCAP from Discord: {} ({} bytes)",
+        pcap_attachment.filename,
+        pcap_data.len()
+    );
+
+    Ok(pcap_data)
 }

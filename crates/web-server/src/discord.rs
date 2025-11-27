@@ -1,7 +1,8 @@
 //! Discord API integration for fetching message attachments
 
 use axum::http::StatusCode;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use tracing::{debug, error, warn};
 
 #[derive(Debug, Deserialize)]
 pub struct DiscordMessage {
@@ -16,11 +17,20 @@ pub struct DiscordAttachment {
     pub filename: String,
     pub url: String,
     pub content_type: Option<String>,
+    pub size: Option<u32>,
 }
+
+const DISCORD_API_BASE: &str = "https://discord.com/api/v10";
+const MAX_ATTACHMENT_SIZE: usize = 100 * 1024 * 1024; // 100 MB
 
 /// Validate a Discord snowflake ID (18-digit number)
 pub fn is_valid_snowflake(id: &str) -> bool {
     id.len() == 18 && id.chars().all(|c| c.is_ascii_digit())
+}
+
+/// Validate that filename has .pcap or .pcapng extension
+fn is_pcap_file(filename: &str) -> bool {
+    filename.ends_with(".pcap") || filename.ends_with(".pcapng")
 }
 
 /// Fetch message details from Discord API
@@ -43,26 +53,112 @@ pub async fn fetch_message(
         ));
     }
 
-    // TODO: Implement actual Discord API call
-    // GET https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}
-    // with Authorization header: Bearer {token}
+    let url = format!(
+        "{}/channels/{}/messages/{}",
+        DISCORD_API_BASE, channel_id, message_id
+    );
 
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        "Discord API fetch not yet implemented".to_string(),
-    ))
+    debug!("Fetching Discord message from: {}", url);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .header("Authorization", format!("Bot {}", token))
+        .send()
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch Discord message: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to connect to Discord API".to_string(),
+            )
+        })?;
+
+    if response.status().is_success() {
+        let message = response.json::<DiscordMessage>().await.map_err(|e| {
+            error!("Failed to parse Discord message: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to parse Discord response".to_string(),
+            )
+        })?;
+
+        // Validate that message has at least one PCAP attachment
+        let has_pcap = message
+            .attachments
+            .iter()
+            .any(|a| is_pcap_file(&a.filename));
+
+        if !has_pcap {
+            warn!("Message has no PCAP attachments");
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Message has no PCAP attachments (.pcap or .pcapng)".to_string(),
+            ));
+        }
+
+        Ok(message)
+    } else {
+        let status = response.status().as_u16();
+        error!("Discord API error: {}", status);
+
+        match status {
+            404 => Err((
+                StatusCode::NOT_FOUND,
+                "Discord message not found".to_string(),
+            )),
+            403 => Err((
+                StatusCode::FORBIDDEN,
+                "Access denied to Discord message".to_string(),
+            )),
+            _ => Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Discord API error".to_string(),
+            )),
+        }
+    }
 }
 
 /// Download attachment from URL
-pub async fn download_attachment(
-    url: &str,
-    token: &str,
-) -> Result<Vec<u8>, (StatusCode, String)> {
-    // TODO: Implement attachment download
-    // Use reqwest to fetch from url with Discord auth headers if needed
+pub async fn download_attachment(url: &str) -> Result<Vec<u8>, (StatusCode, String)> {
+    debug!("Downloading attachment from: {}", url);
 
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        "Attachment download not yet implemented".to_string(),
-    ))
+    let client = reqwest::Client::new();
+    let response = client.get(url).send().await.map_err(|e| {
+        error!("Failed to download attachment: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to download attachment".to_string(),
+        )
+    })?;
+
+    if response.status().is_success() {
+        let content_length = response
+            .content_length()
+            .unwrap_or(0) as usize;
+
+        if content_length > MAX_ATTACHMENT_SIZE {
+            warn!("Attachment too large: {} bytes", content_length);
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Attachment exceeds maximum size limit (100 MB)".to_string(),
+            ));
+        }
+
+        let bytes = response.bytes().await.map_err(|e| {
+            error!("Failed to read attachment: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to read attachment".to_string(),
+            )
+        })?;
+
+        Ok(bytes.to_vec())
+    } else {
+        error!("Attachment download error: {}", response.status());
+        Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to download attachment".to_string(),
+        ))
+    }
 }
