@@ -52,20 +52,31 @@ fn matches_filter(filter: &Filter, value: &str) -> bool {
     match filter {
         Filter::StringValue(s) => value.to_lowercase().contains(s),
         Filter::HexValue(num) => {
-            // Match hex representation like "F7B1" (from OpCode field)
+            // First try to parse the entire value as hex (e.g., "F7B1")
             if let Ok(parsed) = u32::from_str_radix(value, 16) {
-                parsed == *num
-            } else {
-                false
+                if parsed == *num {
+                    return true;
+                }
             }
+
+            // Also try substring matching (e.g., "F7B1" in JSON data)
+            // This allows finding hex values embedded in larger JSON strings
+            let hex_str = format!("{num:X}");
+            let hex_str_lower = format!("{num:x}");
+            value.contains(&hex_str) || value.contains(&hex_str_lower)
         }
         Filter::DecimalValue(num) => {
-            // Match decimal representation
+            // First try to parse the entire value as decimal
             if let Ok(parsed) = value.parse::<u32>() {
-                parsed == *num
-            } else {
-                false
+                if parsed == *num {
+                    return true;
+                }
             }
+
+            // Also try substring matching (e.g., "2151762794" in JSON data)
+            // This allows finding numeric values embedded in larger JSON strings
+            let decimal_str = num.to_string();
+            value.contains(&decimal_str)
         }
     }
 }
@@ -106,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_matches_string() {
-        let filters = vec![Filter::StringValue("test".to_string())];
+        let filters = [Filter::StringValue("test".to_string())];
         assert!(matches_filter(&filters[0], "testing"));
         assert!(matches_filter(&filters[0], "TEST"));
         assert!(!matches_filter(&filters[0], "foo"));
@@ -414,5 +425,60 @@ mod tests {
             parse_filter_string("7450"),
             vec![Filter::DecimalValue(7450), Filter::HexValue(7450)]
         );
+    }
+
+    #[test]
+    fn test_search_in_json_stringified_data() {
+        // Simulate searching in serde_json::to_string of message data
+        // When we have {"ObjectId": 2151762794}, the stringified version is {"ObjectId": 2151762794}
+        let json_data = r#"{"ObjectId": 2151762794}"#;
+
+        // User types "2151762794" (as decimal)
+        let filters = parse_filter_string("2151762794");
+        // Should find the ObjectId in the JSON string
+        assert!(matches_any_filter(&filters, json_data));
+    }
+
+    #[test]
+    fn test_search_in_json_stringified_data_hex() {
+        // Test hex value in JSON
+        let json_data = r#"{"OpCode": "F7B1"}"#;
+
+        // User types "0xF7B1"
+        let filters = parse_filter_string("0xF7B1");
+        // Should find the OpCode in the JSON string
+        assert!(matches_any_filter(&filters, json_data));
+    }
+
+    #[test]
+    fn test_search_in_complex_json() {
+        // Real-world example: a message with nested data
+        let json_data =
+            r#"{"ObjectId":2151762794,"Type":"Item_SetAppraiseInfo","Properties":{"Health":42}}"#;
+
+        // Search for the object ID
+        let filters = parse_filter_string("2151762794");
+        assert!(matches_any_filter(&filters, json_data));
+
+        // Search for the type name
+        let filters = parse_filter_string("Item_SetAppraiseInfo");
+        assert!(matches_any_filter(&filters, json_data));
+
+        // Search for a nested property value
+        let filters = parse_filter_string("42");
+        assert!(matches_any_filter(&filters, json_data));
+    }
+
+    #[test]
+    fn test_search_opcode_f7b0_in_game_data() {
+        // Real data structure: OpCode is decimal in Data, hex string in top-level OpCode
+        let json_data =
+            r#"{"ObjectId":2151762794,"OpCode":63408,"MessageType":"Ordered_GameEvent"}"#;
+
+        // User types "0xF7B0" (hex for 63408)
+        let filters = parse_filter_string("0xF7B0");
+
+        // Should match via DecimalValue filter matching the "63408" in data
+        assert!(matches_any_filter(&filters, json_data));
     }
 }

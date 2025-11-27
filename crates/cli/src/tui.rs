@@ -491,7 +491,7 @@ fn ui(f: &mut Frame, app: &mut App) {
 
         let opcode_filter = match app.filter_opcode {
             None => "None".to_string(),
-            Some(oc) => format!("{:04X}", oc),
+            Some(oc) => format!("{oc:04X}"),
         };
 
         format!(

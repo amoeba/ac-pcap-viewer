@@ -121,12 +121,15 @@ impl PcapViewerApp {
         app
     }
 
-    /// Mark all currently filtered items for visual tracking
+    /// Mark all currently filtered items for visual tracking (replaces previous marks)
     fn mark_filtered_items(&mut self) {
         let search = self.search_query.to_lowercase();
 
         match self.current_tab {
             Tab::Messages => {
+                // Clear previous marks before setting new ones
+                self.marked_messages.clear();
+
                 let time_filter = self.messages_scrubber.get_selected_range().cloned();
 
                 // Filter messages based on search and time
@@ -192,10 +195,8 @@ impl PcapViewerApp {
                     .map(|(idx, _)| idx)
                     .collect();
 
-                // Add all filtered indices to marked_messages
-                for idx in filtered_indices {
-                    self.marked_messages.insert(idx);
-                }
+                // Set marked_messages to only the filtered indices
+                self.marked_messages = filtered_indices.into_iter().collect();
 
                 // Update scrubber with marked timestamps
                 let marked_timestamps: Vec<f64> = self
@@ -209,6 +210,9 @@ impl PcapViewerApp {
                     .set_marked_timestamps(marked_timestamps);
             }
             Tab::Fragments => {
+                // Clear previous marks before setting new ones
+                self.marked_packets.clear();
+
                 let time_filter = self.fragments_scrubber.get_selected_range().cloned();
 
                 // Filter packets based on time (fragments don't have search yet)
@@ -227,10 +231,8 @@ impl PcapViewerApp {
                     .map(|(idx, _)| idx)
                     .collect();
 
-                // Add all filtered indices to marked_packets
-                for idx in filtered_indices {
-                    self.marked_packets.insert(idx);
-                }
+                // Set marked_packets to only the filtered indices
+                self.marked_packets = filtered_indices.into_iter().collect();
 
                 // Update scrubber with marked timestamps
                 let marked_timestamps: Vec<f64> = self
