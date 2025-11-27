@@ -51,13 +51,13 @@ jobs:
         run: cargo test --all
 
       - name: Build parser library
-      run: cargo build -p ac-parser
+        run: cargo build -p ac-parser
 
       - name: Build CLI
-      run: cargo build -p cli
+        run: cargo build -p cli
 
       - name: Build web app
-      run: cargo build -p web
+        run: cargo build -p web
 
   # ====================
   # Build WASM (after CI passes)
