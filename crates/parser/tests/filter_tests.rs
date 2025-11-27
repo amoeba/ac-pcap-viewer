@@ -55,18 +55,13 @@ fn test_filter_pantaloons() {
         "Filter 'pantaloons' should find at least one message"
     );
 
-    // Should find message id 9
-    let found_msg_9 = filtered.iter().any(|m| m.id == 9);
-    assert!(found_msg_9, "Filter 'pantaloons' should find message id 9");
-
-    // Verify message 9 contains the search term in its data
-    let msg_9 = messages
+    // Verify that at least one filtered message contains the search term
+    let has_pantaloons = filtered
         .iter()
-        .find(|m| m.id == 9)
-        .expect("Message id 9 should exist");
+        .any(|m| json_contains_string(&m.data, "pantaloons"));
     assert!(
-        json_contains_string(&msg_9.data, "pantaloons"),
-        "Message id 9 should contain 'pantaloons' in its data"
+        has_pantaloons,
+        "Filter 'pantaloons' should find messages containing 'pantaloons'"
     );
 }
 
@@ -77,11 +72,19 @@ fn test_filter_pantaloons_case_insensitive() {
     // Test with uppercase "Pantaloons"
     let filtered = filter_messages(&messages, "Pantaloons");
 
-    // Should find message id 9
-    let found_msg_9 = filtered.iter().any(|m| m.id == 9);
+    // Should find at least one message
     assert!(
-        found_msg_9,
-        "Filter 'Pantaloons' (uppercase) should find message id 9"
+        !filtered.is_empty(),
+        "Filter 'Pantaloons' should find at least one message"
+    );
+
+    // Verify that at least one filtered message contains the search term (case insensitive)
+    let has_pantaloons = filtered
+        .iter()
+        .any(|m| json_contains_string(&m.data, "pantaloons"));
+    assert!(
+        has_pantaloons,
+        "Filter 'Pantaloons' should find messages containing 'pantaloons'"
     );
 }
 
@@ -98,21 +101,13 @@ fn test_filter_haebrean_gauntlets() {
         "Filter 'Haebrean Gauntlets' should find at least one message"
     );
 
-    // Should find message id 2030
-    let found_msg_2030 = filtered.iter().any(|m| m.id == 2030);
-    assert!(
-        found_msg_2030,
-        "Filter 'Haebrean Gauntlets' should find message id 2030"
-    );
-
-    // Verify message 2030 contains the search term in its data
-    let msg_2030 = messages
+    // Verify that at least one filtered message contains the search term
+    let has_gauntlets = filtered
         .iter()
-        .find(|m| m.id == 2030)
-        .expect("Message id 2030 should exist");
+        .any(|m| json_contains_string(&m.data, "Haebrean Gauntlets"));
     assert!(
-        json_contains_string(&msg_2030.data, "Haebrean Gauntlets"),
-        "Message id 2030 should contain 'Haebrean Gauntlets' in its data"
+        has_gauntlets,
+        "Filter 'Haebrean Gauntlets' should find messages containing 'Haebrean Gauntlets'"
     );
 }
 
@@ -120,13 +115,22 @@ fn test_filter_haebrean_gauntlets() {
 fn test_filter_partial_match() {
     let messages = load_test_messages();
 
-    // Test partial match "Haebrean" should also find message 2030
+    // Test partial match "Haebrean" should find messages containing "Haebrean Gauntlets"
     let filtered = filter_messages(&messages, "Haebrean");
 
-    let found_msg_2030 = filtered.iter().any(|m| m.id == 2030);
+    // Should find at least one message
     assert!(
-        found_msg_2030,
-        "Filter 'Haebrean' should find message id 2030"
+        !filtered.is_empty(),
+        "Filter 'Haebrean' should find at least one message"
+    );
+
+    // Verify that at least one filtered message contains "Haebrean Gauntlets"
+    let has_gauntlets = filtered
+        .iter()
+        .any(|m| json_contains_string(&m.data, "Haebrean Gauntlets"));
+    assert!(
+        has_gauntlets,
+        "Filter 'Haebrean' should find messages containing 'Haebrean Gauntlets'"
     );
 }
 

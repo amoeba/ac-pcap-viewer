@@ -194,7 +194,10 @@ pub fn show_url_dialog(app: &mut PcapViewerApp, ctx: &egui::Context) {
             ui.add_space(5.0);
 
             let response = ui.text_edit_singleline(&mut app.url_input);
-            if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !app.url_input.is_empty() {
+            if response.lost_focus()
+                && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                && !app.url_input.is_empty()
+            {
                 load_from_url(app, app.url_input.clone(), ctx);
                 close_dialog = true;
             }
