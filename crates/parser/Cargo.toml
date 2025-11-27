@@ -5,6 +5,7 @@ edition.workspace = true
 description = "Asheron's Call PCAP parser library"
 
 [dependencies]
+ac-pcap-lib = { path = "../lib" }
 anyhow.workspace = true
 thiserror.workspace = true
 serde = { workspace = true }

@@ -3,7 +3,8 @@ use clap::{Parser, Subcommand, ValueEnum};
 use std::collections::HashMap;
 use std::fs::File;
 
-use ac_parser::{messages::ParsedMessage, Direction, PacketParser, ParsedPacket};
+use ac_parser::{messages::ParsedMessage, PacketParser, ParsedPacket};
+use ac_pcap_lib::Direction;
 
 mod tui;
 

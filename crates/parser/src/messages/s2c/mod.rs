@@ -1,11 +1,14 @@
-use crate::properties::{
-    self, appraisal_flags, ArmorProfile, CreatureProfile, HookProfile, LayeredSpellId,
-    WeaponProfile,
-};
-use crate::reader::BinaryReader;
+use crate::protocol::BinaryReader;
 use anyhow::Result;
 use serde::Serialize;
-use std::collections::HashMap;
+
+// Sub-modules
+pub mod events;
+pub mod qualities;
+
+// Re-export commonly used types
+pub use events::*;
+pub use qualities::*;
 
 // Game event types (for 0xF7B0 messages)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -365,32 +368,32 @@ pub fn parse_game_event(
 
     match evt_type {
         GameEventType::Item_SetAppraiseInfo => {
-            let msg = ItemSetAppraiseInfo::read(reader, object_id, sequence)?;
+            let msg = events::item::ItemSetAppraiseInfo::read(reader, object_id, sequence)?;
             Ok((
                 "Item_SetAppraiseInfo".to_string(),
                 serde_json::to_value(&msg)?,
             ))
         }
         GameEventType::Item_ServerSaysContainId => {
-            let msg = ItemServerSaysContainId::read(reader, object_id, sequence)?;
+            let msg = events::item::ItemServerSaysContainId::read(reader, object_id, sequence)?;
             Ok((
                 "Item_ServerSaysContainId".to_string(),
                 serde_json::to_value(&msg)?,
             ))
         }
         GameEventType::Item_WearItem => {
-            let msg = ItemWearItem::read(reader, object_id, sequence)?;
+            let msg = events::item::ItemWearItem::read(reader, object_id, sequence)?;
             Ok(("Item_WearItem".to_string(), serde_json::to_value(&msg)?))
         }
         GameEventType::Magic_UpdateEnchantment => {
-            let msg = MagicUpdateEnchantment::read(reader, object_id, sequence)?;
+            let msg = events::magic::MagicUpdateEnchantment::read(reader, object_id, sequence)?;
             Ok((
                 "Magic_UpdateEnchantment".to_string(),
                 serde_json::to_value(&msg)?,
             ))
         }
         GameEventType::Magic_DispelEnchantment => {
-            let msg = MagicDispelEnchantment::read(reader, object_id, sequence)?;
+            let msg = events::magic::MagicDispelEnchantment::read(reader, object_id, sequence)?;
             Ok((
                 "Magic_DispelEnchantment".to_string(),
                 serde_json::to_value(&msg)?,
@@ -425,147 +428,7 @@ pub fn parse_game_event(
     }
 }
 
-// Simple S2C messages
-
-#[derive(Debug, Clone, Serialize)]
-pub struct QualitiesPrivateUpdateInt {
-    #[serde(rename = "Sequence")]
-    pub sequence: u8,
-    #[serde(rename = "Key")]
-    pub key: String,
-    #[serde(rename = "Value")]
-    pub value: i32,
-    #[serde(rename = "OpCode")]
-    pub opcode: u32,
-    #[serde(rename = "MessageType")]
-    pub message_type: String,
-    #[serde(rename = "MessageDirection")]
-    pub message_direction: String,
-}
-
-impl QualitiesPrivateUpdateInt {
-    pub fn read(reader: &mut BinaryReader) -> Result<Self> {
-        let sequence = reader.read_u8()?;
-        let key_raw = reader.read_u32()?;
-        let value = reader.read_i32()?;
-
-        Ok(Self {
-            sequence,
-            key: properties::property_int_name(key_raw),
-            value,
-            opcode: 0x02CD,
-            message_type: "Qualities_PrivateUpdateInt".to_string(),
-            message_direction: "ServerToClient".to_string(),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct QualitiesPrivateUpdateAttribute2ndLevel {
-    #[serde(rename = "Sequence")]
-    pub sequence: u8,
-    #[serde(rename = "Key")]
-    pub key: String,
-    #[serde(rename = "Value")]
-    pub value: u32,
-    #[serde(rename = "OpCode")]
-    pub opcode: u32,
-    #[serde(rename = "MessageType")]
-    pub message_type: String,
-    #[serde(rename = "MessageDirection")]
-    pub message_direction: String,
-}
-
-impl QualitiesPrivateUpdateAttribute2ndLevel {
-    pub fn read(reader: &mut BinaryReader) -> Result<Self> {
-        let sequence = reader.read_u8()?;
-        let key_raw = reader.read_u32()?;
-        let value = reader.read_u32()?;
-
-        Ok(Self {
-            sequence,
-            key: vital_name(key_raw),
-            value,
-            opcode: 0x02E9,
-            message_type: "Qualities_PrivateUpdateAttribute2ndLevel".to_string(),
-            message_direction: "ServerToClient".to_string(),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct QualitiesUpdateInt {
-    #[serde(rename = "Sequence")]
-    pub sequence: u8,
-    #[serde(rename = "ObjectId")]
-    pub object_id: u32,
-    #[serde(rename = "Key")]
-    pub key: String,
-    #[serde(rename = "Value")]
-    pub value: i32,
-    #[serde(rename = "OpCode")]
-    pub opcode: u32,
-    #[serde(rename = "MessageType")]
-    pub message_type: String,
-    #[serde(rename = "MessageDirection")]
-    pub message_direction: String,
-}
-
-impl QualitiesUpdateInt {
-    pub fn read(reader: &mut BinaryReader) -> Result<Self> {
-        let sequence = reader.read_u8()?;
-        let object_id = reader.read_u32()?;
-        let key_raw = reader.read_u32()?;
-        let value = reader.read_i32()?;
-
-        Ok(Self {
-            sequence,
-            object_id,
-            key: properties::property_int_name(key_raw),
-            value,
-            opcode: 0x02CE,
-            message_type: "Qualities_UpdateInt".to_string(),
-            message_direction: "ServerToClient".to_string(),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct QualitiesUpdateInstanceId {
-    #[serde(rename = "Sequence")]
-    pub sequence: u8,
-    #[serde(rename = "ObjectId")]
-    pub object_id: u32,
-    #[serde(rename = "Key")]
-    pub key: String,
-    #[serde(rename = "Value")]
-    pub value: u32,
-    #[serde(rename = "OpCode")]
-    pub opcode: u32,
-    #[serde(rename = "MessageType")]
-    pub message_type: String,
-    #[serde(rename = "MessageDirection")]
-    pub message_direction: String,
-}
-
-impl QualitiesUpdateInstanceId {
-    pub fn read(reader: &mut BinaryReader) -> Result<Self> {
-        let sequence = reader.read_u8()?;
-        let object_id = reader.read_u32()?;
-        let key_raw = reader.read_u32()?;
-        let value = reader.read_u32()?;
-
-        Ok(Self {
-            sequence,
-            object_id,
-            key: property_instance_id_name(key_raw),
-            value,
-            opcode: 0x02DA,
-            message_type: "Qualities_UpdateInstanceId".to_string(),
-            message_direction: "ServerToClient".to_string(),
-        })
-    }
-}
+// Top-level S2C messages (non-game-events)
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MovementSetObjectMovement {
@@ -607,7 +470,7 @@ pub struct MovementData {
     #[serde(rename = "ObjectServerControlSequence")]
     pub object_server_control_sequence: u16,
     #[serde(rename = "Autonomous")]
-    pub autonomous: u16, // ushort per protocol.xml
+    pub autonomous: u16,
     #[serde(rename = "MovementType")]
     pub movement_type: String,
     #[serde(rename = "OptionFlags")]
@@ -677,12 +540,11 @@ impl MovementData {
     pub fn read(reader: &mut BinaryReader) -> Result<Self> {
         let object_movement_sequence = reader.read_u16()?;
         let object_server_control_sequence = reader.read_u16()?;
-        let autonomous = reader.read_u16()?; // ushort per protocol.xml
+        let autonomous = reader.read_u16()?;
         let movement_type_raw = reader.read_u8()?;
         let option_flags_raw = reader.read_u8()?;
         let stance_raw = reader.read_u16()?;
 
-        // Movement type values from ACProtocol/protocol.xml
         let movement_type = match movement_type_raw {
             0x00 => "InterpertedMotionState",
             0x06 => "MoveToObject",
@@ -713,12 +575,9 @@ impl MovementData {
         let desired_heading = 0.0f32;
         let turn_to_params = None;
 
-        // Parse based on movement type
         if movement_type_raw == 0x00 {
-            // InterpertedMotionState
             if let Ok(s) = InterpretedMotionState::read(reader) {
                 state = Some(s);
-                // Check for sticky object
                 if option_flags_raw & 0x01 != 0 {
                     if let Ok(so) = reader.read_u32() {
                         sticky_object = so;
@@ -726,7 +585,6 @@ impl MovementData {
                 }
             }
         }
-        // TODO: Parse other movement types (MoveToObject, MoveToPosition, etc.)
 
         Ok(Self {
             object_movement_sequence,
@@ -753,64 +611,53 @@ impl InterpretedMotionState {
         let flags = reader.read_u32()?;
         let command_list_length = (flags >> 7) & 0x7F;
 
-        // CurrentStyle - default to NonCombat (0x3D) if not present
         let current_style = if flags & 0x01 != 0 {
             stance_mode_name(reader.read_u16()?)
         } else {
             "NonCombat".to_string()
         };
 
-        // ForwardCommand - default to Ready (0x03) if not present
-        // MotionCommand is a u16 in AC protocol
         let forward_command = if flags & 0x02 != 0 {
             reader.read_u16()? as u32
         } else {
-            0x03 // Ready
+            0x03
         };
 
-        // SidestepCommand - default to 0 if not present
         let sidestep_command = if flags & 0x04 != 0 {
             reader.read_u16()? as u32
         } else {
             0
         };
 
-        // TurnCommand - default to 0 if not present
         let turn_command = if flags & 0x08 != 0 {
             reader.read_u16()? as u32
         } else {
             0
         };
 
-        // ForwardSpeed
         let forward_speed = if flags & 0x10 != 0 {
             reader.read_f32()?
         } else {
             0.0
         };
 
-        // SidestepSpeed
         let sidestep_speed = if flags & 0x20 != 0 {
             reader.read_f32()?
         } else {
             0.0
         };
 
-        // TurnSpeed
         let turn_speed = if flags & 0x40 != 0 {
             reader.read_f32()?
         } else {
             0.0
         };
 
-        // Read command list (skip for now - simplified)
         let commands = Vec::new();
         for _ in 0..command_list_length {
-            // Each command is a u32 command followed by f32 speed and f32 hold_key
             let _cmd = reader.read_u32()?;
             let _speed = reader.read_f32()?;
             let _hold_key = reader.read_f32()?;
-            // Skip for now - simplified
         }
 
         Ok(Self {
@@ -973,7 +820,6 @@ impl CommunicationTextboxString {
         let text = reader.read_string16l()?;
         let chat_type_raw = reader.read_u32()?;
 
-        // Per protocol.xml ChatFragmentType enum
         let chat_type = match chat_type_raw {
             0x00 => "Default",
             0x02 => "Speech",
@@ -1090,37 +936,23 @@ pub struct AnimPartChange {
 
 impl ObjectDescription {
     pub fn read(reader: &mut BinaryReader) -> Result<Self> {
-        // Format (from Chorizite ObjDesc.generated.cs):
-        // u8 version (typically 17 = 0x11)
-        // u8 palette_count
-        // u8 texture_count
-        // u8 model_count
-        // PackedDWORD base_palette (if palette_count > 0)
-        // N * (PackedDWORD palette, u8 offset, u8 num_colors) subpalettes
-        // N * (u8 part_index, PackedDWORD old_tex, PackedDWORD new_tex) texture changes
-        // N * (u8 part_index, PackedDWORD part_id) model changes
-        // 4-byte alignment at the end
-
         let version = reader.read_u8()?;
         let palette_count = reader.read_u8()?;
         let texture_count = reader.read_u8()?;
         let model_count = reader.read_u8()?;
 
-        // Validate counts are reasonable
         if palette_count > 100 || texture_count > 100 || model_count > 100 {
             anyhow::bail!(
                 "Suspicious ObjDesc counts: pal={palette_count} tex={texture_count} model={model_count}"
             );
         }
 
-        // Read base palette if palette count > 0 (PackedDWORD)
         let palette = if palette_count > 0 {
             reader.read_packed_dword()?
         } else {
             0
         };
 
-        // Read subpalettes (PackedDWORD palette, u8 offset, u8 num_colors)
         let mut subpalettes = Vec::new();
         for _ in 0..palette_count {
             let sub_palette = reader.read_packed_dword()?;
@@ -1133,7 +965,6 @@ impl ObjectDescription {
             });
         }
 
-        // Read texture map changes (u8 part_index, PackedDWORD old_tex, PackedDWORD new_tex)
         let mut tm_changes = Vec::new();
         for _ in 0..texture_count {
             let part_index = reader.read_u8()?;
@@ -1146,7 +977,6 @@ impl ObjectDescription {
             });
         }
 
-        // Read animation part changes (u8 part_index, PackedDWORD part_id)
         let mut ap_changes = Vec::new();
         for _ in 0..model_count {
             let part_index = reader.read_u8()?;
@@ -1157,7 +987,6 @@ impl ObjectDescription {
             });
         }
 
-        // Align to 4-byte boundary after reading ObjDesc
         reader.align4()?;
 
         Ok(Self {
@@ -1177,8 +1006,6 @@ impl ItemObjDescEvent {
     pub fn read(reader: &mut BinaryReader) -> Result<Self> {
         let object_id = reader.read_u32()?;
         let object_description = ObjectDescription::read(reader)?;
-
-        // Read sequences (u16 each per Chorizite Item_ObjDescEvent.generated.cs)
         let instance_sequence = reader.read_u16()?;
         let visual_desc_sequence = reader.read_u16()?;
 
@@ -1192,802 +1019,4 @@ impl ItemObjDescEvent {
             message_direction: "ServerToClient".to_string(),
         })
     }
-}
-
-// Game Events
-
-#[derive(Debug, Clone, Serialize)]
-pub struct CharacterCharacterOptionsEvent {
-    #[serde(rename = "OrderedObjectId")]
-    pub ordered_object_id: u32,
-    #[serde(rename = "OrderedSequence")]
-    pub ordered_sequence: u32,
-    #[serde(rename = "EventType")]
-    pub event_type: String,
-    #[serde(rename = "OpCode")]
-    pub opcode: u32,
-    #[serde(rename = "MessageType")]
-    pub message_type: String,
-    #[serde(rename = "MessageDirection")]
-    pub message_direction: String,
-}
-
-impl CharacterCharacterOptionsEvent {
-    pub fn read(
-        _reader: &mut BinaryReader,
-        ordered_object_id: u32,
-        ordered_sequence: u32,
-    ) -> Result<Self> {
-        // Complex options data - skip for now
-        Ok(Self {
-            ordered_object_id,
-            ordered_sequence,
-            event_type: "Character_CharacterOptionsEvent".to_string(),
-            opcode: 0xF7B0,
-            message_type: "Ordered_GameEvent".to_string(),
-            message_direction: "ServerToClient".to_string(),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ItemWearItem {
-    #[serde(rename = "ObjectId")]
-    pub object_id: u32,
-    #[serde(rename = "Slot")]
-    pub slot: String,
-    #[serde(rename = "OrderedObjectId")]
-    pub ordered_object_id: u32,
-    #[serde(rename = "OrderedSequence")]
-    pub ordered_sequence: u32,
-    #[serde(rename = "EventType")]
-    pub event_type: String,
-    #[serde(rename = "OpCode")]
-    pub opcode: u32,
-    #[serde(rename = "MessageType")]
-    pub message_type: String,
-    #[serde(rename = "MessageDirection")]
-    pub message_direction: String,
-}
-
-impl ItemWearItem {
-    pub fn read(
-        reader: &mut BinaryReader,
-        ordered_object_id: u32,
-        ordered_sequence: u32,
-    ) -> Result<Self> {
-        let object_id = reader.read_u32()?;
-        let slot_raw = reader.read_u32()?;
-        let slot = crate::properties::equip_mask_name(slot_raw);
-
-        Ok(Self {
-            object_id,
-            slot,
-            ordered_object_id,
-            ordered_sequence,
-            event_type: "Item_WearItem".to_string(),
-            opcode: 0xF7B0,
-            message_type: "Ordered_GameEvent".to_string(),
-            message_direction: "ServerToClient".to_string(),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ItemSetAppraiseInfo {
-    #[serde(rename = "ObjectId")]
-    pub object_id: u32,
-    #[serde(rename = "Flags")]
-    pub flags: u32,
-    #[serde(rename = "Success")]
-    pub success: bool,
-    #[serde(rename = "IntProperties")]
-    pub int_properties: HashMap<String, i32>,
-    #[serde(rename = "Int64Properties")]
-    pub int64_properties: HashMap<String, i64>,
-    #[serde(rename = "BoolProperties")]
-    pub bool_properties: HashMap<String, bool>,
-    #[serde(rename = "FloatProperties")]
-    pub float_properties: HashMap<String, f64>,
-    #[serde(rename = "StringProperties")]
-    pub string_properties: HashMap<String, String>,
-    #[serde(rename = "DataIdProperties")]
-    pub dataid_properties: HashMap<String, u32>,
-    #[serde(rename = "SpellBook")]
-    pub spell_book: Vec<properties::LayeredSpellId>,
-    #[serde(rename = "ArmorProfile")]
-    pub armor_profile: Option<ArmorProfile>,
-    #[serde(rename = "CreatureProfile")]
-    pub creature_profile: Option<CreatureProfile>,
-    #[serde(rename = "WeaponProfile")]
-    pub weapon_profile: Option<WeaponProfile>,
-    #[serde(rename = "HookProfile")]
-    pub hook_profile: Option<HookProfile>,
-    #[serde(rename = "ArmorHighlight")]
-    pub armor_highlight: serde_json::Value,
-    #[serde(rename = "ArmorColor")]
-    pub armor_color: serde_json::Value,
-    #[serde(rename = "WeaponHighlight")]
-    pub weapon_highlight: serde_json::Value,
-    #[serde(rename = "WeaponColor")]
-    pub weapon_color: serde_json::Value,
-    #[serde(rename = "ResistHighlight")]
-    pub resist_highlight: serde_json::Value,
-    #[serde(rename = "ResistColor")]
-    pub resist_color: serde_json::Value,
-    #[serde(rename = "BaseArmorHead")]
-    pub base_armor_head: u32,
-    #[serde(rename = "BaseArmorChest")]
-    pub base_armor_chest: u32,
-    #[serde(rename = "BaseArmorGroin")]
-    pub base_armor_groin: u32,
-    #[serde(rename = "BaseArmorBicep")]
-    pub base_armor_bicep: u32,
-    #[serde(rename = "BaseArmorWrist")]
-    pub base_armor_wrist: u32,
-    #[serde(rename = "BaseArmorHand")]
-    pub base_armor_hand: u32,
-    #[serde(rename = "BaseArmorThigh")]
-    pub base_armor_thigh: u32,
-    #[serde(rename = "BaseArmorShin")]
-    pub base_armor_shin: u32,
-    #[serde(rename = "BaseArmorFoot")]
-    pub base_armor_foot: u32,
-    #[serde(rename = "OrderedObjectId")]
-    pub ordered_object_id: u32,
-    #[serde(rename = "OrderedSequence")]
-    pub ordered_sequence: u32,
-    #[serde(rename = "EventType")]
-    pub event_type: String,
-    #[serde(rename = "OpCode")]
-    pub opcode: u32,
-    #[serde(rename = "MessageType")]
-    pub message_type: String,
-    #[serde(rename = "MessageDirection")]
-    pub message_direction: String,
-}
-
-impl ItemSetAppraiseInfo {
-    pub fn read(
-        reader: &mut BinaryReader,
-        ordered_object_id: u32,
-        ordered_sequence: u32,
-    ) -> Result<Self> {
-        let object_id = reader.read_u32()?;
-        let flags = reader.read_u32()?;
-        let success = reader.read_bool()?;
-
-        // Parse property dictionaries based on flags
-        // Order is based on ACProtocol binary format, NOT flag bit order!
-
-        // IntProperties (0x0001)
-        let int_properties = if flags & appraisal_flags::INT_PROPERTIES != 0 {
-            properties::read_int_properties(reader)?
-        } else {
-            HashMap::new()
-        };
-
-        // Int64Properties (0x2000) - comes early in binary format
-        let int64_properties = if flags & appraisal_flags::INT64_PROPERTIES != 0 {
-            properties::read_int64_properties(reader)?
-        } else {
-            HashMap::new()
-        };
-
-        // BoolProperties (0x0002)
-        let bool_properties = if flags & appraisal_flags::BOOL_PROPERTIES != 0 {
-            properties::read_bool_properties(reader)?
-        } else {
-            HashMap::new()
-        };
-
-        // FloatProperties (0x0004)
-        let float_properties = if flags & appraisal_flags::FLOAT_PROPERTIES != 0 {
-            properties::read_float_properties(reader)?
-        } else {
-            HashMap::new()
-        };
-
-        // StringProperties (0x0008)
-        let string_properties = if flags & appraisal_flags::STRING_PROPERTIES != 0 {
-            properties::read_string_properties(reader)?
-        } else {
-            HashMap::new()
-        };
-
-        // DataIdProperties (0x1000) - comes before spell book
-        let dataid_properties = if flags & appraisal_flags::DATA_ID_PROPERTIES != 0 {
-            properties::read_dataid_properties(reader)?
-        } else {
-            HashMap::new()
-        };
-
-        // SpellBook (0x0010)
-        let spell_book = if flags & appraisal_flags::SPELL_BOOK != 0 {
-            properties::read_spell_book(reader)?
-        } else {
-            Vec::new()
-        };
-
-        // ArmorProfile (0x0080) - comes before weapon/hook
-        let armor_profile = if flags & appraisal_flags::ARMOR_PROFILE != 0 {
-            Some(ArmorProfile::read(reader)?)
-        } else {
-            None
-        };
-
-        // CreatureProfile (0x0100)
-        let creature_profile = if flags & appraisal_flags::CREATURE_PROFILE != 0 {
-            Some(CreatureProfile::read(reader)?)
-        } else {
-            None
-        };
-
-        // WeaponProfile (0x0020)
-        let weapon_profile = if flags & appraisal_flags::WEAPON_PROFILE != 0 {
-            Some(WeaponProfile::read(reader)?)
-        } else {
-            None
-        };
-
-        // HookProfile (0x0040)
-        let hook_profile = if flags & appraisal_flags::HOOK_PROFILE != 0 {
-            Some(HookProfile::read(reader)?)
-        } else {
-            None
-        };
-
-        // Helper to convert highlight mask to JSON value (0 for zero, string for non-zero)
-        fn highlight_to_json(value: u16, f: fn(u16) -> String) -> serde_json::Value {
-            if value == 0 {
-                serde_json::Value::Number(0.into())
-            } else {
-                serde_json::Value::String(f(value))
-            }
-        }
-
-        // ArmorEnchRating (0x0200)
-        let (armor_highlight, armor_color) = if flags & appraisal_flags::ARMOR_ENCH_RATING != 0 {
-            let ah = reader.read_u16()?;
-            let ac = reader.read_u16()?;
-            (
-                highlight_to_json(ah, properties::armor_highlight_mask_name),
-                highlight_to_json(ac, properties::armor_highlight_mask_name),
-            )
-        } else {
-            (
-                serde_json::Value::Number(0.into()),
-                serde_json::Value::Number(0.into()),
-            )
-        };
-
-        // WeaponEnchRating (0x0800)
-        let (weapon_highlight, weapon_color) = if flags & appraisal_flags::WEAPON_ENCH_RATING != 0 {
-            let wh = reader.read_u16()?;
-            let wc = reader.read_u16()?;
-            (
-                highlight_to_json(wh, properties::weapon_highlight_mask_name),
-                highlight_to_json(wc, properties::weapon_highlight_mask_name),
-            )
-        } else {
-            (
-                serde_json::Value::Number(0.into()),
-                serde_json::Value::Number(0.into()),
-            )
-        };
-
-        // ResistEnchRating (0x0400)
-        let (resist_highlight, resist_color) = if flags & appraisal_flags::RESIST_ENCH_RATING != 0 {
-            let rh = reader.read_u16()?;
-            let rc = reader.read_u16()?;
-            (
-                highlight_to_json(rh, properties::resist_highlight_mask_name),
-                highlight_to_json(rc, properties::resist_highlight_mask_name),
-            )
-        } else {
-            (
-                serde_json::Value::Number(0.into()),
-                serde_json::Value::Number(0.into()),
-            )
-        };
-
-        // BaseArmor (0x4000)
-        let (
-            base_armor_head,
-            base_armor_chest,
-            base_armor_groin,
-            base_armor_bicep,
-            base_armor_wrist,
-            base_armor_hand,
-            base_armor_thigh,
-            base_armor_shin,
-            base_armor_foot,
-        ) = if flags & appraisal_flags::BASE_ARMOR != 0 {
-            (
-                reader.read_u32()?,
-                reader.read_u32()?,
-                reader.read_u32()?,
-                reader.read_u32()?,
-                reader.read_u32()?,
-                reader.read_u32()?,
-                reader.read_u32()?,
-                reader.read_u32()?,
-                reader.read_u32()?,
-            )
-        } else {
-            (0, 0, 0, 0, 0, 0, 0, 0, 0)
-        };
-
-        Ok(Self {
-            object_id,
-            flags,
-            success,
-            int_properties,
-            int64_properties,
-            bool_properties,
-            float_properties,
-            string_properties,
-            dataid_properties,
-            spell_book,
-            armor_profile,
-            creature_profile,
-            weapon_profile,
-            hook_profile,
-            armor_highlight,
-            armor_color,
-            weapon_highlight,
-            weapon_color,
-            resist_highlight,
-            resist_color,
-            base_armor_head,
-            base_armor_chest,
-            base_armor_groin,
-            base_armor_bicep,
-            base_armor_wrist,
-            base_armor_hand,
-            base_armor_thigh,
-            base_armor_shin,
-            base_armor_foot,
-            ordered_object_id,
-            ordered_sequence,
-            event_type: "Item_SetAppraiseInfo".to_string(),
-            opcode: 0xF7B0,
-            message_type: "Ordered_GameEvent".to_string(),
-            message_direction: "ServerToClient".to_string(),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct MagicDispelEnchantment {
-    #[serde(rename = "SpellId")]
-    pub spell_id: LayeredSpellId,
-    #[serde(rename = "OrderedObjectId")]
-    pub ordered_object_id: u32,
-    #[serde(rename = "OrderedSequence")]
-    pub ordered_sequence: u32,
-    #[serde(rename = "EventType")]
-    pub event_type: String,
-    #[serde(rename = "OpCode")]
-    pub opcode: u32,
-    #[serde(rename = "MessageType")]
-    pub message_type: String,
-    #[serde(rename = "MessageDirection")]
-    pub message_direction: String,
-}
-
-impl MagicDispelEnchantment {
-    pub fn read(
-        reader: &mut BinaryReader,
-        ordered_object_id: u32,
-        ordered_sequence: u32,
-    ) -> Result<Self> {
-        let spell_id = reader.read_u16()?;
-        let layer = reader.read_u16()?;
-
-        Ok(Self {
-            spell_id: LayeredSpellId {
-                id: spell_id as u32,
-                layer,
-            },
-            ordered_object_id,
-            ordered_sequence,
-            event_type: "Magic_DispelEnchantment".to_string(),
-            opcode: 0xF7B0,
-            message_type: "Ordered_GameEvent".to_string(),
-            message_direction: "ServerToClient".to_string(),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct MagicUpdateEnchantment {
-    #[serde(rename = "Enchantment")]
-    pub enchantment: Enchantment,
-    #[serde(rename = "OrderedObjectId")]
-    pub ordered_object_id: u32,
-    #[serde(rename = "OrderedSequence")]
-    pub ordered_sequence: u32,
-    #[serde(rename = "EventType")]
-    pub event_type: String,
-    #[serde(rename = "OpCode")]
-    pub opcode: u32,
-    #[serde(rename = "MessageType")]
-    pub message_type: String,
-    #[serde(rename = "MessageDirection")]
-    pub message_direction: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct Enchantment {
-    #[serde(rename = "Id")]
-    pub id: LayeredSpellId,
-    #[serde(rename = "HasEquipmentSet")]
-    pub has_equipment_set: u32,
-    #[serde(rename = "SpellCategory")]
-    pub spell_category: String,
-    #[serde(rename = "PowerLevel")]
-    pub power_level: u32,
-    #[serde(
-        rename = "StartTime",
-        serialize_with = "crate::serialization::serialize_f64"
-    )]
-    pub start_time: f64,
-    #[serde(
-        rename = "Duration",
-        serialize_with = "crate::serialization::serialize_f64"
-    )]
-    pub duration: f64,
-    #[serde(rename = "CasterId")]
-    pub caster_id: u32,
-    #[serde(
-        rename = "DegradeModifier",
-        serialize_with = "crate::serialization::serialize_f32"
-    )]
-    pub degrade_modifier: f32,
-    #[serde(
-        rename = "DegradeLimit",
-        serialize_with = "crate::serialization::serialize_f32"
-    )]
-    pub degrade_limit: f32,
-    #[serde(
-        rename = "LastTimeDegraded",
-        serialize_with = "crate::serialization::serialize_f64"
-    )]
-    pub last_time_degraded: f64,
-    #[serde(rename = "StatMod")]
-    pub stat_mod: StatMod,
-    #[serde(rename = "EquipmentSet")]
-    pub equipment_set: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct StatMod {
-    #[serde(rename = "Type")]
-    pub mod_type: String,
-    #[serde(rename = "Key")]
-    pub key: u32,
-    #[serde(
-        rename = "Value",
-        serialize_with = "crate::serialization::serialize_f32"
-    )]
-    pub value: f32,
-}
-
-impl Enchantment {
-    pub fn read(reader: &mut BinaryReader) -> Result<Self> {
-        // Structure from raw byte analysis:
-        // u16 spell_id
-        // u16 layer
-        // u16 has_equipment_set (flags)
-        // u16 spell_category
-        // u32 power_level
-        // f64 start_time
-        // f64 duration
-        // u32 caster_id
-        // f32 degrade_modifier
-        // f32 degrade_limit
-        // f64 last_time_degraded
-        // u32 stat_mod_type
-        // u32 stat_mod_key
-        // f32 stat_mod_value
-        // If has_equipment_set != 0: u32 equipment_set_id
-
-        let spell_id = reader.read_u16()? as u32;
-        let layer = reader.read_u16()?;
-        let has_equipment_set = reader.read_u16()? as u32; // u16 not u32
-        let spell_category_id = reader.read_u16()?; // swapped with above
-        let power_level = reader.read_u32()?;
-        let start_time = reader.read_f64()?;
-        let duration = reader.read_f64()?;
-        let caster_id = reader.read_u32()?;
-        let degrade_modifier = reader.read_f32()?;
-        let degrade_limit = reader.read_f32()?;
-        let last_time_degraded = reader.read_f64()?;
-
-        // StatMod
-        let stat_mod_type = reader.read_u32()?;
-        let stat_mod_key = reader.read_u32()?;
-        let stat_mod_value = reader.read_f32()?;
-
-        // Equipment set (if HasEquipmentSet > 0, read equipment set ID)
-        // Per Chorizite: if (HasEquipmentSet > 0) { EquipmentSet = reader.ReadUInt32(); }
-        let equipment_set_id = if has_equipment_set > 0 {
-            reader.read_u32()?
-        } else {
-            0
-        };
-
-        Ok(Self {
-            id: LayeredSpellId {
-                id: spell_id,
-                layer,
-            },
-            has_equipment_set,
-            spell_category: spell_category_name(spell_category_id),
-            power_level,
-            start_time,
-            duration,
-            caster_id,
-            degrade_modifier,
-            degrade_limit,
-            last_time_degraded,
-            stat_mod: StatMod {
-                mod_type: stat_mod_type_name(stat_mod_type),
-                key: stat_mod_key,
-                value: stat_mod_value,
-            },
-            equipment_set: equipment_set_name(equipment_set_id),
-        })
-    }
-}
-
-fn spell_category_name(id: u16) -> String {
-    // Common spell categories - abbreviated list
-    match id {
-        1 => "StrengthRaising".to_string(),
-        2 => "EnduranceRaising".to_string(),
-        3 => "CoordinationRaising".to_string(),
-        4 => "QuicknessRaising".to_string(),
-        5 => "FocusRaising".to_string(),
-        6 => "SelfRaising".to_string(),
-        _ => format!("Category_{id}"),
-    }
-}
-
-fn stat_mod_type_name(flags: u32) -> String {
-    // EnchantmentTypeFlags from protocol.xml - correct bit positions
-    let mut parts = Vec::new();
-
-    // Stat type flags (lower bits)
-    if flags & 0x0000001 != 0 {
-        parts.push("Attribute");
-    }
-    if flags & 0x0000002 != 0 {
-        parts.push("SecondAtt");
-    }
-    if flags & 0x0000004 != 0 {
-        parts.push("Int");
-    }
-    if flags & 0x0000008 != 0 {
-        parts.push("Float");
-    }
-    if flags & 0x0000010 != 0 {
-        parts.push("Skill");
-    }
-    if flags & 0x0000020 != 0 {
-        parts.push("BodyDamageValue");
-    }
-    if flags & 0x0000040 != 0 {
-        parts.push("BodyDamageVariance");
-    }
-    if flags & 0x0000080 != 0 {
-        parts.push("BodyArmorValue");
-    }
-
-    // Modifier type flags (higher bits)
-    if flags & 0x0001000 != 0 {
-        parts.push("SingleStat");
-    }
-    if flags & 0x0002000 != 0 {
-        parts.push("MultipleStat");
-    }
-    if flags & 0x0004000 != 0 {
-        parts.push("Multiplicative");
-    }
-    if flags & 0x0008000 != 0 {
-        parts.push("Additive");
-    }
-    if flags & 0x0010000 != 0 {
-        parts.push("AttackSkills");
-    }
-    if flags & 0x0020000 != 0 {
-        parts.push("DefenseSkills");
-    }
-    if flags & 0x0100000 != 0 {
-        parts.push("MultiplicativeDegrade");
-    }
-    if flags & 0x0200000 != 0 {
-        parts.push("Additive_Degrade");
-    }
-    if flags & 0x0800000 != 0 {
-        parts.push("Vitae");
-    }
-    if flags & 0x1000000 != 0 {
-        parts.push("Cooldown");
-    }
-    if flags & 0x2000000 != 0 {
-        parts.push("Beneficial");
-    }
-
-    if parts.is_empty() {
-        format!("StatModType_{flags}")
-    } else {
-        parts.join(", ")
-    }
-}
-
-fn equipment_set_name(id: u32) -> String {
-    // Equipment set IDs from protocol.xml
-    match id {
-        0 => "None",
-        1 => "Test",
-        2 => "Test2",
-        3 => "Unknown3",
-        4 => "CarraidasBenediction",
-        5 => "NobleRelic",
-        6 => "AncientRelic",
-        7 => "AlduressaRelic",
-        8 => "Ninja",
-        9 => "EmpyreanRings",
-        10 => "ArmMindHeart",
-        11 => "ArmorPerfectLight",
-        12 => "ArmorPerfectLight2",
-        13 => "Soldiers",
-        14 => "Adepts",
-        15 => "Archers",
-        16 => "Defenders",
-        17 => "Tinkers",
-        18 => "Crafters",
-        19 => "Hearty",
-        20 => "Dexterous",
-        21 => "Wise",
-        22 => "Swift",
-        23 => "Hardened",
-        24 => "Reinforced",
-        25 => "Interlocking",
-        26 => "Flameproof",
-        27 => "Acidproof",
-        28 => "Coldproof",
-        29 => "Lightningproof",
-        30 => "SocietyArmor",
-        31 => "ColosseumClothing",
-        32 => "GraveyardClothing",
-        33 => "OlthoiClothing",
-        34 => "NoobieArmor",
-        35 => "AetheriaDefense",
-        36 => "AetheriaDestruction",
-        37 => "AetheriaFury",
-        38 => "AetheriaGrowth",
-        39 => "AetheriaVigor",
-        40 => "RareDamageResistance",
-        41 => "RareDamageBoost",
-        _ => return format!("Set_{id}"),
-    }
-    .to_string()
-}
-
-impl MagicUpdateEnchantment {
-    pub fn read(
-        reader: &mut BinaryReader,
-        ordered_object_id: u32,
-        ordered_sequence: u32,
-    ) -> Result<Self> {
-        let enchantment = Enchantment::read(reader)?;
-
-        Ok(Self {
-            enchantment,
-            ordered_object_id,
-            ordered_sequence,
-            event_type: "Magic_UpdateEnchantment".to_string(),
-            opcode: 0xF7B0,
-            message_type: "Ordered_GameEvent".to_string(),
-            message_direction: "ServerToClient".to_string(),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ItemServerSaysContainId {
-    #[serde(rename = "ObjectId")]
-    pub object_id: u32,
-    #[serde(rename = "ContainerId")]
-    pub container_id: u32,
-    #[serde(rename = "SlotIndex")]
-    pub slot_index: u32,
-    #[serde(rename = "ContainerType")]
-    pub container_type: String,
-    #[serde(rename = "OrderedObjectId")]
-    pub ordered_object_id: u32,
-    #[serde(rename = "OrderedSequence")]
-    pub ordered_sequence: u32,
-    #[serde(rename = "EventType")]
-    pub event_type: String,
-    #[serde(rename = "OpCode")]
-    pub opcode: u32,
-    #[serde(rename = "MessageType")]
-    pub message_type: String,
-    #[serde(rename = "MessageDirection")]
-    pub message_direction: String,
-}
-
-impl ItemServerSaysContainId {
-    pub fn read(
-        reader: &mut BinaryReader,
-        ordered_object_id: u32,
-        ordered_sequence: u32,
-    ) -> Result<Self> {
-        let object_id = reader.read_u32()?;
-        let container_id = reader.read_u32()?;
-        let slot_index = reader.read_u32()?;
-        let container_type_raw = reader.read_u32()?;
-
-        // ContainerProperties enum
-        let container_type = match container_type_raw {
-            0 => "None",
-            1 => "Container",
-            2 => "Foci",
-            _ => {
-                return Ok(Self {
-                    object_id,
-                    container_id,
-                    slot_index,
-                    container_type: format!("ContainerType_{container_type_raw}"),
-                    ordered_object_id,
-                    ordered_sequence,
-                    event_type: "Item_ServerSaysContainId".to_string(),
-                    opcode: 0xF7B0,
-                    message_type: "Ordered_GameEvent".to_string(),
-                    message_direction: "ServerToClient".to_string(),
-                })
-            }
-        }
-        .to_string();
-
-        Ok(Self {
-            object_id,
-            container_id,
-            slot_index,
-            container_type,
-            ordered_object_id,
-            ordered_sequence,
-            event_type: "Item_ServerSaysContainId".to_string(),
-            opcode: 0xF7B0,
-            message_type: "Ordered_GameEvent".to_string(),
-            message_direction: "ServerToClient".to_string(),
-        })
-    }
-}
-
-// Helper functions for property names - use properties::property_int_name from properties.rs
-
-fn vital_name(key: u32) -> String {
-    // Per protocol.xml CurVitalId enum
-    match key {
-        2 => "Health",  // CurrentHealth = 0x02
-        4 => "Stamina", // CurrentStamina = 0x04
-        6 => "Mana",    // CurrentMana = 0x06
-        _ => return format!("Vital_{key}"),
-    }
-    .to_string()
-}
-
-fn property_instance_id_name(key: u32) -> String {
-    match key {
-        1 => "Owner",
-        2 => "Container",
-        3 => "Wielder",
-        _ => return format!("PropertyInstanceId_{key}"),
-    }
-    .to_string()
 }

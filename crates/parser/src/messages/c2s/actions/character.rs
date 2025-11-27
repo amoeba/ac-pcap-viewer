@@ -1,190 +1,6 @@
-use crate::reader::BinaryReader;
+use crate::protocol::BinaryReader;
 use anyhow::Result;
 use serde::Serialize;
-
-// Game action types (for 0xF7B1 messages)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u32)]
-pub enum GameActionType {
-    ItemAppraise = 0x00C8,
-    InventoryPutItemInContainer = 0x0019,
-    InventoryGetAndWieldItem = 0x001A,
-    CharacterCharacterOptionsEvent = 0x01A1,
-    Unknown = 0xFFFFFFFF,
-}
-
-impl GameActionType {
-    pub fn from_u32(value: u32) -> Self {
-        match value {
-            0x00C8 => GameActionType::ItemAppraise,
-            0x0019 => GameActionType::InventoryPutItemInContainer,
-            0x001A => GameActionType::InventoryGetAndWieldItem,
-            0x01A1 => GameActionType::CharacterCharacterOptionsEvent,
-            _ => GameActionType::Unknown,
-        }
-    }
-}
-
-pub fn parse_game_action(
-    reader: &mut BinaryReader,
-    sequence: u32,
-    action_type: u32,
-) -> Result<(String, serde_json::Value)> {
-    let act_type = GameActionType::from_u32(action_type);
-
-    match act_type {
-        GameActionType::ItemAppraise => {
-            let msg = ItemAppraise::read(reader, sequence)?;
-            Ok(("Item_Appraise".to_string(), serde_json::to_value(&msg)?))
-        }
-        GameActionType::InventoryPutItemInContainer => {
-            let msg = InventoryPutItemInContainer::read(reader, sequence)?;
-            Ok((
-                "Inventory_PutItemInContainer".to_string(),
-                serde_json::to_value(&msg)?,
-            ))
-        }
-        GameActionType::InventoryGetAndWieldItem => {
-            let msg = InventoryGetAndWieldItem::read(reader, sequence)?;
-            Ok((
-                "Inventory_GetAndWieldItem".to_string(),
-                serde_json::to_value(&msg)?,
-            ))
-        }
-        GameActionType::CharacterCharacterOptionsEvent => {
-            let msg = CharacterCharacterOptionsEvent::read(reader, sequence)?;
-            Ok((
-                "Character_CharacterOptionsEvent".to_string(),
-                serde_json::to_value(&msg)?,
-            ))
-        }
-        _ => {
-            let remaining = reader.remaining();
-            let raw_data = if remaining > 0 {
-                reader.read_bytes(remaining)?
-            } else {
-                vec![]
-            };
-            Ok((
-                format!("GameAction_{action_type:04X}"),
-                serde_json::json!({
-                    "OrderedSequence": sequence,
-                    "ActionType": action_type,
-                    "OpCode": 0xF7B1u32,
-                    "MessageType": "Ordered_GameAction",
-                    "MessageDirection": "ClientToServer",
-                    "RawData": hex::encode(&raw_data),
-                }),
-            ))
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ItemAppraise {
-    #[serde(rename = "ObjectId")]
-    pub object_id: u32,
-    #[serde(rename = "OrderedSequence")]
-    pub ordered_sequence: u32,
-    #[serde(rename = "ActionType")]
-    pub action_type: String,
-    #[serde(rename = "OpCode")]
-    pub opcode: u32,
-    #[serde(rename = "MessageType")]
-    pub message_type: String,
-    #[serde(rename = "MessageDirection")]
-    pub message_direction: String,
-}
-
-impl ItemAppraise {
-    pub fn read(reader: &mut BinaryReader, sequence: u32) -> Result<Self> {
-        let object_id = reader.read_u32()?;
-
-        Ok(Self {
-            object_id,
-            ordered_sequence: sequence,
-            action_type: "Item_Appraise".to_string(),
-            opcode: 0xF7B1,
-            message_type: "Ordered_GameAction".to_string(),
-            message_direction: "ClientToServer".to_string(),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct InventoryPutItemInContainer {
-    #[serde(rename = "ObjectId")]
-    pub object_id: u32,
-    #[serde(rename = "ContainerId")]
-    pub container_id: u32,
-    #[serde(rename = "SlotIndex")]
-    pub slot_index: u32,
-    #[serde(rename = "OrderedSequence")]
-    pub ordered_sequence: u32,
-    #[serde(rename = "ActionType")]
-    pub action_type: String,
-    #[serde(rename = "OpCode")]
-    pub opcode: u32,
-    #[serde(rename = "MessageType")]
-    pub message_type: String,
-    #[serde(rename = "MessageDirection")]
-    pub message_direction: String,
-}
-
-impl InventoryPutItemInContainer {
-    pub fn read(reader: &mut BinaryReader, sequence: u32) -> Result<Self> {
-        let object_id = reader.read_u32()?;
-        let container_id = reader.read_u32()?;
-        let slot_index = reader.read_u32()?;
-
-        Ok(Self {
-            object_id,
-            container_id,
-            slot_index,
-            ordered_sequence: sequence,
-            action_type: "Inventory_PutItemInContainer".to_string(),
-            opcode: 0xF7B1,
-            message_type: "Ordered_GameAction".to_string(),
-            message_direction: "ClientToServer".to_string(),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct InventoryGetAndWieldItem {
-    #[serde(rename = "ObjectId")]
-    pub object_id: u32,
-    #[serde(rename = "Slot")]
-    pub slot: String,
-    #[serde(rename = "OrderedSequence")]
-    pub ordered_sequence: u32,
-    #[serde(rename = "ActionType")]
-    pub action_type: String,
-    #[serde(rename = "OpCode")]
-    pub opcode: u32,
-    #[serde(rename = "MessageType")]
-    pub message_type: String,
-    #[serde(rename = "MessageDirection")]
-    pub message_direction: String,
-}
-
-impl InventoryGetAndWieldItem {
-    pub fn read(reader: &mut BinaryReader, sequence: u32) -> Result<Self> {
-        let object_id = reader.read_u32()?;
-        let slot_raw = reader.read_u32()?;
-        let slot = crate::properties::equip_mask_name(slot_raw);
-
-        Ok(Self {
-            object_id,
-            slot,
-            ordered_sequence: sequence,
-            action_type: "Inventory_GetAndWieldItem".to_string(),
-            opcode: 0xF7B1,
-            message_type: "Ordered_GameAction".to_string(),
-            message_direction: "ClientToServer".to_string(),
-        })
-    }
-}
 
 // ============================================================================
 // Character_CharacterOptionsEvent (0x01A1)
@@ -645,14 +461,11 @@ impl WindowProperty {
 // ============================================================================
 
 fn read_packable_list_shortcut(reader: &mut BinaryReader) -> Result<Vec<ShortCutData>> {
-    // PackableList format: count (uint), then entries
     let count = reader.read_u32()?;
     let mut result = Vec::new();
     for _ in 0..count {
-        // Format: index (u32), object_id (u32), spell_id (LayeredSpellId: u16+u16)
         let index = reader.read_u32()?;
         let object_id = reader.read_u32()?;
-        // LayeredSpellId: Id (ushort) + Layer (ushort)
         let id = reader.read_u16()? as u32;
         let layer = reader.read_u16()?;
         result.push(ShortCutData {
@@ -665,11 +478,9 @@ fn read_packable_list_shortcut(reader: &mut BinaryReader) -> Result<Vec<ShortCut
 }
 
 fn read_packable_list_layered_spell(reader: &mut BinaryReader) -> Result<Vec<LayeredSpellId>> {
-    // PackableList format: count (uint), then entries
     let count = reader.read_u32()?;
     let mut result = Vec::new();
     for _ in 0..count {
-        // LayeredSpellId: Id (ushort) + Layer (ushort) = 4 bytes total
         let id = reader.read_u16()? as u32;
         let layer = reader.read_u16()?;
         result.push(LayeredSpellId { id, layer });
@@ -680,7 +491,6 @@ fn read_packable_list_layered_spell(reader: &mut BinaryReader) -> Result<Vec<Lay
 fn read_packable_hash_table_uint(
     reader: &mut BinaryReader,
 ) -> Result<std::collections::HashMap<String, u32>> {
-    // PackableHashTable format: count (ushort), max_size (ushort), then entries
     let count = reader.read_u16()?;
     let _max_size = reader.read_u16()?;
     let mut result = std::collections::HashMap::new();
@@ -695,7 +505,6 @@ fn read_packable_hash_table_uint(
 fn read_packable_hash_table_string(
     reader: &mut BinaryReader,
 ) -> Result<std::collections::HashMap<String, String>> {
-    // PackableHashTable format: count (ushort), max_size (ushort), then entries
     let count = reader.read_u16()?;
     let _max_size = reader.read_u16()?;
     let mut result = std::collections::HashMap::new();
@@ -708,7 +517,6 @@ fn read_packable_hash_table_string(
 }
 
 fn read_packable_list_window_option(reader: &mut BinaryReader) -> Result<Vec<WindowOption>> {
-    // PackableList format: count (uint), then entries
     let count = reader.read_u32()?;
     let mut result = Vec::new();
     for _ in 0..count {

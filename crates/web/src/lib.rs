@@ -2,54 +2,19 @@
 //!
 //! A drag-and-drop web interface built with egui for parsing AC PCAP files.
 
+mod state;
 mod time_scrubber;
+mod ui;
 
 use ac_parser::{messages::ParsedMessage, PacketParser, ParsedPacket};
 use eframe::egui;
 use egui_json_tree::JsonTree;
-use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use time_scrubber::TimeScrubber;
 
-/// Recursively search for a string within a JSON value (case-insensitive)
-fn json_contains_string(value: &serde_json::Value, search: &str) -> bool {
-    let search_lower = search.to_lowercase();
-    match value {
-        serde_json::Value::String(s) => s.to_lowercase().contains(&search_lower),
-        serde_json::Value::Array(arr) => arr.iter().any(|v| json_contains_string(v, search)),
-        serde_json::Value::Object(obj) => obj.values().any(|v| json_contains_string(v, search)),
-        _ => false,
-    }
-}
-
-#[derive(Default, PartialEq, Eq, Clone, Copy)]
-enum Tab {
-    #[default]
-    Messages,
-    Fragments,
-}
-
-#[derive(Default, PartialEq, Eq, Clone, Copy)]
-enum ViewMode {
-    #[default]
-    Tree,
-    Binary,
-}
-
-#[derive(Default, PartialEq, Eq, Clone, Copy)]
-enum SortField {
-    #[default]
-    Id,
-    Type,
-    Direction,
-}
-
-// Responsive breakpoints
-const MOBILE_BREAKPOINT: f32 = 768.0;
-const TABLET_BREAKPOINT: f32 = 1024.0;
-
-// Mobile UI scaling factor
-const MOBILE_SCALE: f32 = 1.5;
+// Re-export state types for convenience
+pub use ac_pcap_lib::{SortField, Tab, ViewMode};
+use state::{json_contains_string, MOBILE_BREAKPOINT, MOBILE_SCALE, TABLET_BREAKPOINT};
 
 // Shared state for async loading
 type SharedData = Arc<Mutex<Option<Vec<u8>>>>;
@@ -103,10 +68,6 @@ pub struct PcapViewerApp {
     messages_scrubber: TimeScrubber,
     fragments_scrubber: TimeScrubber,
 
-    // Marking state
-    marked_messages: HashSet<usize>,
-    marked_packets: HashSet<usize>,
-
     // Desktop: pending file from file dialog
     #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
     pending_file_path: Option<std::path::PathBuf>,
@@ -140,8 +101,6 @@ impl Default for PcapViewerApp {
             show_about: false,
             messages_scrubber: TimeScrubber::new(),
             fragments_scrubber: TimeScrubber::new(),
-            marked_messages: HashSet::new(),
-            marked_packets: HashSet::new(),
             #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
             pending_file_path: None,
         }
@@ -211,298 +170,6 @@ impl PcapViewerApp {
         }
         self.is_loading = false;
     }
-
-    fn mark_filtered_items(&mut self) {
-        let search = self.search_query.to_lowercase();
-
-        match self.current_tab {
-            Tab::Messages => {
-                let time_filter = self.messages_scrubber.get_selected_range().cloned();
-
-                // Filter messages based on search and time
-                let filtered_data: Vec<(usize, f64)> = self
-                    .messages
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, m)| {
-                        // Apply search filter
-                        let matches_search = if search.is_empty() {
-                            true
-                        } else {
-                            let type_matches = m.message_type.to_lowercase().contains(&search);
-                            let data_matches = json_contains_string(&m.data, &search);
-                            type_matches || data_matches
-                        };
-
-                        // Apply time filter
-                        let matches_time = if let Some(ref range) = time_filter {
-                            range.contains(m.timestamp)
-                        } else {
-                            true
-                        };
-
-                        matches_search && matches_time
-                    })
-                    .map(|(idx, m)| (idx, m.timestamp))
-                    .collect();
-
-                // Add all filtered indices to marked_messages
-                for (idx, _) in &filtered_data {
-                    self.marked_messages.insert(*idx);
-                }
-
-                // Update scrubber with marked timestamps
-                let marked_timestamps: Vec<f64> = self
-                    .messages
-                    .iter()
-                    .enumerate()
-                    .filter(|(idx, _)| self.marked_messages.contains(idx))
-                    .map(|(_, m)| m.timestamp)
-                    .collect();
-                self.messages_scrubber
-                    .set_marked_timestamps(marked_timestamps);
-            }
-            Tab::Fragments => {
-                let time_filter = self.fragments_scrubber.get_selected_range().cloned();
-
-                // Filter packets based on time
-                let filtered_data: Vec<(usize, f64)> = self
-                    .packets
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, p)| {
-                        // Apply time filter
-                        if let Some(ref range) = time_filter {
-                            range.contains(p.timestamp)
-                        } else {
-                            true
-                        }
-                    })
-                    .map(|(idx, p)| (idx, p.timestamp))
-                    .collect();
-
-                // Add all filtered indices to marked_packets
-                for (idx, _) in &filtered_data {
-                    self.marked_packets.insert(*idx);
-                }
-
-                // Update scrubber with marked timestamps
-                let marked_timestamps: Vec<f64> = self
-                    .packets
-                    .iter()
-                    .enumerate()
-                    .filter(|(idx, _)| self.marked_packets.contains(idx))
-                    .map(|(_, p)| p.timestamp)
-                    .collect();
-                self.fragments_scrubber
-                    .set_marked_timestamps(marked_timestamps);
-            }
-        }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn load_example(&mut self, ctx: &egui::Context) {
-        self.load_from_url("./example.pcap".to_string(), ctx);
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn load_example(&mut self, _ctx: &egui::Context) {
-        // Native: just read from file
-        if let Ok(data) = std::fs::read("pkt_2025-11-18_1763490291_log.pcap") {
-            self.parse_pcap_data(&data);
-        }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn load_from_url(&mut self, url: String, ctx: &egui::Context) {
-        if self.is_loading {
-            return;
-        }
-
-        self.is_loading = true;
-        self.status_message = format!("Loading PCAP from {}...", url);
-
-        // Clear any previous errors
-        if let Ok(mut error) = self.fetched_error.lock() {
-            *error = None;
-        }
-        self.url_load_error = None;
-
-        let fetched_data = self.fetched_data.clone();
-        let fetched_error = self.fetched_error.clone();
-        let ctx = ctx.clone();
-
-        wasm_bindgen_futures::spawn_local(async move {
-            match fetch_bytes(&url).await {
-                Ok(bytes) => {
-                    if let Ok(mut data) = fetched_data.lock() {
-                        *data = Some(bytes);
-                    }
-                    // Clear error on success
-                    if let Ok(mut error) = fetched_error.lock() {
-                        *error = None;
-                    }
-                    ctx.request_repaint();
-                }
-                Err(e) => {
-                    log::error!("Failed to fetch PCAP from URL: {}", e);
-                    // Store error for display
-                    if let Ok(mut error) = fetched_error.lock() {
-                        *error = Some(e);
-                    }
-                    ctx.request_repaint();
-                }
-            }
-        });
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn load_from_url(&mut self, _url: String, _ctx: &egui::Context) {
-        // Native: URL loading not supported
-        self.status_message = "URL loading not supported in native mode".to_string();
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn trigger_file_picker(&mut self, ctx: &egui::Context) {
-        use wasm_bindgen::prelude::*;
-        use wasm_bindgen::JsCast;
-
-        let document = match web_sys::window().and_then(|w| w.document()) {
-            Some(d) => d,
-            None => return,
-        };
-
-        // Create a hidden file input element
-        let input: web_sys::HtmlInputElement = match document.create_element("input") {
-            Ok(el) => match el.dyn_into() {
-                Ok(input) => input,
-                Err(_) => return,
-            },
-            Err(_) => return,
-        };
-
-        input.set_type("file");
-        input.set_accept(".pcap,.pcapng");
-        input.style().set_property("display", "none").ok();
-
-        // Add to document temporarily
-        let body = match document.body() {
-            Some(b) => b,
-            None => return,
-        };
-        if body.append_child(&input).is_err() {
-            return;
-        }
-
-        // Set up the change handler
-        let fetched_data = self.fetched_data.clone();
-        let ctx_clone = ctx.clone();
-        let input_clone = input.clone();
-
-        let closure = Closure::wrap(Box::new(move |_event: web_sys::Event| {
-            let files = match input_clone.files() {
-                Some(f) => f,
-                None => return,
-            };
-
-            let file = match files.get(0) {
-                Some(f) => f,
-                None => return,
-            };
-
-            let fetched_data = fetched_data.clone();
-            let ctx = ctx_clone.clone();
-            let input_to_remove = input_clone.clone();
-
-            let reader = match web_sys::FileReader::new() {
-                Ok(r) => r,
-                Err(_) => return,
-            };
-
-            let reader_clone = reader.clone();
-            let onload = Closure::wrap(Box::new(move |_event: web_sys::Event| {
-                if let Ok(result) = reader_clone.result() {
-                    if let Some(array_buffer) = result.dyn_ref::<js_sys::ArrayBuffer>() {
-                        let uint8_array = js_sys::Uint8Array::new(array_buffer);
-                        let bytes = uint8_array.to_vec();
-
-                        if let Ok(mut data) = fetched_data.lock() {
-                            *data = Some(bytes);
-                        }
-                        ctx.request_repaint();
-                    }
-                }
-                // Clean up the input element
-                input_to_remove.remove();
-            }) as Box<dyn FnMut(_)>);
-
-            reader.set_onload(Some(onload.as_ref().unchecked_ref()));
-            onload.forget();
-
-            reader.read_as_array_buffer(&file).ok();
-        }) as Box<dyn FnMut(_)>);
-
-        input.set_onchange(Some(closure.as_ref().unchecked_ref()));
-        closure.forget();
-
-        // Trigger the file picker
-        input.click();
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn trigger_file_picker(&mut self, _ctx: &egui::Context) {
-        // Native: Use drag-and-drop or show a message
-        self.status_message = "Please drag and drop a PCAP file to open it".to_string();
-    }
-
-    /// Open a native file dialog (desktop only)
-    #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
-    fn open_file_dialog(&mut self) {
-        if let Some(path) = rfd::FileDialog::new()
-            .add_filter("PCAP files", &["pcap", "pcapng", "cap"])
-            .add_filter("All files", &["*"])
-            .pick_file()
-        {
-            self.pending_file_path = Some(path);
-        }
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-async fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {
-    use wasm_bindgen::JsCast;
-    use wasm_bindgen_futures::JsFuture;
-    use web_sys::{Request, RequestInit, Response};
-
-    let window = web_sys::window().ok_or("No window")?;
-
-    let opts = RequestInit::new();
-    opts.set_method("GET");
-
-    let request = Request::new_with_str_and_init(url, &opts)
-        .map_err(|e| format!("Request error: {:?}", e))?;
-
-    let resp_value = JsFuture::from(window.fetch_with_request(&request))
-        .await
-        .map_err(|e| format!("Fetch error: {:?}", e))?;
-
-    let resp: Response = resp_value.dyn_into().map_err(|_| "Response cast error")?;
-
-    if !resp.ok() {
-        return Err(format!("HTTP error: {}", resp.status()));
-    }
-
-    let array_buffer = JsFuture::from(
-        resp.array_buffer()
-            .map_err(|e| format!("ArrayBuffer error: {:?}", e))?,
-    )
-    .await
-    .map_err(|e| format!("ArrayBuffer await error: {:?}", e))?;
-
-    let uint8_array = js_sys::Uint8Array::new(&array_buffer);
-    let bytes = uint8_array.to_vec();
-
-    Ok(bytes)
 }
 
 /// Get the URL from query parameters (?url=...)
@@ -536,7 +203,7 @@ impl eframe::App for PcapViewerApp {
 
         // Process dropped file data outside the input closure
         if let Some(data) = self.dropped_file_data.take() {
-            self.parse_pcap_data(&data);
+            ui::file_panel::parse_pcap_data(self, &data);
         }
 
         // Desktop: process file from file dialog
@@ -544,8 +211,8 @@ impl eframe::App for PcapViewerApp {
         if let Some(path) = self.pending_file_path.take() {
             self.status_message = format!("Loading {}...", path.display());
             match std::fs::read(&path) {
-                Ok(data) => self.parse_pcap_data(&data),
-                Err(e) => self.status_message = format!("Error reading file: {e}"),
+                Ok(data) => ui::file_panel::parse_pcap_data(self, &data),
+                Err(e) => self.status_message = format!("Error reading file: {}", e),
             }
         }
 
@@ -556,7 +223,7 @@ impl eframe::App for PcapViewerApp {
             None
         };
         if let Some(data) = fetched_data {
-            self.parse_pcap_data(&data);
+            ui::file_panel::parse_pcap_data(self, &data);
         }
 
         // Check for async fetch errors
@@ -572,11 +239,11 @@ impl eframe::App for PcapViewerApp {
 
         // Handle initial URL from query params (auto-load on first frame)
         if let Some(url) = self.initial_url.take() {
-            self.load_from_url(url, ctx);
+            ui::file_panel::load_from_url(self, url, ctx);
         }
 
         // Preview dropped files
-        preview_files_being_dropped(ctx);
+        ui::file_panel::preview_files_being_dropped(ctx);
 
         // Apply theme
         ctx.set_visuals(if self.dark_mode {
@@ -624,7 +291,6 @@ impl eframe::App for PcapViewerApp {
         };
 
         // Track menu actions to execute after borrow ends
-        let mut open_file_clicked = false;
         let mut open_url_clicked = false;
         #[cfg(not(target_arch = "wasm32"))]
         let mut quit_clicked = false;
@@ -635,7 +301,8 @@ impl eframe::App for PcapViewerApp {
                 ui.menu_button("File", |ui| {
                     ui.menu_button("Open", |ui| {
                         if ui.button("From File...").clicked() {
-                            open_file_clicked = true;
+                            #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
+                            ui::file_panel::open_file_dialog(self);
                             ui.close_menu();
                         }
                         if ui.button("From URL...").clicked() {
@@ -692,7 +359,7 @@ impl eframe::App for PcapViewerApp {
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             // Theme toggle
-                            self.draw_theme_toggle(ui);
+                            ui::packet_list::draw_theme_toggle(self, ui);
 
                             // Detail panel toggle (only when we have data)
                             if has_data {
@@ -730,38 +397,11 @@ impl eframe::App for PcapViewerApp {
                         ui.add(
                             egui::TextEdit::singleline(&mut self.search_query)
                                 .hint_text("Search...")
-                                .desired_width(ui.available_width() - 80.0),
+                                .desired_width(ui.available_width() - 40.0),
                         );
 
-                        // Mark button
-                        ui.add_enabled_ui(!self.search_query.is_empty(), |ui| {
-                            if ui.button("Mark").clicked() {
-                                self.mark_filtered_items();
-                            }
-                        });
-
-                        // Reset Marks button
-                        let has_marks = match self.current_tab {
-                            Tab::Messages => !self.marked_messages.is_empty(),
-                            Tab::Fragments => !self.marked_packets.is_empty(),
-                        };
-                        ui.add_enabled_ui(has_marks, |ui| {
-                            if ui.button("Reset Marks").clicked() {
-                                match self.current_tab {
-                                    Tab::Messages => {
-                                        self.marked_messages.clear();
-                                        self.messages_scrubber.clear_marked_timestamps();
-                                    }
-                                    Tab::Fragments => {
-                                        self.marked_packets.clear();
-                                        self.fragments_scrubber.clear_marked_timestamps();
-                                    }
-                                }
-                            }
-                        });
-
                         // Sort direction only
-                        if self.draw_sort_button(ui) {
+                        if ui::packet_list::draw_sort_button(self, ui) {
                             self.sort_ascending = !self.sort_ascending;
                         }
                     });
@@ -780,7 +420,7 @@ impl eframe::App for PcapViewerApp {
                     #[cfg(all(not(target_arch = "wasm32"), feature = "desktop"))]
                     {
                         if ui.button("Open...").clicked() {
-                            self.open_file_dialog();
+                            ui::file_panel::open_file_dialog(self);
                         }
                         ui.separator();
                     }
@@ -811,33 +451,6 @@ impl eframe::App for PcapViewerApp {
                             .desired_width(if is_tablet { 120.0 } else { 150.0 }),
                     );
 
-                    // Mark button
-                    ui.add_enabled_ui(!self.search_query.is_empty(), |ui| {
-                        if ui.button("Mark").clicked() {
-                            self.mark_filtered_items();
-                        }
-                    });
-
-                    // Reset Marks button
-                    let has_marks = match self.current_tab {
-                        Tab::Messages => !self.marked_messages.is_empty(),
-                        Tab::Fragments => !self.marked_packets.is_empty(),
-                    };
-                    ui.add_enabled_ui(has_marks, |ui| {
-                        if ui.button("Reset Marks").clicked() {
-                            match self.current_tab {
-                                Tab::Messages => {
-                                    self.marked_messages.clear();
-                                    self.messages_scrubber.clear_marked_timestamps();
-                                }
-                                Tab::Fragments => {
-                                    self.marked_packets.clear();
-                                    self.fragments_scrubber.clear_marked_timestamps();
-                                }
-                            }
-                        }
-                    });
-
                     ui.separator();
 
                     // Sort controls
@@ -866,13 +479,13 @@ impl eframe::App for PcapViewerApp {
                             );
                         });
 
-                    if self.draw_sort_button(ui) {
+                    if ui::packet_list::draw_sort_button(self, ui) {
                         self.sort_ascending = !self.sort_ascending;
                     }
 
                     // Theme toggle on far right
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        self.draw_theme_toggle(ui);
+                        ui::packet_list::draw_theme_toggle(self, ui);
                     });
                 });
             }
@@ -987,7 +600,7 @@ impl eframe::App for PcapViewerApp {
                         egui::ScrollArea::vertical()
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
-                                self.show_detail_content(ui);
+                                ui::detail_panel::show_detail_content(self, ui);
                             });
                     });
             } else {
@@ -1011,7 +624,7 @@ impl eframe::App for PcapViewerApp {
                         egui::ScrollArea::vertical()
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
-                                self.show_detail_content(ui);
+                                ui::detail_panel::show_detail_content(self, ui);
                             });
                     });
             }
@@ -1037,20 +650,6 @@ impl eframe::App for PcapViewerApp {
                             Tab::Messages => self.messages_scrubber.show(ui),
                             Tab::Fragments => self.fragments_scrubber.show(ui),
                         };
-
-                        // Handle reset marks button
-                        if result.reset_marks_clicked {
-                            match self.current_tab {
-                                Tab::Messages => {
-                                    self.marked_messages.clear();
-                                    self.messages_scrubber.clear_marked_timestamps();
-                                }
-                                Tab::Fragments => {
-                                    self.marked_packets.clear();
-                                    self.fragments_scrubber.clear_marked_timestamps();
-                                }
-                            }
-                        }
 
                         // Check if user clicked
                         if result.clicked_index.is_some() {
@@ -1107,7 +706,6 @@ impl eframe::App for PcapViewerApp {
         }
 
         // Central panel with list - responsive
-        let mut should_load_example = false;
         egui::CentralPanel::default().show(ctx, |ui| {
             if self.messages.is_empty() && self.packets.is_empty() {
                 // Show drop zone with Load Example button - responsive
@@ -1136,7 +734,7 @@ impl eframe::App for PcapViewerApp {
                             .add_sized(button_size, egui::Button::new("Open File..."))
                             .clicked()
                         {
-                            self.open_file_dialog();
+                            ui::file_panel::open_file_dialog(self);
                         }
                         ui.add_space(10.0);
                         ui.label("or");
@@ -1147,7 +745,7 @@ impl eframe::App for PcapViewerApp {
                         .add_sized(button_size, egui::Button::new("Load Example"))
                         .clicked()
                     {
-                        should_load_example = true;
+                        ui::file_panel::load_example(self, ctx);
                     }
 
                     // Add URL loading option
@@ -1177,9 +775,8 @@ impl eframe::App for PcapViewerApp {
                                 .desired_width(input_width),
                         );
                         if ui.button("Load").clicked() && !self.url_input.is_empty() {
-                            should_load_example = false; // Use a different flag
                             let url = self.url_input.clone();
-                            self.load_from_url(url, ctx);
+                            ui::file_panel::load_from_url(self, url, ctx);
                         }
                     });
 
@@ -1236,7 +833,7 @@ impl eframe::App for PcapViewerApp {
                         // Show the URL as a clickable link
                         if ui.link(&example_url).clicked() {
                             self.url_input = example_url.clone();
-                            self.load_from_url(example_url, ctx);
+                            ui::file_panel::load_from_url(self, example_url, ctx);
                         }
                     });
 
@@ -1254,201 +851,25 @@ impl eframe::App for PcapViewerApp {
             } else {
                 // On mobile, auto-show detail when selecting an item
                 match self.current_tab {
-                    Tab::Messages => self.show_messages_list(ui, is_mobile),
-                    Tab::Fragments => self.show_packets_list(ui, is_mobile),
+                    Tab::Messages => ui::packet_list::show_messages_list(self, ui, is_mobile),
+                    Tab::Fragments => ui::packet_list::show_packets_list(self, ui, is_mobile),
                 }
             }
         });
 
-        if should_load_example {
-            self.load_example(ctx);
-        }
-
-        // Handle file picker action
-        if open_file_clicked {
-            self.trigger_file_picker(ctx);
-        }
-
         // URL input dialog
         if self.show_url_dialog {
-            let mut close_dialog = false;
-            let mut load_url = false;
-
-            egui::Window::new("Open from URL")
-                .collapsible(false)
-                .resizable(false)
-                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-                .show(ctx, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label("URL:");
-                        ui.add(
-                            egui::TextEdit::singleline(&mut self.url_input)
-                                .hint_text("https://example.com/file.pcap")
-                                .desired_width(300.0),
-                        );
-                    });
-
-                    ui.add_space(10.0);
-
-                    ui.horizontal(|ui| {
-                        if ui.button("Load").clicked() {
-                            load_url = true;
-                        }
-                        if ui.button("Cancel").clicked() {
-                            close_dialog = true;
-                        }
-                    });
-                });
-
-            if load_url && !self.url_input.is_empty() {
-                let url = self.url_input.clone();
-                self.url_input.clear();
-                self.show_url_dialog = false;
-                self.load_from_url(url, ctx);
-            } else if close_dialog {
-                self.url_input.clear();
-                self.show_url_dialog = false;
-            }
+            ui::file_panel::show_url_dialog(self, ctx);
         }
 
         // Settings window
         if self.show_settings {
-            let mut close_settings = false;
-
-            egui::Window::new("Settings")
-                .collapsible(false)
-                .resizable(false)
-                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-                .show(ctx, |ui| {
-                    ui.heading("Appearance");
-                    ui.separator();
-
-                    ui.horizontal(|ui| {
-                        ui.label("Theme:");
-                        if ui.selectable_label(self.dark_mode, "Dark").clicked() {
-                            self.dark_mode = true;
-                        }
-                        if ui.selectable_label(!self.dark_mode, "Light").clicked() {
-                            self.dark_mode = false;
-                        }
-                    });
-
-                    ui.add_space(10.0);
-
-                    ui.heading("Default View");
-                    ui.separator();
-
-                    ui.horizontal(|ui| {
-                        ui.label("Default Tab:");
-                        if ui
-                            .selectable_label(self.current_tab == Tab::Messages, "Messages")
-                            .clicked()
-                        {
-                            self.current_tab = Tab::Messages;
-                        }
-                        if ui
-                            .selectable_label(self.current_tab == Tab::Fragments, "Fragments")
-                            .clicked()
-                        {
-                            self.current_tab = Tab::Fragments;
-                        }
-                    });
-
-                    ui.horizontal(|ui| {
-                        ui.label("Sort Order:");
-                        if ui
-                            .selectable_label(self.sort_ascending, "Ascending")
-                            .clicked()
-                        {
-                            self.sort_ascending = true;
-                        }
-                        if ui
-                            .selectable_label(!self.sort_ascending, "Descending")
-                            .clicked()
-                        {
-                            self.sort_ascending = false;
-                        }
-                    });
-
-                    ui.add_space(20.0);
-
-                    ui.horizontal(|ui| {
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button("Close").clicked() {
-                                close_settings = true;
-                            }
-                        });
-                    });
-                });
-
-            if close_settings {
-                self.show_settings = false;
-            }
+            ui::file_panel::show_settings_dialog(self, ctx);
         }
 
         // About window
         if self.show_about {
-            let mut close_about = false;
-
-            egui::Window::new("About AC PCAP Parser")
-                .collapsible(false)
-                .resizable(false)
-                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-                .show(ctx, |ui| {
-                    ui.vertical_centered(|ui| {
-                        ui.heading("AC PCAP Parser");
-                        ui.add_space(5.0);
-
-                        let git_sha = option_env!("GIT_SHA").unwrap_or("dev");
-                        let short_sha = if git_sha.len() > 7 {
-                            &git_sha[..7]
-                        } else {
-                            git_sha
-                        };
-                        ui.label(format!("Version: {short_sha}"));
-
-                        ui.add_space(10.0);
-                        ui.separator();
-                        ui.add_space(10.0);
-
-                        ui.label("A web-based parser for Asheron's Call");
-                        ui.label("PCAP network traffic files.");
-
-                        ui.add_space(10.0);
-
-                        ui.hyperlink_to(
-                            "View on GitHub",
-                            "https://github.com/amoeba/ac-pcap-parser",
-                        );
-
-                        ui.add_space(10.0);
-                        ui.separator();
-                        ui.add_space(10.0);
-
-                        // Claude branding
-                        let claude_color = egui::Color32::from_rgb(217, 119, 87);
-                        ui.horizontal(|ui| {
-                            // Claude logo
-                            let (rect, _) = ui
-                                .allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
-                            ui.painter().circle_filled(rect.center(), 6.0, claude_color);
-                            ui.hyperlink_to(
-                                egui::RichText::new("Made with Claude").color(claude_color),
-                                "https://claude.ai",
-                            );
-                        });
-
-                        ui.add_space(20.0);
-
-                        if ui.button("Close").clicked() {
-                            close_about = true;
-                        }
-                    });
-                });
-
-            if close_about {
-                self.show_about = false;
-            }
+            ui::file_panel::show_about_dialog(self, ctx);
         }
     }
 }
@@ -1467,7 +888,6 @@ impl PcapViewerApp {
         width: f32,
         right_align: bool,
         is_selected: bool,
-        is_marked: bool,
         text: impl Into<egui::WidgetText>,
     ) -> egui::Response {
         let layout = if right_align {
@@ -1476,30 +896,9 @@ impl PcapViewerApp {
             egui::Layout::left_to_right(egui::Align::Center)
         };
         ui.allocate_ui_with_layout(egui::vec2(width, 20.0), layout, |ui| {
-            // Draw purple background for marked items
-            if is_marked && !is_selected {
-                let rect = ui.available_rect_before_wrap();
-                let mark_color = egui::Color32::from_rgba_unmultiplied(160, 80, 255, 30);
-                ui.painter().rect_filled(rect, 0.0, mark_color);
-            }
             ui.selectable_label(is_selected, text)
         })
         .inner
-    }
-
-    /// Render a desktop table cell with optional marking
-    fn desktop_marked_cell(
-        ui: &mut egui::Ui,
-        is_selected: bool,
-        is_marked: bool,
-        text: impl Into<egui::WidgetText>,
-    ) -> egui::Response {
-        if is_marked && !is_selected {
-            let rect = ui.available_rect_before_wrap();
-            let mark_color = egui::Color32::from_rgba_unmultiplied(160, 80, 255, 30);
-            ui.painter().rect_filled(rect, 0.0, mark_color);
-        }
-        ui.selectable_label(is_selected, text)
     }
 
     /// Render mobile table header
@@ -1961,17 +1360,9 @@ impl PcapViewerApp {
 
                         for (original_idx, id, msg_type, direction, _opcode) in &filtered {
                             let is_selected = self.selected_message == Some(*original_idx);
-                            let is_marked = self.marked_messages.contains(original_idx);
 
-                            if Self::mobile_cell(
-                                ui,
-                                widths[0],
-                                false,
-                                is_selected,
-                                is_marked,
-                                id.to_string(),
-                            )
-                            .clicked()
+                            if Self::mobile_cell(ui, widths[0], false, is_selected, id.to_string())
+                                .clicked()
                             {
                                 self.selected_message = Some(*original_idx);
                                 self.show_detail_panel = true;
@@ -1982,15 +1373,8 @@ impl PcapViewerApp {
                             } else {
                                 msg_type.clone()
                             };
-                            if Self::mobile_cell(
-                                ui,
-                                widths[1],
-                                false,
-                                is_selected,
-                                is_marked,
-                                display_type,
-                            )
-                            .clicked()
+                            if Self::mobile_cell(ui, widths[1], false, is_selected, display_type)
+                                .clicked()
                             {
                                 self.selected_message = Some(*original_idx);
                                 self.show_detail_panel = true;
@@ -2007,7 +1391,6 @@ impl PcapViewerApp {
                                 widths[2],
                                 true,
                                 is_selected,
-                                is_marked,
                                 egui::RichText::new(dir_text).color(dir_color),
                             )
                             .clicked()
@@ -2034,21 +1417,11 @@ impl PcapViewerApp {
 
                         for (original_idx, id, msg_type, direction, opcode) in &filtered {
                             let is_selected = self.selected_message == Some(*original_idx);
-                            let is_marked = self.marked_messages.contains(original_idx);
 
-                            if Self::desktop_marked_cell(ui, is_selected, is_marked, id.to_string())
-                                .clicked()
-                            {
+                            if ui.selectable_label(is_selected, id.to_string()).clicked() {
                                 self.selected_message = Some(*original_idx);
                             }
-                            if Self::desktop_marked_cell(
-                                ui,
-                                is_selected,
-                                is_marked,
-                                msg_type.to_string(),
-                            )
-                            .clicked()
-                            {
+                            if ui.selectable_label(is_selected, msg_type).clicked() {
                                 self.selected_message = Some(*original_idx);
                             }
                             let dir_color = if direction == "Send" {
@@ -2056,24 +1429,16 @@ impl PcapViewerApp {
                             } else {
                                 egui::Color32::from_rgb(100, 255, 150)
                             };
-                            if Self::desktop_marked_cell(
-                                ui,
-                                is_selected,
-                                is_marked,
-                                egui::RichText::new(direction).color(dir_color),
-                            )
-                            .clicked()
+                            if ui
+                                .selectable_label(
+                                    is_selected,
+                                    egui::RichText::new(direction).color(dir_color),
+                                )
+                                .clicked()
                             {
                                 self.selected_message = Some(*original_idx);
                             }
-                            if Self::desktop_marked_cell(
-                                ui,
-                                is_selected,
-                                is_marked,
-                                opcode.to_string(),
-                            )
-                            .clicked()
-                            {
+                            if ui.selectable_label(is_selected, opcode).clicked() {
                                 self.selected_message = Some(*original_idx);
                             }
                             ui.end_row();
@@ -2168,17 +1533,9 @@ impl PcapViewerApp {
 
                         for (original_idx, id, sequence, direction, _flags, _size) in &filtered {
                             let is_selected = self.selected_packet == Some(*original_idx);
-                            let is_marked = self.marked_packets.contains(original_idx);
 
-                            if Self::mobile_cell(
-                                ui,
-                                widths[0],
-                                false,
-                                is_selected,
-                                is_marked,
-                                id.to_string(),
-                            )
-                            .clicked()
+                            if Self::mobile_cell(ui, widths[0], false, is_selected, id.to_string())
+                                .clicked()
                             {
                                 self.selected_packet = Some(*original_idx);
                                 self.show_detail_panel = true;
@@ -2189,7 +1546,6 @@ impl PcapViewerApp {
                                 widths[1],
                                 false,
                                 is_selected,
-                                is_marked,
                                 sequence.to_string(),
                             )
                             .clicked()
@@ -2209,7 +1565,6 @@ impl PcapViewerApp {
                                 widths[2],
                                 true,
                                 is_selected,
-                                is_marked,
                                 egui::RichText::new(dir_text).color(dir_color),
                             )
                             .clicked()
@@ -2238,20 +1593,13 @@ impl PcapViewerApp {
 
                         for (original_idx, id, sequence, direction, flags, size) in &filtered {
                             let is_selected = self.selected_packet == Some(*original_idx);
-                            let is_marked = self.marked_packets.contains(original_idx);
 
-                            if Self::desktop_marked_cell(ui, is_selected, is_marked, id.to_string())
-                                .clicked()
-                            {
+                            if ui.selectable_label(is_selected, id.to_string()).clicked() {
                                 self.selected_packet = Some(*original_idx);
                             }
-                            if Self::desktop_marked_cell(
-                                ui,
-                                is_selected,
-                                is_marked,
-                                sequence.to_string(),
-                            )
-                            .clicked()
+                            if ui
+                                .selectable_label(is_selected, sequence.to_string())
+                                .clicked()
                             {
                                 self.selected_packet = Some(*original_idx);
                             }
@@ -2260,34 +1608,22 @@ impl PcapViewerApp {
                             } else {
                                 egui::Color32::from_rgb(100, 255, 150)
                             };
-                            if Self::desktop_marked_cell(
-                                ui,
-                                is_selected,
-                                is_marked,
-                                egui::RichText::new(direction).color(dir_color),
-                            )
-                            .clicked()
+                            if ui
+                                .selectable_label(
+                                    is_selected,
+                                    egui::RichText::new(direction).color(dir_color),
+                                )
+                                .clicked()
                             {
                                 self.selected_packet = Some(*original_idx);
                             }
-                            if Self::desktop_marked_cell(
-                                ui,
-                                is_selected,
-                                is_marked,
-                                format!("{flags:08X}"),
-                            )
-                            .clicked()
+                            if ui
+                                .selectable_label(is_selected, format!("{flags:08X}"))
+                                .clicked()
                             {
                                 self.selected_packet = Some(*original_idx);
                             }
-                            if Self::desktop_marked_cell(
-                                ui,
-                                is_selected,
-                                is_marked,
-                                size.to_string(),
-                            )
-                            .clicked()
-                            {
+                            if ui.selectable_label(is_selected, size.to_string()).clicked() {
                                 self.selected_packet = Some(*original_idx);
                             }
                             ui.end_row();

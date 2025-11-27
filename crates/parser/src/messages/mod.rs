@@ -2,7 +2,7 @@ pub mod c2s;
 pub mod s2c;
 
 use crate::enums::{C2SMessageType, S2CMessageType};
-use crate::reader::BinaryReader;
+use crate::protocol::BinaryReader;
 use anyhow::Result;
 use serde::Serialize;
 

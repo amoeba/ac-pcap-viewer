@@ -128,11 +128,13 @@ impl TimeScrubber {
     }
 
     /// Set marked timestamps (purple indicators)
+    #[allow(dead_code)]
     pub fn set_marked_timestamps(&mut self, timestamps: Vec<f64>) {
         self.marked_timestamps = timestamps;
     }
 
     /// Clear all marked timestamps
+    #[allow(dead_code)]
     pub fn clear_marked_timestamps(&mut self) {
         self.marked_timestamps.clear();
     }

@@ -1,0 +1,9 @@
+[package]
+name = "ac-pcap-lib"
+version.workspace = true
+edition.workspace = true
+description = "Shared types and utilities for AC PCAP parser"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
