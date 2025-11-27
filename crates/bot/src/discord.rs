@@ -20,12 +20,13 @@ pub struct DiscordAttachment {
     pub size: Option<u32>,
 }
 
-const DISCORD_API_BASE: &str = "https://discord.com/api/v10";
+const DISCORD_API_BASE: &str = "https://discord.com/api/v9";
 const MAX_ATTACHMENT_SIZE: usize = 100 * 1024 * 1024; // 100 MB
+const TOKEN_PREFIX: &str = "Bot "; // Bot token prefix (required by Discord API)
 
-/// Validate a Discord snowflake ID (18-digit number)
+/// Validate a Discord snowflake ID (17-19 digits, numeric only)
 pub fn is_valid_snowflake(id: &str) -> bool {
-    id.len() == 18 && id.chars().all(|c| c.is_ascii_digit())
+    !id.is_empty() && id.len() >= 17 && id.len() <= 19 && id.chars().all(|c| c.is_ascii_digit())
 }
 
 /// Validate that filename has .pcap or .pcapng extension
@@ -63,7 +64,7 @@ pub async fn fetch_message(
     let client = reqwest::Client::new();
     let response = client
         .get(&url)
-        .header("Authorization", format!("Bot {}", token))
+        .header("Authorization", format!("{}{}", TOKEN_PREFIX, token))
         .send()
         .await
         .map_err(|e| {

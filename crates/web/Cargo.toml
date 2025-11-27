@@ -7,6 +7,9 @@ description = "Web UI for Asheron's Call PCAP parser (WASM)"
 [lib]
 crate-type = ["cdylib"]
 
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O4", "--enable-bulk-memory"]
+
 [dependencies]
 # Web build uses app library code without desktop-specific features
 # (file dialogs and native logging aren't used on web)

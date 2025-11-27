@@ -9,6 +9,7 @@ use tower_http::services::ServeDir;
 use tracing::info;
 
 mod discord;
+mod bot;
 
 #[tokio::main]
 async fn main() {
@@ -20,12 +21,21 @@ async fn main() {
         )
         .init();
 
-    // Check for Discord OAuth token
-    let discord_token = std::env::var("DISCORD_OAUTH_TOKEN").ok();
-    if discord_token.is_none() {
-        tracing::warn!("DISCORD_OAUTH_TOKEN not set - Discord API features disabled");
-    }
+    // Get Discord bot token
+    let discord_token = std::env::var("DISCORD_OAUTH_TOKEN")
+        .expect("DISCORD_OAUTH_TOKEN environment variable is required");
 
+    info!("Initializing with Discord bot token");
+
+    // Spawn bot in background task
+    let bot_token = discord_token.clone();
+    tokio::spawn(async move {
+        if let Err(e) = bot::start_bot(bot_token).await {
+            tracing::error!("Bot error: {}", e);
+        }
+    });
+
+    // Start web server
     let app = create_router();
 
     let addr = "0.0.0.0:3000";
@@ -33,7 +43,7 @@ async fn main() {
         .await
         .expect("Failed to bind listener");
 
-    info!("Server running on {}", addr);
+    info!("Web server running on {}", addr);
 
     axum::serve(listener, app)
         .await

@@ -1,29 +1,30 @@
-# Multi-stage build for the web server
+# Multi-stage build for Discord bot with web server and WASM UI
 
-# Stage 1: Build the web server
-FROM rust:latest as server-builder
+# Stage 1: Build the WASM UI
+FROM rust:latest as wasm-builder
 WORKDIR /app
 COPY . .
-RUN cargo build --release -p web-server
+RUN rustup target add wasm32-unknown-unknown
+RUN cargo install wasm-pack
+RUN wasm-pack build crates/web --target web --release
 
-# Stage 2: Build the web assets (WASM and static files)
-FROM node:22 as web-builder
+# Stage 2: Build the bot (includes web server)
+FROM rust:latest as bot-builder
 WORKDIR /app
 COPY . .
-RUN npm ci --workspaces --include-workspace-root
-RUN npm run build
+RUN cargo build --release -p bot
 
 # Stage 3: Runtime image
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
-# Copy the compiled web server
-COPY --from=server-builder /app/target/release/web-server /app/web-server
+# Copy the compiled bot binary
+COPY --from=bot-builder /app/target/release/bot /app/bot
 
-# Copy the built web assets
-COPY --from=web-builder /app/dist /app/dist
+# Copy the built WASM assets
+COPY --from=wasm-builder /app/crates/web/pkg /app/dist
 
 EXPOSE 3000
 ENV RUST_LOG=info
-CMD ["./web-server"]
+CMD ["./bot"]
