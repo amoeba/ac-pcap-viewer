@@ -27,11 +27,10 @@ impl Database {
     /// Initialize database from DATABASE_URL environment variable
     /// If DATABASE_URL is not set, uses in-memory database (not recommended for production)
     pub async fn init() -> Result<Self> {
-        let database_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| {
-                info!("DATABASE_URL not set, using default: ./data/bot.db");
-                "sqlite:./data/bot.db".to_string()
-            });
+        let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            info!("DATABASE_URL not set, using default: ./data/bot.db");
+            "sqlite:./data/bot.db".to_string()
+        });
 
         info!("Connecting to database: {}", database_url);
 
@@ -108,7 +107,7 @@ impl Database {
             WHERE success = 1
             GROUP BY command_name
             ORDER BY count DESC
-            "#
+            "#,
         )
         .fetch_all(&self.pool)
         .await
@@ -129,7 +128,7 @@ impl Database {
             FROM command_logs
             ORDER BY timestamp DESC
             LIMIT ?1
-            "#
+            "#,
         )
         .bind(limit)
         .fetch_all(&self.pool)
@@ -144,7 +143,7 @@ impl Database {
         let (count,): (i64,) = sqlx::query_as(
             r#"
             SELECT COUNT(*) FROM command_logs WHERE success = 1
-            "#
+            "#,
         )
         .fetch_one(&self.pool)
         .await
@@ -158,7 +157,7 @@ impl Database {
         let (count,): (i64,) = sqlx::query_as(
             r#"
             SELECT COUNT(*) FROM command_logs WHERE user_id = ?1 AND success = 1
-            "#
+            "#,
         )
         .bind(user_id)
         .fetch_one(&self.pool)
@@ -181,7 +180,7 @@ impl Database {
             WHERE user_id = ?1 AND success = 1
             GROUP BY command_name
             ORDER BY count DESC
-            "#
+            "#,
         )
         .bind(user_id)
         .fetch_all(&self.pool)
@@ -196,7 +195,7 @@ impl Database {
                 MAX(timestamp) as last_use
             FROM command_logs
             WHERE user_id = ?1
-            "#
+            "#,
         )
         .bind(user_id)
         .fetch_one(&self.pool)
@@ -226,7 +225,7 @@ impl Database {
               AND timestamp >= ?1
             GROUP BY date(timestamp, 'unixepoch')
             ORDER BY date DESC
-            "#
+            "#,
         )
         .bind(cutoff)
         .fetch_all(&self.pool)
@@ -242,7 +241,7 @@ impl Database {
 pub struct RecentLog {
     pub command_name: String,
     pub user_name: String,
-    pub timestamp: i64,  // Unix timestamp
+    pub timestamp: i64, // Unix timestamp
     pub success: bool,
 }
 
@@ -252,8 +251,8 @@ pub struct UserStats {
     pub user_id: String,
     pub total_count: i64,
     pub command_breakdown: Vec<(String, i64)>,
-    pub first_use: Option<i64>,  // Unix timestamp
-    pub last_use: Option<i64>,   // Unix timestamp
+    pub first_use: Option<i64>, // Unix timestamp
+    pub last_use: Option<i64>,  // Unix timestamp
 }
 
 /// Daily usage statistics

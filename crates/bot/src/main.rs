@@ -30,7 +30,9 @@ async fn main() {
     info!("Bot version: {}", env!("GIT_SHA"));
 
     // Initialize database
-    let database = db::Database::init().await.expect("Failed to initialize database");
+    let database = db::Database::init()
+        .await
+        .expect("Failed to initialize database");
     info!("Database initialized successfully");
 
     // Get Discord bot token (optional)

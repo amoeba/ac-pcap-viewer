@@ -32,13 +32,10 @@ impl EventHandler for Handler {
         );
 
         // Check for PCAP attachments (must end with .pcap or .pcapng)
-        let pcap_attachment = msg
-            .attachments
-            .iter()
-            .find(|a| {
-                let filename = a.filename.to_lowercase();
-                filename.ends_with(".pcap") || filename.ends_with(".pcapng")
-            });
+        let pcap_attachment = msg.attachments.iter().find(|a| {
+            let filename = a.filename.to_lowercase();
+            filename.ends_with(".pcap") || filename.ends_with(".pcapng")
+        });
 
         if let Some(attachment) = pcap_attachment {
             info!(
@@ -71,7 +68,11 @@ impl EventHandler for Handler {
                 guild_id: msg.guild_id.map(|id| id.to_string()),
                 message_id: msg.id.to_string(),
                 success,
-                error_message: if success { None } else { Some("Failed to send reply".to_string()) },
+                error_message: if success {
+                    None
+                } else {
+                    Some("Failed to send reply".to_string())
+                },
             };
 
             if let Err(e) = self.db.log_command(log).await {
@@ -82,7 +83,11 @@ impl EventHandler for Handler {
 }
 
 /// Start the Discord bot
-pub async fn start_bot(token: String, web_url: String, db: Database) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn start_bot(
+    token: String,
+    web_url: String,
+    db: Database,
+) -> Result<(), Box<dyn std::error::Error>> {
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
