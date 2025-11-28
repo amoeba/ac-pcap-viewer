@@ -5,6 +5,9 @@ FROM rust:latest AS builder
 WORKDIR /app
 COPY . .
 
+# Install system dependencies including ca-certificates for HTTPS
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
 # Install wasm-pack for WASM builds
 RUN rustup target add wasm32-unknown-unknown
 RUN cargo install wasm-pack
