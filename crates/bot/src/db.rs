@@ -99,6 +99,7 @@ impl Database {
     }
 
     /// Get command statistics
+    #[allow(dead_code)]
     pub async fn get_command_stats(&self) -> Result<Vec<(String, i64)>> {
         let rows = sqlx::query_as::<_, (String, i64)>(
             r#"
@@ -117,6 +118,7 @@ impl Database {
     }
 
     /// Get recent command logs
+    #[allow(dead_code)]
     pub async fn get_recent_logs(&self, limit: i64) -> Result<Vec<RecentLog>> {
         let rows = sqlx::query_as::<_, RecentLog>(
             r#"
@@ -139,6 +141,7 @@ impl Database {
     }
 
     /// Get total number of successful command uses
+    #[allow(dead_code)]
     pub async fn get_total_uses(&self) -> Result<i64> {
         let (count,): (i64,) = sqlx::query_as(
             r#"
@@ -153,6 +156,7 @@ impl Database {
     }
 
     /// Get command usage count for a specific user
+    #[allow(dead_code)]
     pub async fn get_user_command_count(&self, user_id: &str) -> Result<i64> {
         let (count,): (i64,) = sqlx::query_as(
             r#"
@@ -168,6 +172,7 @@ impl Database {
     }
 
     /// Get detailed usage statistics for a user
+    #[allow(dead_code)]
     pub async fn get_user_stats(&self, user_id: &str) -> Result<UserStats> {
         // Get total count
         let total_count = self.get_user_command_count(user_id).await?;
@@ -212,6 +217,7 @@ impl Database {
     }
 
     /// Get usage statistics over time (daily counts)
+    #[allow(dead_code)]
     pub async fn get_usage_over_time(&self, days: i64) -> Result<Vec<DailyUsage>> {
         let cutoff = chrono::Utc::now().timestamp() - (days * 86400);
 
@@ -237,6 +243,7 @@ impl Database {
 }
 
 /// Recent log entry for queries
+#[allow(dead_code)]
 #[derive(Debug, sqlx::FromRow)]
 pub struct RecentLog {
     pub command_name: String,
@@ -246,6 +253,7 @@ pub struct RecentLog {
 }
 
 /// User statistics
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct UserStats {
     pub user_id: String,
@@ -256,6 +264,7 @@ pub struct UserStats {
 }
 
 /// Daily usage statistics
+#[allow(dead_code)]
 #[derive(Debug, sqlx::FromRow)]
 pub struct DailyUsage {
     pub date: String,
