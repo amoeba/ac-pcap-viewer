@@ -2,14 +2,8 @@
 name = "xtask"
 version = "0.1.0"
 edition = "2021"
-description = "Build tasks for ac-pcap-parser"
-
-# Not published, just a dev tool
 publish = false
 
 [dependencies]
 anyhow = "1.0"
-clap = { version = "4.4", features = ["derive"] }
-duct = "0.13"
-hex = "0.4"
-sha2 = "0.10"
+md5 = "0.7"

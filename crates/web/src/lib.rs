@@ -8,8 +8,14 @@ use app::PcapViewerApp;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
-/// Get the URL from query parameters (?url=...)
-fn get_url_from_query_params() -> Option<String> {
+/// Query parameter variants
+enum QueryParams {
+    Url(String),
+    Discord { channel: String, msg: String },
+}
+
+/// Get query parameters - either ?url=... or ?channel=X&msg=Y
+fn get_query_params() -> Option<QueryParams> {
     let window = web_sys::window()?;
     let location = window.location();
     let search = location.search().ok()?;
@@ -20,7 +26,17 @@ fn get_url_from_query_params() -> Option<String> {
 
     // Remove the leading '?' and parse
     let params = web_sys::UrlSearchParams::new_with_str(&search).ok()?;
-    params.get("url")
+
+    // Check for Discord params first (channel and msg)
+    let channel = params.get("channel");
+    let msg = params.get("msg");
+
+    if let (Some(channel), Some(msg)) = (channel, msg) {
+        return Some(QueryParams::Discord { channel, msg });
+    }
+
+    // Fall back to URL param
+    params.get("url").map(QueryParams::Url)
 }
 
 // WASM entry point
@@ -50,11 +66,24 @@ pub fn start() -> Result<(), JsValue> {
                 Box::new(|cc: &eframe::CreationContext<'_>| {
                     let mut app = PcapViewerApp::new(cc);
 
-                    // Check for URL query parameter on web version
-                    if let Some(url) = get_url_from_query_params() {
-                        log::info!("Found URL in query params: {}", url);
-                        app.initial_url = Some(url);
-                        app.status_message = "Loading PCAP from URL...".to_string();
+                    // Check for query parameters on web version
+                    match get_query_params() {
+                        Some(QueryParams::Url(url)) => {
+                            log::info!("Found URL in query params: {}", url);
+                            app.initial_url = Some(url);
+                            app.status_message = "Loading PCAP from URL...".to_string();
+                        }
+                        Some(QueryParams::Discord { channel, msg }) => {
+                            log::info!("Found Discord params: channel={}, msg={}", channel, msg);
+                            app.discord_channel_id = channel;
+                            app.discord_message_id = msg;
+                            app.status_message = "Ready to load PCAP from Discord...".to_string();
+                            // The app will auto-load on first frame via initial_discord_load
+                            app.initial_discord_load = true;
+                        }
+                        None => {
+                            log::info!("No query params found");
+                        }
                     }
 
                     Ok(Box::new(app))

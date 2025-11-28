@@ -7,6 +7,10 @@ description = "Web UI for Asheron's Call PCAP parser (WASM)"
 [lib]
 crate-type = ["cdylib"]
 
+[package.metadata.wasm-pack.profile.release]
+# Use wasm-opt for maximum size reduction
+wasm-opt = ["-Oz", "--enable-bulk-memory", "--enable-sign-ext", "--enable-nontrapping-float-to-int"]
+
 [dependencies]
 # Web build uses app library code without desktop-specific features
 # (file dialogs and native logging aren't used on web)

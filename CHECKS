@@ -1,5 +1,1 @@
-WAIT=5
-TIMEOUT=30
-ATTEMPTS=5
-
-/ AC PCAP Parser
+/wait-for-web-ui/

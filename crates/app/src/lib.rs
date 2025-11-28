@@ -54,6 +54,9 @@ pub struct PcapViewerApp {
     // Initial URL to load from query params (consumed on first update)
     pub initial_url: Option<String>,
 
+    // Initial Discord load flag (consumed on first update)
+    pub initial_discord_load: bool,
+
     // Base pixels_per_point for scaling calculations (set on first frame)
     pub base_pixels_per_point: Option<f32>,
 
@@ -63,6 +66,11 @@ pub struct PcapViewerApp {
     pub url_load_error: Option<String>,
     pub show_settings: bool,
     pub show_about: bool,
+
+    // Discord loading state
+    pub discord_channel_id: String,
+    pub discord_message_id: String,
+    pub discord_load_error: Option<String>,
 
     // Time scrubbers (separate for messages and fragments)
     pub messages_scrubber: TimeScrubber,
@@ -97,12 +105,16 @@ impl Default for PcapViewerApp {
             fetched_data: Arc::new(Mutex::new(None)),
             fetched_error: Arc::new(Mutex::new(None)),
             initial_url: None,
+            initial_discord_load: false,
             base_pixels_per_point: None,
             show_url_dialog: false,
             url_input: String::new(),
             url_load_error: None,
             show_settings: false,
             show_about: false,
+            discord_channel_id: String::new(),
+            discord_message_id: String::new(),
+            discord_load_error: None,
             messages_scrubber: TimeScrubber::new(),
             fragments_scrubber: TimeScrubber::new(),
             marked_messages: std::collections::HashSet::new(),
@@ -294,13 +306,29 @@ impl eframe::App for PcapViewerApp {
             None
         };
         if let Some(error) = fetched_error {
-            self.url_load_error = Some(error);
+            self.url_load_error = Some(error.clone());
+            self.discord_load_error = Some(error);
             self.is_loading = false;
         }
 
         // Handle initial URL from query params (auto-load on first frame)
         if let Some(url) = self.initial_url.take() {
             ui::file_panel::load_from_url(self, url, ctx);
+        }
+
+        // Handle initial Discord load from query params (auto-load on first frame)
+        if self.initial_discord_load {
+            log::info!("initial_discord_load triggered!");
+            self.initial_discord_load = false;
+            let channel = self.discord_channel_id.clone();
+            let msg = self.discord_message_id.clone();
+            log::info!("Discord IDs: channel={channel}, msg={msg}");
+            if !channel.is_empty() && !msg.is_empty() {
+                log::info!("Calling load_from_discord...");
+                ui::file_panel::load_from_discord(self, channel, msg, ctx);
+            } else {
+                log::warn!("Channel or message ID is empty!");
+            }
         }
 
         // Preview dropped files

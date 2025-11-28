@@ -1,0 +1,19 @@
+# Deployment Configuration
+#
+# This file documents the deployment environments and their domains.
+# Update this file when adding new deployment environments.
+
+# Production
+PRODUCTION_DOMAIN=https://pcap.treestats.net
+PRODUCTION_DOKKU_APP=pcap
+
+# Preview/Staging
+PREVIEW_DOMAIN=https://pcap-preview.treestats.net
+PREVIEW_DOKKU_APP=pcap-preview
+
+# Dokku Server
+DOKKU_SERVER=znc.treestats.net
+DOKKU_USER=dokku
+
+# Docker Image
+DOCKER_REGISTRY=ghcr.io/amoeba/ac-pcap-parser

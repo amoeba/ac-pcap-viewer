@@ -85,6 +85,36 @@ CLI options:
 - `-o, --output <FORMAT>` - Output: `jsonl`, `json`, or `table`
 - `-l, --limit <N>` - Limit results
 
+## Deployment
+
+### Dokku with Pre-built Images
+
+When deploying to Dokku using pre-built Docker images (via `git:from-image`), you must manually configure port mappings since Dokku cannot auto-detect the `EXPOSE` directive from pre-built images:
+
+```bash
+# Deploy the image
+dokku git:from-image <app-name> ghcr.io/amoeba/ac-pcap-parser:<tag>
+
+# Configure port mappings (app runs on port 3000)
+dokku ports:set <app-name> http:80:3000 https:443:3000
+
+# Set the web URL for Discord bot responses
+dokku config:set <app-name> WEB_URL=https://your-domain.com
+
+# (Optional) Set Discord bot token to enable Discord integration
+dokku config:set <app-name> DISCORD_OAUTH_TOKEN=your-token-here
+
+# Enable SSL with Let's Encrypt
+dokku letsencrypt:enable <app-name>
+```
+
+**Environment Variables:**
+- `WEB_URL` - The public URL where the web UI is hosted (used in Discord bot responses). Defaults to `http://localhost:3000`.
+- `DISCORD_OAUTH_TOKEN` - Discord bot token. If not set, Discord integration is disabled but the web server still runs.
+- `PORT` - The port the web server binds to. Defaults to `3000`. Dokku automatically sets this.
+
+**Note:** If you deploy via `git push dokku main` instead, Dokku will automatically detect the port from the Dockerfile's `EXPOSE` directive.
+
 ## Development Setup
 
 Requirements: Rust (stable)

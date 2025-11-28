@@ -115,6 +115,110 @@ pub fn load_from_url(app: &mut PcapViewerApp, _url: String, _ctx: &egui::Context
     app.status_message = "URL loading not supported in native mode".to_string();
 }
 
+/// Load PCAP from Discord (WASM)
+#[cfg(target_arch = "wasm32")]
+pub fn load_from_discord(
+    app: &mut PcapViewerApp,
+    channel_id: String,
+    message_id: String,
+    ctx: &egui::Context,
+) {
+    if app.is_loading {
+        return;
+    }
+
+    app.is_loading = true;
+    app.status_message = format!(
+        "Loading PCAP from Discord ({}:{})...",
+        channel_id, message_id
+    );
+
+    // Clear any previous errors
+    if let Ok(mut error) = app.fetched_error.lock() {
+        *error = None;
+    }
+    app.discord_load_error = None;
+
+    let fetched_data = app.fetched_data.clone();
+    let fetched_error = app.fetched_error.clone();
+    let ctx = ctx.clone();
+
+    wasm_bindgen_futures::spawn_local(async move {
+        match fetch_discord_pcap(&channel_id, &message_id).await {
+            Ok(bytes) => {
+                if let Ok(mut data) = fetched_data.lock() {
+                    *data = Some(bytes);
+                }
+                // Clear error on success
+                if let Ok(mut error) = fetched_error.lock() {
+                    *error = None;
+                }
+                ctx.request_repaint();
+            }
+            Err(e) => {
+                log::error!("Failed to fetch PCAP from Discord: {}", e);
+                // Store error for display
+                if let Ok(mut error) = fetched_error.lock() {
+                    *error = Some(e);
+                }
+                ctx.request_repaint();
+            }
+        }
+    });
+}
+
+/// Load PCAP from Discord (native - not supported)
+#[cfg(not(target_arch = "wasm32"))]
+pub fn load_from_discord(
+    app: &mut PcapViewerApp,
+    _channel_id: String,
+    _message_id: String,
+    _ctx: &egui::Context,
+) {
+    // Native: Discord loading not supported
+    app.status_message = "Discord loading not supported in native mode".to_string();
+}
+
+/// Fetch PCAP from Discord API (WASM only)
+#[cfg(target_arch = "wasm32")]
+async fn fetch_discord_pcap(channel_id: &str, message_id: &str) -> Result<Vec<u8>, String> {
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_futures::JsFuture;
+    use web_sys::{Request, RequestInit, Response};
+
+    let url = format!(
+        "/api/discord/channels/{}/messages/{}/attachments",
+        channel_id, message_id
+    );
+
+    let mut opts = RequestInit::new();
+    opts.set_method("GET");
+
+    let request = Request::new_with_str_and_init(&url, &opts)
+        .map_err(|e| format!("Failed to create request: {:?}", e))?;
+
+    let window = web_sys::window().ok_or_else(|| "No window object".to_string())?;
+    let resp_value = JsFuture::from(window.fetch_with_request(&request))
+        .await
+        .map_err(|e| format!("Fetch failed: {:?}", e))?;
+    let resp: Response = resp_value
+        .dyn_into()
+        .map_err(|_| "Response is not Response".to_string())?;
+
+    if !resp.ok() {
+        let status = resp.status();
+        let status_text = resp.status_text();
+        return Err(format!("HTTP {}: {}", status, status_text));
+    }
+
+    let array_buffer = JsFuture::from(resp.array_buffer().unwrap())
+        .await
+        .map_err(|e| format!("Failed to get array buffer: {:?}", e))?;
+
+    let uint8_array = js_sys::Uint8Array::new(&array_buffer);
+    Ok(uint8_array.to_vec())
+}
+
 /// Fetch bytes from URL (WASM only)
 #[cfg(target_arch = "wasm32")]
 async fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {

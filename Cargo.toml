@@ -5,6 +5,7 @@ members = [
     "crates/cli",
     "crates/app",
     "crates/web",
+    "crates/bot",
     "crates/xtask",
 ]
 
