@@ -18,22 +18,93 @@ fn try_main() -> Result<()> {
             let serve = std::env::args().any(|arg| arg == "--serve");
             bot(serve)
         }
+        Some("install-wasm-bindgen") => install_wasm_bindgen(),
         Some(task) => bail!("Unknown task: {}", task),
         None => {
             eprintln!("Available tasks:");
             eprintln!("  cargo xtask bot         - Build WASM and bot");
             eprintln!("  cargo xtask bot --serve - Build WASM, bot, and run server");
+            eprintln!("  cargo xtask install-wasm-bindgen - Install wasm-bindgen CLI matching Cargo.lock");
             Ok(())
         }
     }
 }
 
+/// Install wasm-bindgen-cli matching the version in Cargo.lock
+/// This ensures the CLI tool version matches the wasm-bindgen crate version
+fn install_wasm_bindgen() -> Result<()> {
+    println!("🔧 Installing wasm-bindgen-cli...");
+
+    // Add cargo bin to PATH
+    let cargo_bin = format!("{}/.cargo/bin", std::env::var("HOME")?);
+    std::env::set_var("PATH", format!("{}:{}", cargo_bin, std::env::var("PATH")?));
+
+    // Read Cargo.lock to get required wasm-bindgen version
+    let cargo_lock = fs::read_to_string("Cargo.lock")
+        .context("Failed to read Cargo.lock")?;
+
+    let wasm_bindgen_version = cargo_lock
+        .lines()
+        .find(|line| line.trim().starts_with("name = \"wasm-bindgen\""))
+        .and_then(|name_line| {
+            // Get the next line (should be version)
+            let version_line = cargo_lock.lines()
+                .skip_while(|line| *line != name_line)
+                .nth(1)?;
+            version_line
+                .trim()
+                .strip_prefix("version = \"")
+                .and_then(|s| s.strip_suffix("\""))
+        })
+        .context("Could not find wasm-bindgen version in Cargo.lock")?;
+
+    println!("  Required version: {}", wasm_bindgen_version);
+
+    // Check currently installed version
+    let installed_version_output = Command::new("wasm-bindgen")
+        .arg("--version")
+        .output();
+
+    let installed_version = match installed_version_output {
+        Ok(output) if output.status.success() => {
+            let version_str = String::from_utf8_lossy(&output.stdout);
+            version_str.split_whitespace().nth(1).map(|s| s.to_string())
+        }
+        _ => None,
+    };
+
+    if let Some(installed) = installed_version {
+        println!("  Installed version: {}", installed);
+        if installed == wasm_bindgen_version {
+            println!("✅ wasm-bindgen-cli is already at the correct version");
+            return Ok(());
+        }
+    } else {
+        println!("  Installed version: none");
+    }
+
+    println!("  Installing wasm-bindgen-cli {}...", wasm_bindgen_version);
+
+    // Install the specific version
+    let status = Command::new("cargo")
+        .args(&["install", "wasm-bindgen-cli", "--version", wasm_bindgen_version, "--force"])
+        .status()
+        .context("Failed to run cargo install wasm-bindgen-cli")?;
+
+    if !status.success() {
+        bail!("Failed to install wasm-bindgen-cli");
+    }
+
+    println!("✅ wasm-bindgen-cli installed successfully");
+    Ok(())
+}
+
 fn bot(serve: bool) -> Result<()> {
     println!("🔨 Building WASM UI...");
 
-    // Build WASM with wasm-pack using release-wasm profile for maximum size optimization
+    // Build WASM with wasm-pack using release profile for maximum size optimization
     let status = Command::new("wasm-pack")
-        .args(&["build", "crates/web", "--target", "web", "--", "--profile", "release-wasm"])
+        .args(&["build", "crates/web", "--target", "web", "--release"])
         .status()
         .context("Failed to run wasm-pack")?;
 

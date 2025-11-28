@@ -20,10 +20,7 @@ fn get_query_params() -> Option<QueryParams> {
     let location = window.location();
     let search = location.search().ok()?;
 
-    web_sys::console::log_1(&format!("Query string: {}", search).into());
-
     if search.is_empty() {
-        web_sys::console::log_1(&"Query string is empty".into());
         return None;
     }
 
@@ -34,10 +31,7 @@ fn get_query_params() -> Option<QueryParams> {
     let channel = params.get("channel");
     let msg = params.get("msg");
 
-    web_sys::console::log_1(&format!("channel={:?}, msg={:?}", channel, msg).into());
-
     if let (Some(channel), Some(msg)) = (channel, msg) {
-        web_sys::console::log_1(&format!("Returning Discord params: {}, {}", channel, msg).into());
         return Some(QueryParams::Discord { channel, msg });
     }
 

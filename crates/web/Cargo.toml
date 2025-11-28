@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 
 [package.metadata.wasm-pack.profile.release]
 # Use wasm-opt for maximum size reduction
-wasm-opt = ["-Oz", "--enable-bulk-memory"]
+wasm-opt = ["-Oz", "--enable-bulk-memory", "--enable-sign-ext", "--enable-nontrapping-float-to-int"]
 
 [dependencies]
 # Web build uses app library code without desktop-specific features
