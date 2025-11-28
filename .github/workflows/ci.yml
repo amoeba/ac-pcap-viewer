@@ -189,7 +189,7 @@ jobs:
       - name: Generate preview app name
         id: app-name
         run: |
-          APP_NAME="${{ secrets.DOKKU_APP_NAME }}-pr-${{ github.event.pull_request.number }}"
+          APP_NAME="${{ secrets.DOKKU_APP_NAME }}-preview"
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
           echo "Preview app name: $APP_NAME"
 
@@ -240,8 +240,7 @@ jobs:
       - name: Get preview URL
         id: preview-url
         run: |
-          APP_NAME="${{ steps.app-name.outputs.app_name }}"
-          URL="https://${APP_NAME}.treestats.net"
+          URL="https://preview.pcap.treestats.net"
           echo "Preview URL: $URL"
           echo "url=$URL" >> $GITHUB_OUTPUT
 
@@ -282,29 +281,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     steps:
-      - name: Generate preview app name
-        id: app-name
+      - name: Skip cleanup
         run: |
-          APP_NAME="${{ secrets.DOKKU_APP_NAME }}-pr-${{ github.event.pull_request.number }}"
-          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
-
-      - name: Setup SSH for Dokku
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts
-
-      - name: Destroy preview app
-        run: |
-          APP_NAME="${{ steps.app-name.outputs.app_name }}"
-          echo "Destroying preview app: $APP_NAME"
-
-          if ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            apps:exists "$APP_NAME" 2>/dev/null; then
-            ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-              apps:destroy "$APP_NAME" --force
-            echo "Preview app $APP_NAME destroyed"
-          else
-            echo "Preview app $APP_NAME does not exist, skipping"
-          fi
+          echo "Preview app (pcap-preview) is shared across all PRs - not destroying"
+          echo "The next PR deployment will overwrite it automatically"
