@@ -61,8 +61,8 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Clippy
-        run: cargo clippy --all-targets --all-features --all -- -D warnings
+      - name: Build all packages
+        run: cargo build --all --all-features
         env:
           RUSTC_WRAPPER: sccache
 
@@ -71,8 +71,8 @@ jobs:
         env:
           RUSTC_WRAPPER: sccache
 
-      - name: Build all packages
-        run: cargo build --all --all-features
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features --all -- -D warnings
         env:
           RUSTC_WRAPPER: sccache
 
