@@ -11,8 +11,8 @@ use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 use tracing::info;
 
-mod discord;
 mod bot;
+mod discord;
 
 #[tokio::main]
 async fn main() {
@@ -29,8 +29,8 @@ async fn main() {
         info!("Discord bot token found - starting bot");
 
         // Get web URL from environment or use default
-        let web_url = std::env::var("WEB_URL")
-            .unwrap_or_else(|_| "http://localhost:3000".to_string());
+        let web_url =
+            std::env::var("WEB_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
 
         info!("Web UI URL: {}", web_url);
 
@@ -108,7 +108,10 @@ fn create_router() -> Router {
 
     Router::new()
         .route("/api/health", get(health))
-        .route("/api/discord/channels/{channel_id}/messages/{message_id}/attachments", get(discord_pull))
+        .route(
+            "/api/discord/channels/{channel_id}/messages/{message_id}/attachments",
+            get(discord_pull),
+        )
         .fallback_service(ServeDir::new(&dist_path))
         .layer(middleware::from_fn(log_requests))
         .layer(TraceLayer::new_for_http())
@@ -135,8 +138,14 @@ struct DiscordError {
 async fn discord_pull(
     Path(params): Path<DiscordParams>,
 ) -> Result<Vec<u8>, (StatusCode, Json<DiscordError>)> {
-    println!("==> Discord pull request: channel={}, msg={}", params.channel_id, params.message_id);
-    info!("Discord pull request: channel={}, msg={}", params.channel_id, params.message_id);
+    println!(
+        "==> Discord pull request: channel={}, msg={}",
+        params.channel_id, params.message_id
+    );
+    info!(
+        "Discord pull request: channel={}, msg={}",
+        params.channel_id, params.message_id
+    );
 
     // Check if token is available
     let token = std::env::var("DISCORD_OAUTH_TOKEN").map_err(|_| {
@@ -151,12 +160,7 @@ async fn discord_pull(
     // Fetch message from Discord API
     let message = discord::fetch_message(&params.channel_id, &params.message_id, &token)
         .await
-        .map_err(|(status, error)| {
-            (
-                status,
-                Json(DiscordError { error }),
-            )
-        })?;
+        .map_err(|(status, error)| (status, Json(DiscordError { error })))?;
 
     // Find first PCAP attachment
     let pcap_attachment = message
@@ -175,12 +179,7 @@ async fn discord_pull(
     // Download the attachment
     let pcap_data = discord::download_attachment(&pcap_attachment.url)
         .await
-        .map_err(|(status, error)| {
-            (
-                status,
-                Json(DiscordError { error }),
-            )
-        })?;
+        .map_err(|(status, error)| (status, Json(DiscordError { error })))?;
 
     info!(
         "Successfully fetched PCAP from Discord: {} ({} bytes)",

@@ -128,8 +128,10 @@ pub fn load_from_discord(
     }
 
     app.is_loading = true;
-    app.status_message =
-        format!("Loading PCAP from Discord ({}:{})...", channel_id, message_id);
+    app.status_message = format!(
+        "Loading PCAP from Discord ({}:{})...",
+        channel_id, message_id
+    );
 
     // Clear any previous errors
     if let Ok(mut error) = app.fetched_error.lock() {
@@ -184,7 +186,10 @@ async fn fetch_discord_pcap(channel_id: &str, message_id: &str) -> Result<Vec<u8
     use wasm_bindgen_futures::JsFuture;
     use web_sys::{Request, RequestInit, Response};
 
-    let url = format!("/api/discord/channels/{}/messages/{}/attachments", channel_id, message_id);
+    let url = format!(
+        "/api/discord/channels/{}/messages/{}/attachments",
+        channel_id, message_id
+    );
 
     let mut opts = RequestInit::new();
     opts.set_method("GET");
@@ -203,10 +208,7 @@ async fn fetch_discord_pcap(channel_id: &str, message_id: &str) -> Result<Vec<u8
     if !resp.ok() {
         let status = resp.status();
         let status_text = resp.status_text();
-        return Err(format!(
-            "HTTP {}: {}",
-            status, status_text
-        ));
+        return Err(format!("HTTP {}: {}", status, status_text));
     }
 
     let array_buffer = JsFuture::from(resp.array_buffer().unwrap())

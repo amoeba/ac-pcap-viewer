@@ -83,7 +83,7 @@ pub async fn fetch_message(
                 "Failed to parse Discord response".to_string(),
             )
         })?;
-        
+
         debug!("Successfully fetched message from Discord: {}", message.id);
 
         // Validate that message has at least one PCAP attachment
@@ -141,9 +141,7 @@ pub async fn download_attachment(url: &str) -> Result<Vec<u8>, (StatusCode, Stri
     })?;
 
     if response.status().is_success() {
-        let content_length = response
-            .content_length()
-            .unwrap_or(0) as usize;
+        let content_length = response.content_length().unwrap_or(0) as usize;
 
         if content_length > MAX_ATTACHMENT_SIZE {
             warn!("Attachment too large: {} bytes", content_length);

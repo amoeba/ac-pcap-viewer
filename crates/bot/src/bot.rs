@@ -1,9 +1,9 @@
 //! Discord bot handler for event-driven interactions
 
-use serenity::prelude::*;
 use serenity::async_trait;
 use serenity::model::prelude::*;
-use tracing::{info, debug, error};
+use serenity::prelude::*;
+use tracing::{debug, error, info};
 
 pub struct Handler {
     pub web_url: String,
@@ -23,11 +23,15 @@ impl EventHandler for Handler {
 
         debug!(
             "Message received in {}: {} ({} attachments)",
-            msg.channel_id, msg.content, msg.attachments.len()
+            msg.channel_id,
+            msg.content,
+            msg.attachments.len()
         );
 
         // Check for PCAP attachments
-        let pcap_attachment = msg.attachments.iter()
+        let pcap_attachment = msg
+            .attachments
+            .iter()
             .find(|a| a.filename.to_lowercase().contains(".pcap"));
 
         if let Some(attachment) = pcap_attachment {
@@ -37,18 +41,12 @@ impl EventHandler for Handler {
             );
 
             // Create web UI link with query parameters
-            let web_link = format!(
-                "{}?channel={}&msg={}",
-                self.web_url,
-                msg.channel_id,
-                msg.id
-            );
+            let web_link = format!("{}?channel={}&msg={}", self.web_url, msg.channel_id, msg.id);
 
             // Reply with the link
             let reply = format!(
                 "📊 PCAP file detected: `{}`\n\n[View in PCAP Parser]({})",
-                attachment.filename,
-                web_link
+                attachment.filename, web_link
             );
 
             if let Err(e) = msg.reply(&ctx.http, reply).await {
