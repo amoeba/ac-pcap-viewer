@@ -5,7 +5,7 @@ use std::process::Command;
 
 fn main() {
     if let Err(e) = try_main() {
-        eprintln!("Error: {:#}", e);
+        eprintln!("Error: {e:#}");
         std::process::exit(1);
     }
 }
@@ -19,7 +19,7 @@ fn try_main() -> Result<()> {
             bot(serve)
         }
         Some("install-wasm-bindgen") => install_wasm_bindgen(),
-        Some(task) => bail!("Unknown task: {}", task),
+        Some(task) => bail!("Unknown task: {task}"),
         None => {
             eprintln!("Available tasks:");
             eprintln!("  cargo xtask bot         - Build WASM and bot");
@@ -60,7 +60,7 @@ fn install_wasm_bindgen() -> Result<()> {
         })
         .context("Could not find wasm-bindgen version in Cargo.lock")?;
 
-    println!("  Required version: {}", wasm_bindgen_version);
+    println!("  Required version: {wasm_bindgen_version}");
 
     // Check currently installed version
     let installed_version_output = Command::new("wasm-bindgen").arg("--version").output();
@@ -74,7 +74,7 @@ fn install_wasm_bindgen() -> Result<()> {
     };
 
     if let Some(installed) = installed_version {
-        println!("  Installed version: {}", installed);
+        println!("  Installed version: {installed}");
         if installed == wasm_bindgen_version {
             println!("✅ wasm-bindgen-cli is already at the correct version");
             return Ok(());
@@ -83,11 +83,11 @@ fn install_wasm_bindgen() -> Result<()> {
         println!("  Installed version: none");
     }
 
-    println!("  Installing wasm-bindgen-cli {}...", wasm_bindgen_version);
+    println!("  Installing wasm-bindgen-cli {wasm_bindgen_version}...");
 
     // Install the specific version
     let status = Command::new("cargo")
-        .args(&[
+        .args([
             "install",
             "wasm-bindgen-cli",
             "--version",
@@ -110,7 +110,7 @@ fn bot(serve: bool) -> Result<()> {
 
     // Build WASM with wasm-pack using release profile for maximum size optimization
     let status = Command::new("wasm-pack")
-        .args(&["build", "crates/web", "--target", "web", "--release"])
+        .args(["build", "crates/web", "--target", "web", "--release"])
         .status()
         .context("Failed to run wasm-pack")?;
 
@@ -131,24 +131,23 @@ fn bot(serve: bool) -> Result<()> {
     let short_hash = &hash[..16]; // Use first 16 chars of hash
 
     // Cache-busted filenames
-    let js_filename = format!("web.{}.js", short_hash);
-    let wasm_filename = format!("web_bg.{}.wasm", short_hash);
+    let js_filename = format!("web.{short_hash}.js");
+    let wasm_filename = format!("web_bg.{short_hash}.wasm");
 
-    println!("  ✓ Cache bust hash: {}", short_hash);
+    println!("  ✓ Cache bust hash: {short_hash}");
 
     // Copy and update JS file to reference cache-busted WASM filename
     let js_content =
         fs::read_to_string("crates/web/pkg/web.js").context("Failed to read JS file")?;
     let updated_js = js_content.replace("web_bg.wasm", &wasm_filename);
-    fs::write(format!("dist/{}", js_filename), updated_js)
+    fs::write(format!("dist/{js_filename}"), updated_js)
         .context("Failed to write updated JS file")?;
     println!(
-        "  ✓ Copied and updated web.js -> {} (references {})",
-        js_filename, wasm_filename
+        "  ✓ Copied and updated web.js -> {js_filename} (references {wasm_filename})"
     );
 
-    fs::copy(wasm_path, format!("dist/{}", wasm_filename)).context("Failed to copy WASM file")?;
-    println!("  ✓ Copied web_bg.wasm -> {}", wasm_filename);
+    fs::copy(wasm_path, format!("dist/{wasm_filename}")).context("Failed to copy WASM file")?;
+    println!("  ✓ Copied web_bg.wasm -> {wasm_filename}");
 
     // Copy other files from pkg to dist
     for entry in fs::read_dir("crates/web/pkg").context("Failed to read pkg dir")? {
@@ -167,7 +166,7 @@ fn bot(serve: bool) -> Result<()> {
 
         let dest = Path::new("dist").join(&file_name);
         fs::copy(entry.path(), &dest)?;
-        println!("  ✓ Copied {}", file_name_str);
+        println!("  ✓ Copied {file_name_str}");
     }
 
     // Copy static files from static/ directory and update index.html with cache-busted JS filename
@@ -181,12 +180,12 @@ fn bot(serve: bool) -> Result<()> {
         if file_name_str == "index.html" {
             // Read, update, and write index.html with cache-busted JS filename
             let content = fs::read_to_string(entry.path()).context("Failed to read index.html")?;
-            let updated_content = content.replace("./web.js", &format!("./{}", js_filename));
+            let updated_content = content.replace("./web.js", &format!("./{js_filename}"));
             fs::write(&dest, updated_content).context("Failed to write updated index.html")?;
-            println!("  ✓ Copied and updated index.html (using {})", js_filename);
+            println!("  ✓ Copied and updated index.html (using {js_filename})");
         } else {
             fs::copy(entry.path(), &dest)?;
-            println!("  ✓ Copied {}", file_name_str);
+            println!("  ✓ Copied {file_name_str}");
         }
     }
 
@@ -195,7 +194,7 @@ fn bot(serve: bool) -> Result<()> {
 
     // Build bot
     let status = Command::new("cargo")
-        .args(&["build", "--release", "-p", "bot"])
+        .args(["build", "--release", "-p", "bot"])
         .status()
         .context("Failed to build bot")?;
 
@@ -207,11 +206,11 @@ fn bot(serve: bool) -> Result<()> {
 
     if serve {
         println!("🚀 Starting bot server...");
-        println!("");
+        println!();
 
         // Run bot
         let status = Command::new("cargo")
-            .args(&["run", "--release", "-p", "bot"])
+            .args(["run", "--release", "-p", "bot"])
             .status()
             .context("Failed to run bot")?;
 

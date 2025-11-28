@@ -55,8 +55,7 @@ pub async fn fetch_message(
     }
 
     let url = format!(
-        "{}/channels/{}/messages/{}",
-        DISCORD_API_BASE, channel_id, message_id
+        "{DISCORD_API_BASE}/channels/{channel_id}/messages/{message_id}"
     );
 
     debug!("Fetching Discord message from: {}", url);
@@ -64,7 +63,7 @@ pub async fn fetch_message(
     let client = reqwest::Client::new();
     let response = client
         .get(&url)
-        .header("Authorization", format!("{}{}", TOKEN_PREFIX, token))
+        .header("Authorization", format!("{TOKEN_PREFIX}{token}"))
         .send()
         .await
         .map_err(|e| {

@@ -154,7 +154,7 @@ impl AcJsonTree {
                                 self.response.filter_clicked = Some(format!("0x{s}"));
                             }
 
-                            ui.label(egui::RichText::new(format!("({})", num)).weak().small());
+                            ui.label(egui::RichText::new(format!("({num})")).weak().small());
                         });
                     } else {
                         // Just a regular string that happens to look hex-like
@@ -222,7 +222,7 @@ impl AcJsonTree {
                         self.response.filter_clicked = Some(format!("0x{num:X}"));
                     }
 
-                    ui.label(egui::RichText::new(format!("({})", num)).weak().small());
+                    ui.label(egui::RichText::new(format!("({num})")).weak().small());
                 });
             }
             DisplayFormat::Decimal => {
@@ -255,7 +255,7 @@ impl AcJsonTree {
                             self.response.filter_clicked = Some(format!("0x{num:X}"));
                         }
 
-                        ui.label(egui::RichText::new(format!("({})", num)).weak().small());
+                        ui.label(egui::RichText::new(format!("({num})")).weak().small());
                     });
                 } else {
                     let response = ui
@@ -293,7 +293,7 @@ impl AcJsonTree {
                         self.response.filter_clicked = Some(format!("0x{num:X}"));
                     }
 
-                    ui.label(egui::RichText::new(format!("({})", num)).weak().small());
+                    ui.label(egui::RichText::new(format!("({num})")).weak().small());
                 });
             }
             _ => {

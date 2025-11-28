@@ -322,7 +322,7 @@ impl eframe::App for PcapViewerApp {
             self.initial_discord_load = false;
             let channel = self.discord_channel_id.clone();
             let msg = self.discord_message_id.clone();
-            log::info!("Discord IDs: channel={}, msg={}", channel, msg);
+            log::info!("Discord IDs: channel={channel}, msg={msg}");
             if !channel.is_empty() && !msg.is_empty() {
                 log::info!("Calling load_from_discord...");
                 ui::file_panel::load_from_discord(self, channel, msg, ctx);

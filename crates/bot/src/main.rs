@@ -99,7 +99,7 @@ async fn shutdown_signal() {
 async fn log_requests(req: Request<axum::body::Body>, next: Next) -> Response {
     let method = req.method().clone();
     let uri = req.uri().clone();
-    println!(">>> HTTP {} {}", method, uri);
+    println!(">>> HTTP {method} {uri}");
     next.run(req).await
 }
 
