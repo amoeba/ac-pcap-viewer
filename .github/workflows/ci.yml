@@ -95,13 +95,7 @@ jobs:
           rm -rf target/wasm32-unknown-unknown/release/.fingerprint/app-*
           rm -rf target/wasm32-unknown-unknown/release/deps/app-*
 
-      - name: Install wasm-bindgen-cli
-        run: cargo xtask install-wasm-bindgen
-
-      - name: Install wasm-pack
-        run: cargo install wasm-pack
-
-      - name: Build WASM and bot (xtask)
+      - name: Build WASM and bot using Docker cache mounts
         run: cargo xtask bot
 
       - name: Upload build artifacts
@@ -135,6 +129,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            network=host
+          buildkitd-flags: --debug
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -167,6 +165,9 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Enable BuildKit features (required for cache mounts)
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
 
   deploy:
     name: Deploy to Production
@@ -190,9 +191,27 @@ jobs:
       - name: Deploy to Dokku
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.image-tag.outputs.tag }}"
-          echo "Deploying $IMAGE"
+          APP_NAME="${{ secrets.DOKKU_APP_NAME }}"
+          echo "Deploying $IMAGE to $APP_NAME"
+
+          # Deploy the image
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            git:from-image ${{ secrets.DOKKU_APP_NAME }} "$IMAGE"
+            git:from-image $APP_NAME "$IMAGE"
+
+          # Wait a moment for the app to be created if it's new
+          sleep 5
+
+          # Configure health checks
+          echo "Configuring health checks..."
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            checks:enable $APP_NAME
+
+          # Set health check endpoint (checks root path by default with CHECKS file)
+          # Timeout: 60 seconds, Attempts: 3
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            config:set --no-restart $APP_NAME \
+              DOKKU_CHECKS_WAIT=60 \
+              DOKKU_CHECKS_ATTEMPTS=3
 
   deploy-preview:
     name: Deploy Preview
@@ -236,6 +255,19 @@ jobs:
 
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
             git:from-image "$APP_NAME" "$IMAGE"
+
+          # Wait a moment for the app to be created if it's new
+          sleep 5
+
+          # Configure health checks for preview apps too
+          echo "Configuring health checks for $APP_NAME..."
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            checks:enable $APP_NAME
+
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            config:set --no-restart $APP_NAME \
+              DOKKU_CHECKS_WAIT=60 \
+              DOKKU_CHECKS_ATTEMPTS=3
 
           ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
             letsencrypt:enable "$APP_NAME" 2>/dev/null || true
