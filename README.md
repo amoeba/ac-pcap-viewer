@@ -98,8 +98,15 @@ dokku git:from-image <app-name> ghcr.io/amoeba/ac-pcap-parser:<tag>
 # Configure port mappings (app runs on port 3000)
 dokku ports:set <app-name> http:80:3000 https:443:3000
 
+# Set up persistent storage for the SQLite database
+dokku storage:ensure-directory <app-name>
+dokku storage:mount <app-name> /var/lib/dokku/data/storage/<app-name>:/app/data
+
 # Set the web URL for Discord bot responses
 dokku config:set <app-name> WEB_URL=https://your-domain.com
+
+# Set the database URL (SQLite file in persistent storage)
+dokku config:set <app-name> DATABASE_URL=sqlite:/app/data/bot.db
 
 # (Optional) Set Discord bot token to enable Discord integration
 dokku config:set <app-name> DISCORD_OAUTH_TOKEN=your-token-here
@@ -110,8 +117,17 @@ dokku letsencrypt:enable <app-name>
 
 **Environment Variables:**
 - `WEB_URL` - The public URL where the web UI is hosted (used in Discord bot responses). Defaults to `http://localhost:3000`.
+- `DATABASE_URL` - SQLite database connection string. Defaults to `sqlite:./data/bot.db`. For production, use persistent storage.
 - `DISCORD_OAUTH_TOKEN` - Discord bot token. If not set, Discord integration is disabled but the web server still runs.
 - `PORT` - The port the web server binds to. Defaults to `3000`. Dokku automatically sets this.
+
+**Database:**
+The bot uses SQLite for persistence. All command usage is logged with timestamps, allowing for:
+- Per-user usage statistics
+- Total bot usage counts
+- Time-series analytics
+
+The database schema is automatically created and migrated on startup. Make sure to configure persistent storage in Dokku to prevent data loss on container restarts.
 
 **Note:** If you deploy via `git push dokku main` instead, Dokku will automatically detect the port from the Dockerfile's `EXPOSE` directive.
 

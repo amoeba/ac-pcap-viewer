@@ -12,6 +12,7 @@ use tower_http::trace::TraceLayer;
 use tracing::info;
 
 mod bot;
+mod db;
 mod discord;
 
 #[tokio::main]
@@ -28,6 +29,10 @@ async fn main() {
     println!("Starting bot (version: {})", env!("GIT_SHA_SHORT"));
     info!("Bot version: {}", env!("GIT_SHA"));
 
+    // Initialize database
+    let database = db::Database::init().await.expect("Failed to initialize database");
+    info!("Database initialized successfully");
+
     // Get Discord bot token (optional)
     if let Ok(discord_token) = std::env::var("DISCORD_OAUTH_TOKEN") {
         info!("Discord bot token found - starting bot");
@@ -40,8 +45,9 @@ async fn main() {
 
         // Spawn bot in background task
         let bot_token = discord_token.clone();
+        let bot_db = database.clone();
         tokio::spawn(async move {
-            if let Err(e) = bot::start_bot(bot_token, web_url).await {
+            if let Err(e) = bot::start_bot(bot_token, web_url, bot_db).await {
                 tracing::error!("Bot error: {}", e);
             }
         });
