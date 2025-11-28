@@ -18,12 +18,14 @@ fn try_main() -> Result<()> {
             let serve = std::env::args().any(|arg| arg == "--serve");
             bot(serve)
         }
+        Some("pcap") => pcap(),
         Some("install-wasm-bindgen") => install_wasm_bindgen(),
         Some(task) => bail!("Unknown task: {task}"),
         None => {
             eprintln!("Available tasks:");
             eprintln!("  cargo xtask bot         - Build WASM and bot");
             eprintln!("  cargo xtask bot --serve - Build WASM, bot, and run server");
+            eprintln!("  cargo xtask pcap        - Build WASM UI only (for static deployment)");
             eprintln!(
                 "  cargo xtask install-wasm-bindgen - Install wasm-bindgen CLI matching Cargo.lock"
             );
@@ -105,7 +107,7 @@ fn install_wasm_bindgen() -> Result<()> {
     Ok(())
 }
 
-fn bot(serve: bool) -> Result<()> {
+fn build_wasm() -> Result<(String, String)> {
     println!("🔨 Building WASM UI...");
 
     // Build WASM with wasm-pack using release profile for maximum size optimization
@@ -140,7 +142,7 @@ fn bot(serve: bool) -> Result<()> {
     let js_content =
         fs::read_to_string("crates/web/pkg/web.js").context("Failed to read JS file")?;
     let updated_js = js_content.replace("web_bg.wasm", &wasm_filename);
-    fs::write(format!("dist/{js_filename}"), updated_js)
+    fs::write(format!("dist/{js_filename}"), &updated_js)
         .context("Failed to write updated JS file")?;
     println!("  ✓ Copied and updated web.js -> {js_filename} (references {wasm_filename})");
 
@@ -188,6 +190,19 @@ fn bot(serve: bool) -> Result<()> {
     }
 
     println!("✅ Assets copied");
+
+    Ok((js_filename, wasm_filename))
+}
+
+fn pcap() -> Result<()> {
+    build_wasm()?;
+    println!("✅ PCAP UI build complete! Dist files ready in dist/");
+    Ok(())
+}
+
+fn bot(serve: bool) -> Result<()> {
+    build_wasm()?;
+
     println!("🔧 Building bot...");
 
     // Build bot

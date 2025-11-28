@@ -17,6 +17,8 @@ env:
   CARGO_TERM_COLOR: always
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  BOT_IMAGE_NAME: ${{ github.repository }}-bot
+  PCAP_IMAGE_NAME: ${{ github.repository }}-pcap
 
 jobs:
   # ====================
@@ -79,8 +81,8 @@ jobs:
       - name: Show sccache stats
         run: sccache --show-stats
 
-  build-image:
-    name: Build Docker Image
+  build-bot-image:
+    name: Build Bot Docker Image
     runs-on: ubuntu-latest
     needs: ci
     if: github.event.action != 'closed'
@@ -109,7 +111,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.BOT_IMAGE_NAME }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -123,21 +125,78 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./bot.Dockerfile
           # Only build amd64 for PRs and main branch, multi-arch for releases
           platforms: ${{ startsWith(github.ref, 'refs/tags/v') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=bot
+          cache-to: type=gha,mode=max,scope=bot
           # Enable BuildKit features (required for cache mounts)
           build-args: |
             BUILDKIT_INLINE_CACHE=1
 
-  deploy:
-    name: Deploy to Production
+  build-pcap-image:
+    name: Build PCAP Docker Image
     runs-on: ubuntu-latest
-    needs: build-image
+    needs: ci
+    if: github.event.action != 'closed'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            network=host
+          buildkitd-flags: --debug
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.PCAP_IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=ref,event=pr,suffix=-{{sha}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./pcap.Dockerfile
+          # Only build amd64 for PRs and main branch, multi-arch for releases
+          platforms: ${{ startsWith(github.ref, 'refs/tags/v') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=pcap
+          cache-to: type=gha,mode=max,scope=pcap
+          # Enable BuildKit features (required for cache mounts)
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+
+  deploy-bot:
+    name: Deploy Bot to Production
+    runs-on: ubuntu-latest
+    needs: build-bot-image
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - name: Generate image tag
@@ -153,10 +212,10 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy to Dokku
+      - name: Deploy bot to Dokku
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.image-tag.outputs.tag }}"
-          APP_NAME="${{ secrets.DOKKU_APP_NAME }}"
+          IMAGE="${{ env.REGISTRY }}/${{ env.BOT_IMAGE_NAME }}:${{ steps.image-tag.outputs.tag }}"
+          APP_NAME="bot"
           echo "Deploying $IMAGE to $APP_NAME"
 
           # Deploy the image
@@ -178,10 +237,54 @@ jobs:
               DOKKU_CHECKS_WAIT=60 \
               DOKKU_CHECKS_ATTEMPTS=3
 
-  deploy-preview:
-    name: Deploy Preview
+  deploy-pcap:
+    name: Deploy PCAP to Production
     runs-on: ubuntu-latest
-    needs: build-image
+    needs: build-pcap-image
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Generate image tag
+        id: image-tag
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Setup SSH for Dokku
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy PCAP to Dokku
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.PCAP_IMAGE_NAME }}:${{ steps.image-tag.outputs.tag }}"
+          APP_NAME="pcap"
+          echo "Deploying $IMAGE to $APP_NAME"
+
+          # Deploy the image
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            git:from-image $APP_NAME "$IMAGE"
+
+          # Wait a moment for the app to be created if it's new
+          sleep 5
+
+          # Configure health checks
+          echo "Configuring health checks..."
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            checks:enable $APP_NAME
+
+          # Set health check endpoint (checks /health)
+          # Timeout: 60 seconds, Attempts: 3
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            config:set --no-restart $APP_NAME \
+              DOKKU_CHECKS_WAIT=60 \
+              DOKKU_CHECKS_ATTEMPTS=3
+
+  deploy-preview:
+    name: Deploy PCAP Preview
+    runs-on: ubuntu-latest
+    needs: build-pcap-image
     permissions:
       pull-requests: write
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
@@ -189,7 +292,7 @@ jobs:
       - name: Generate preview app name
         id: app-name
         run: |
-          APP_NAME="${{ secrets.DOKKU_APP_NAME }}-preview"
+          APP_NAME="pcap-preview"
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
           echo "Preview app name: $APP_NAME"
 
@@ -209,7 +312,7 @@ jobs:
       - name: Create or update preview app
         run: |
           APP_NAME="${{ steps.app-name.outputs.app_name }}"
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.image-tag.outputs.tag }}"
+          IMAGE="${{ env.REGISTRY }}/${{ env.PCAP_IMAGE_NAME }}:${{ steps.image-tag.outputs.tag }}"
 
           echo "Deploying $IMAGE to $APP_NAME"
 
@@ -240,7 +343,7 @@ jobs:
       - name: Get preview URL
         id: preview-url
         run: |
-          URL="https://preview.pcap.treestats.net"
+          URL="https://pcap-preview.treestats.net"
           echo "Preview URL: $URL"
           echo "url=$URL" >> $GITHUB_OUTPUT
 
@@ -256,7 +359,7 @@ jobs:
             const commitUrl = 'https://github.com/${{ github.repository }}/commit/' + sha;
 
             const body = [
-              '## Preview Deployment',
+              '## PCAP Preview Deployment',
               '',
               '| | |',
               '|---|---|',
