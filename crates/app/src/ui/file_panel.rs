@@ -186,11 +186,10 @@ async fn fetch_discord_pcap(channel_id: &str, message_id: &str) -> Result<Vec<u8
     use wasm_bindgen_futures::JsFuture;
     use web_sys::{Request, RequestInit, Response};
 
-    // TODO: Factor out into config
-    let BASE_URL = "https://bot.treestats.net";
+    let base_url = std::env::var("BOT_BASE_URL").unwrap_or("https://bot.treestats.net".to_string());
     let url = format!(
         "{}/api/discord/channels/{}/messages/{}/attachments",
-        BASE_URL, channel_id, message_id
+        base_url, channel_id, message_id
     );
 
     let mut opts = RequestInit::new();
