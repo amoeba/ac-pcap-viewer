@@ -4,8 +4,6 @@ use crate::{PcapViewerApp, Tab};
 use eframe::egui;
 use lib::PacketParser;
 
-static BASE_URL: &str = "https://bot.treestats.net/";
-
 /// Parse PCAP data and update the app state
 pub fn parse_pcap_data(app: &mut PcapViewerApp, data: &[u8]) {
     app.is_loading = true;
@@ -189,6 +187,7 @@ async fn fetch_discord_pcap(channel_id: &str, message_id: &str) -> Result<Vec<u8
     use web_sys::{Request, RequestInit, Response};
 
     // TODO: Factor out into config
+    let BASE_URL = "https://bot.treestats.net/";
     let url = format!(
         "{}/api/discord/channels/{}/messages/{}/attachments",
         BASE_URL, channel_id, message_id
