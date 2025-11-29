@@ -1,12 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/lib",
-    "crates/cli",
-    "crates/app",
-    "crates/web",
-    "crates/bot",
-    "crates/xtask",
+  "crates/app",
+  "crates/cli",
+  "crates/lib",
+  "crates/web",
+  "crates/xtask",
 ]
 
 [workspace.package]
@@ -15,16 +14,16 @@ edition = "2021"
 
 [workspace.dependencies]
 anyhow = "1.0"
-thiserror = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+thiserror = "2.0"
 
 # Optimize release builds for size (especially for WASM)
 [profile.release]
-lto = true
 opt-level = "s"
-codegen-units = 1
 strip = true
+lto = true
+codegen-units = 1
 
 # Even smaller WASM builds
 [profile.release-wasm]
