@@ -7,6 +7,12 @@ use lib::{messages::ParsedMessage, ParsedPacket};
 
 /// Show detail content in the detail panel
 pub fn show_detail_content(app: &mut PcapViewerApp, ui: &mut egui::Ui) {
+    // For Weenies tab, show custom weenie detail view
+    if app.current_tab == Tab::Weenies {
+        super::weenie_panel::show_weenie_detail(app, ui);
+        return;
+    }
+
     // View mode toggle buttons
     ui.horizontal(|ui| {
         ui.selectable_value(&mut app.view_mode, ViewMode::Tree, "Tree");
@@ -46,6 +52,10 @@ pub fn show_detail_content(app: &mut PcapViewerApp, ui: &mut egui::Ui) {
                     ui.label("No packet selected");
                 }
             }
+            Tab::Weenies => {
+                // Handled at top of function
+                unreachable!("Weenies tab should be handled above")
+            }
         },
         ViewMode::Tree => match app.current_tab {
             Tab::Messages => {
@@ -82,6 +92,10 @@ pub fn show_detail_content(app: &mut PcapViewerApp, ui: &mut egui::Ui) {
                     ui.label("No packet selected");
                 }
             }
+            Tab::Weenies => {
+                // Handled at top of function
+                unreachable!("Weenies tab should be handled above")
+            }
         },
         ViewMode::Binary => match app.current_tab {
             Tab::Messages => {
@@ -105,6 +119,10 @@ pub fn show_detail_content(app: &mut PcapViewerApp, ui: &mut egui::Ui) {
                 } else {
                     ui.label("No packet selected");
                 }
+            }
+            Tab::Weenies => {
+                // Handled at top of function
+                unreachable!("Weenies tab should be handled above")
             }
         },
     }

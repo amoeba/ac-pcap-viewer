@@ -71,7 +71,7 @@ fn load_test_messages() -> Option<Vec<ParsedMessage>> {
 
     let mut parser = PacketParser::new();
     match parser.parse_pcap(file) {
-        Ok((_, messages)) => Some(messages),
+        Ok((_, messages, _weenie_db)) => Some(messages),
         Err(_) => None,
     }
 }

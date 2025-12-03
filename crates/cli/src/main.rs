@@ -29,7 +29,7 @@ pub enum Commands {
         filter_type: Option<String>,
 
         /// Filter by opcode (hex like 0xF7B1 or decimal like 63409)
-        #[arg(short = 'o', long)]
+        #[arg(short = 'c', long)]
         filter_opcode: Option<String>,
 
         /// Filter by direction (Send/Recv)
@@ -76,6 +76,33 @@ pub enum Commands {
         output: OutputFormat,
     },
 
+    /// Show weenies/objects aggregated from the PCAP
+    Weenies {
+        /// Filter by ObjectID (exact match or substring)
+        #[arg(short = 'i', long)]
+        object_id: Option<String>,
+
+        /// Filter by name (substring match)
+        #[arg(short = 'n', long)]
+        name: Option<String>,
+
+        /// Sort by field
+        #[arg(short, long, default_value = "id")]
+        sort: WeenieSortField,
+
+        /// Reverse sort order
+        #[arg(short, long)]
+        reverse: bool,
+
+        /// Limit number of results
+        #[arg(short, long)]
+        limit: Option<usize>,
+
+        /// Output format
+        #[arg(short, long, default_value = "jsonl")]
+        output: OutputFormat,
+    },
+
     /// Show summary statistics
     Summary,
 
@@ -104,17 +131,30 @@ pub enum FragmentSortField {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
+pub enum WeenieSortField {
+    Id,
+    Name,
+    Properties,
+    Messages,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
 pub enum OutputFormat {
     Jsonl,
     Json,
     Table,
 }
 
-fn print_summary(packets: &[ParsedPacket], messages: &[ParsedMessage]) {
+fn print_summary(
+    packets: &[ParsedPacket],
+    messages: &[ParsedMessage],
+    weenie_db: &lib::weenie::WeenieDatabase,
+) {
     println!("=== PCAP Summary ===\n");
 
     println!("Packets: {}", packets.len());
     println!("Messages: {}", messages.len());
+    println!("Weenies: {}", weenie_db.count());
 
     let send_packets = packets
         .iter()
@@ -329,6 +369,111 @@ fn truncate(s: &str, max_len: usize) -> String {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn output_weenies(
+    weenie_db: &lib::weenie::WeenieDatabase,
+    object_id_filter: Option<&str>,
+    name_filter: Option<&str>,
+    sort: WeenieSortField,
+    reverse: bool,
+    limit: Option<usize>,
+    output: OutputFormat,
+) {
+    let mut weenies: Vec<_> = weenie_db.sorted_weenies();
+
+    // Apply filters
+    weenies.retain(|w| {
+        if let Some(id_filter) = object_id_filter {
+            if !w.object_id.to_string().contains(id_filter) {
+                return false;
+            }
+        }
+        if let Some(name_filter) = name_filter {
+            if let Some(ref name) = w.name {
+                if !name.to_lowercase().contains(&name_filter.to_lowercase()) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        true
+    });
+
+    // Sort
+    weenies.sort_by(|a, b| {
+        let cmp = match sort {
+            WeenieSortField::Id => a.object_id.cmp(&b.object_id),
+            WeenieSortField::Name => a
+                .name
+                .as_deref()
+                .unwrap_or("")
+                .cmp(b.name.as_deref().unwrap_or("")),
+            WeenieSortField::Properties => {
+                let a_count = a.int_properties.len()
+                    + a.int64_properties.len()
+                    + a.bool_properties.len()
+                    + a.float_properties.len()
+                    + a.string_properties.len()
+                    + a.data_id_properties.len()
+                    + a.instance_id_properties.len();
+                let b_count = b.int_properties.len()
+                    + b.int64_properties.len()
+                    + b.bool_properties.len()
+                    + b.float_properties.len()
+                    + b.string_properties.len()
+                    + b.data_id_properties.len()
+                    + b.instance_id_properties.len();
+                a_count.cmp(&b_count)
+            }
+            WeenieSortField::Messages => a.message_count.cmp(&b.message_count),
+        };
+        if reverse {
+            cmp.reverse()
+        } else {
+            cmp
+        }
+    });
+
+    if let Some(lim) = limit {
+        weenies.truncate(lim);
+    }
+
+    match output {
+        OutputFormat::Jsonl => {
+            for weenie in weenies {
+                println!("{}", serde_json::to_string(&weenie).unwrap());
+            }
+        }
+        OutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&weenies).unwrap());
+        }
+        OutputFormat::Table => {
+            println!(
+                "{:>10}  {:40}  {:>6}  {:>6}",
+                "ObjectID", "Name", "Props", "Msgs"
+            );
+            println!("{}", "-".repeat(68));
+            for weenie in weenies {
+                let prop_count = weenie.int_properties.len()
+                    + weenie.int64_properties.len()
+                    + weenie.bool_properties.len()
+                    + weenie.float_properties.len()
+                    + weenie.string_properties.len()
+                    + weenie.data_id_properties.len()
+                    + weenie.instance_id_properties.len();
+                println!(
+                    "{:>10}  {:40}  {:>6}  {:>6}",
+                    weenie.object_id,
+                    truncate(weenie.name.as_deref().unwrap_or("<unknown>"), 40),
+                    prop_count,
+                    weenie.message_count
+                );
+            }
+        }
+    }
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -337,14 +482,15 @@ fn main() -> Result<()> {
     eprintln!("Parsing PCAP file: {}", cli.file);
 
     let file = File::open(&cli.file).context("Failed to open pcap file")?;
-    let (packets, messages) = parser
+    let (packets, messages, weenie_db) = parser
         .parse_pcap(file)
         .context("Failed to parse pcap file")?;
 
     eprintln!(
-        "Found {} packets, {} messages",
+        "Found {} packets, {} messages, {} weenies",
         packets.len(),
-        messages.len()
+        messages.len(),
+        weenie_db.count()
     );
 
     match cli.command {
@@ -377,8 +523,26 @@ fn main() -> Result<()> {
         }) => {
             output_fragments(&packets, direction, sort, reverse, limit, output);
         }
+        Some(Commands::Weenies {
+            object_id,
+            name,
+            sort,
+            reverse,
+            limit,
+            output,
+        }) => {
+            output_weenies(
+                &weenie_db,
+                object_id.as_deref(),
+                name.as_deref(),
+                sort,
+                reverse,
+                limit,
+                output,
+            );
+        }
         Some(Commands::Summary) => {
-            print_summary(&packets, &messages);
+            print_summary(&packets, &messages, &weenie_db);
         }
         Some(Commands::Tui) => {
             tui::run_tui(messages, packets)?;

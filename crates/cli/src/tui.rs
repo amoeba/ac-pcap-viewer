@@ -180,6 +180,9 @@ impl App {
                 };
                 self.packet_state.select(Some(i));
             }
+            Tab::Weenies => {
+                // TODO: Implement weenie navigation
+            }
         }
     }
 
@@ -198,6 +201,9 @@ impl App {
                     None => 0,
                 };
                 self.packet_state.select(Some(i));
+            }
+            Tab::Weenies => {
+                // TODO: Implement weenie navigation
             }
         }
     }
@@ -226,6 +232,9 @@ impl App {
                 };
                 self.packet_state.select(Some(i));
             }
+            Tab::Weenies => {
+                // TODO: Implement weenie pagination
+            }
         }
     }
 
@@ -245,6 +254,9 @@ impl App {
                 };
                 self.packet_state.select(Some(i));
             }
+            Tab::Weenies => {
+                // TODO: Implement weenie pagination
+            }
         }
     }
 
@@ -256,6 +268,9 @@ impl App {
                     MessageSort::Type => MessageSort::Direction,
                     MessageSort::Direction => MessageSort::Id,
                 };
+            }
+            Tab::Weenies => {
+                // TODO: Implement weenie sorting
             }
             Tab::Fragments => {
                 self.packet_sort = match self.packet_sort {
@@ -341,7 +356,8 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
                 KeyCode::Tab => {
                     app.current_tab = match app.current_tab {
                         Tab::Messages => Tab::Fragments,
-                        Tab::Fragments => Tab::Messages,
+                        Tab::Fragments => Tab::Weenies,
+                        Tab::Weenies => Tab::Messages,
                     };
                 }
                 KeyCode::Down | KeyCode::Char('j') => app.next(),
@@ -366,6 +382,9 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
                             {
                                 app.packet_state.select(Some(0));
                             }
+                        }
+                        Tab::Weenies => {
+                            // TODO: Implement weenie selection state
                         }
                     }
                     app.show_detail = !app.show_detail;
@@ -399,6 +418,9 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
                 KeyCode::Home => match app.current_tab {
                     Tab::Messages => app.message_state.select(Some(0)),
                     Tab::Fragments => app.packet_state.select(Some(0)),
+                    Tab::Weenies => {
+                        // TODO: Implement weenie navigation
+                    }
                 },
                 KeyCode::End => match app.current_tab {
                     Tab::Messages => {
@@ -412,6 +434,9 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
                         if len > 0 {
                             app.packet_state.select(Some(len - 1));
                         }
+                    }
+                    Tab::Weenies => {
+                        // TODO: Implement weenie navigation
                     }
                 },
                 _ => {}
@@ -430,7 +455,7 @@ fn ui(f: &mut Frame, app: &mut App) {
         ])
         .split(f.area());
 
-    let titles = vec!["Messages", "Fragments"];
+    let titles = vec!["Messages", "Fragments", "Weenies"];
     let tabs = Tabs::new(titles)
         .block(
             Block::default()
@@ -440,6 +465,7 @@ fn ui(f: &mut Frame, app: &mut App) {
         .select(match app.current_tab {
             Tab::Messages => 0,
             Tab::Fragments => 1,
+            Tab::Weenies => 2,
         })
         .style(Style::default().fg(Color::White))
         .highlight_style(
@@ -455,6 +481,13 @@ fn ui(f: &mut Frame, app: &mut App) {
         match app.current_tab {
             Tab::Messages => render_messages_table(f, app, chunks[1]),
             Tab::Fragments => render_packets_table(f, app, chunks[1]),
+            Tab::Weenies => {
+                // TODO: Implement weenie table rendering
+                let block = Block::default()
+                    .borders(Borders::ALL)
+                    .title("Weenies (Not implemented in TUI mode)");
+                f.render_widget(block, chunks[1]);
+            }
         }
     }
 
@@ -480,6 +513,7 @@ fn ui(f: &mut Frame, app: &mut App) {
                 PacketSort::Sequence => "Seq",
                 PacketSort::Direction => "Dir",
             },
+            Tab::Weenies => "ID", // TODO: Implement weenie sorting
         };
 
         let dir_filter = match app.filter_direction.as_deref() {
@@ -637,6 +671,7 @@ fn render_detail(f: &mut Frame, app: &App, area: Rect) {
                 "No packet selected".to_string()
             }
         }
+        Tab::Weenies => "Weenie detail view not implemented in TUI mode".to_string(),
     };
 
     let paragraph = Paragraph::new(content)
