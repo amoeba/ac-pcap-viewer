@@ -6,7 +6,7 @@ fn main() {
     let file = File::open(pcap_path).expect("Failed to open test PCAP file");
 
     let mut parser = PacketParser::new();
-    let (_, messages) = parser.parse_pcap(file).expect("Failed to parse PCAP file");
+    let (_, messages, _weenie_db) = parser.parse_pcap(file).expect("Failed to parse PCAP file");
 
     // Find message id 9
     if let Some(msg) = messages.iter().find(|m| m.id == 9) {

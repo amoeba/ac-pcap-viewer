@@ -337,7 +337,7 @@ fn main() -> Result<()> {
     eprintln!("Parsing PCAP file: {}", cli.file);
 
     let file = File::open(&cli.file).context("Failed to open pcap file")?;
-    let (packets, messages) = parser
+    let (packets, messages, _weenie_db) = parser
         .parse_pcap(file)
         .context("Failed to parse pcap file")?;
 

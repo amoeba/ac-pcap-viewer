@@ -6,6 +6,7 @@ pub mod detail_panel;
 pub mod file_panel;
 pub mod hyper_tree;
 pub mod packet_list;
+pub mod weenie_panel;
 
 // TODO: Re-enable these re-exports when the UI components are implemented
 // pub use detail_panel::*;

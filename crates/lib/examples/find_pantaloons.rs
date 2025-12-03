@@ -16,7 +16,7 @@ fn main() {
     let file = File::open(pcap_path).expect("Failed to open test PCAP file");
 
     let mut parser = PacketParser::new();
-    let (_, messages) = parser.parse_pcap(file).expect("Failed to parse PCAP file");
+    let (_, messages, _weenie_db) = parser.parse_pcap(file).expect("Failed to parse PCAP file");
 
     println!("Total messages: {}", messages.len());
 

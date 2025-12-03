@@ -17,6 +17,8 @@ pub mod messages;
 pub mod properties;
 pub mod protocol;
 pub mod serialization;
+pub mod weenie;
+pub mod weenie_extractor;
 
 use protocol::{BinaryReader, Fragment, FragmentHeader, PacketHeader, PacketHeaderFlags};
 
@@ -45,6 +47,7 @@ pub enum Tab {
     #[default]
     Messages,
     Fragments,
+    Weenies,
 }
 
 /// UI view mode
@@ -116,7 +119,11 @@ impl PacketParser {
     pub fn parse_pcap<R: Read>(
         &mut self,
         mut reader: R,
-    ) -> Result<(Vec<ParsedPacket>, Vec<messages::ParsedMessage>)> {
+    ) -> Result<(
+        Vec<ParsedPacket>,
+        Vec<messages::ParsedMessage>,
+        weenie::WeenieDatabase,
+    )> {
         let mut buffer = Vec::new();
         reader
             .read_to_end(&mut buffer)
@@ -129,9 +136,14 @@ impl PacketParser {
     pub fn parse_pcap_bytes(
         &mut self,
         buffer: &[u8],
-    ) -> Result<(Vec<ParsedPacket>, Vec<messages::ParsedMessage>)> {
+    ) -> Result<(
+        Vec<ParsedPacket>,
+        Vec<messages::ParsedMessage>,
+        weenie::WeenieDatabase,
+    )> {
         let mut packets = Vec::new();
         let mut all_messages = Vec::new();
+        let mut weenie_db = weenie::WeenieDatabase::new();
         let mut packet_id = 0;
         let mut message_id = 0;
 
@@ -169,6 +181,16 @@ impl PacketParser {
                                 ) {
                                     Ok((mut parsed_packets, msgs)) => {
                                         packets.append(&mut parsed_packets);
+
+                                        // Extract weenie updates from each message
+                                        for msg in &msgs {
+                                            let updates =
+                                                weenie_extractor::extract_weenie_updates(msg);
+                                            for update in updates {
+                                                weenie_db.add_or_update(update);
+                                            }
+                                        }
+
                                         all_messages.extend(msgs);
                                     }
                                     Err(_e) => {
@@ -193,7 +215,7 @@ impl PacketParser {
             }
         }
 
-        Ok((packets, all_messages))
+        Ok((packets, all_messages, weenie_db))
     }
 
     fn parse_packet(

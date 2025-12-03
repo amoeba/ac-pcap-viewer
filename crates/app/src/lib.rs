@@ -24,6 +24,7 @@ pub struct PcapViewerApp {
     // Data
     pub messages: Vec<ParsedMessage>,
     pub packets: Vec<ParsedPacket>,
+    pub weenie_db: lib::weenie::WeenieDatabase,
 
     // UI State
     pub current_tab: Tab,
@@ -90,6 +91,7 @@ impl Default for PcapViewerApp {
         Self {
             messages: Vec::new(),
             packets: Vec::new(),
+            weenie_db: lib::weenie::WeenieDatabase::new(),
             current_tab: Tab::Messages,
             selected_message: None,
             selected_packet: None,
@@ -256,6 +258,9 @@ impl PcapViewerApp {
                     .collect();
                 self.fragments_scrubber
                     .set_marked_timestamps(marked_timestamps);
+            }
+            Tab::Weenies => {
+                // TODO: Implement weenie marking (weenies don't have timestamps yet)
             }
         }
     }
@@ -474,6 +479,12 @@ impl eframe::App for PcapViewerApp {
                         {
                             self.current_tab = Tab::Fragments;
                         }
+                        if ui
+                            .selectable_label(self.current_tab == Tab::Weenies, "Obj")
+                            .clicked()
+                        {
+                            self.current_tab = Tab::Weenies;
+                        }
 
                         ui.separator();
 
@@ -511,6 +522,7 @@ impl eframe::App for PcapViewerApp {
                         let has_marks = match self.current_tab {
                             Tab::Messages => !self.marked_messages.is_empty(),
                             Tab::Fragments => !self.marked_packets.is_empty(),
+                            Tab::Weenies => false, // TODO: Implement weenie marking
                         };
                         ui.add_enabled_ui(has_marks, |ui| {
                             if ui.button("✕").on_hover_text("Clear marks").clicked() {
@@ -522,6 +534,9 @@ impl eframe::App for PcapViewerApp {
                                     Tab::Fragments => {
                                         self.marked_packets.clear();
                                         self.fragments_scrubber.clear_marked_timestamps();
+                                    }
+                                    Tab::Weenies => {
+                                        // TODO: Implement weenie marking
                                     }
                                 }
                             }
@@ -565,6 +580,12 @@ impl eframe::App for PcapViewerApp {
                     {
                         self.current_tab = Tab::Fragments;
                     }
+                    if ui
+                        .selectable_label(self.current_tab == Tab::Weenies, "Weenies")
+                        .clicked()
+                    {
+                        self.current_tab = Tab::Weenies;
+                    }
 
                     ui.separator();
 
@@ -605,6 +626,7 @@ impl eframe::App for PcapViewerApp {
                     let has_marks = match self.current_tab {
                         Tab::Messages => !self.marked_messages.is_empty(),
                         Tab::Fragments => !self.marked_packets.is_empty(),
+                        Tab::Weenies => false, // TODO: Implement weenie marking
                     };
                     ui.add_enabled_ui(has_marks, |ui| {
                         if ui.button("Reset").on_hover_text("Clear marks").clicked() {
@@ -616,6 +638,9 @@ impl eframe::App for PcapViewerApp {
                                 Tab::Fragments => {
                                     self.marked_packets.clear();
                                     self.fragments_scrubber.clear_marked_timestamps();
+                                }
+                                Tab::Weenies => {
+                                    // TODO: Implement weenie marking
                                 }
                             }
                         }
@@ -777,6 +802,7 @@ impl eframe::App for PcapViewerApp {
             let scrubber_has_data = match self.current_tab {
                 Tab::Messages => self.messages_scrubber.has_data(),
                 Tab::Fragments => self.fragments_scrubber.has_data(),
+                Tab::Weenies => false, // Weenies don't have time scrubbers
             };
 
             if scrubber_has_data {
@@ -787,6 +813,7 @@ impl eframe::App for PcapViewerApp {
                         let result = match self.current_tab {
                             Tab::Messages => self.messages_scrubber.show(ui),
                             Tab::Fragments => self.fragments_scrubber.show(ui),
+                            Tab::Weenies => unreachable!("Weenies don't have time scrubbers"),
                         };
 
                         // Check if user clicked
@@ -794,6 +821,7 @@ impl eframe::App for PcapViewerApp {
                             clicked_time = match self.current_tab {
                                 Tab::Messages => self.messages_scrubber.get_hover_time(),
                                 Tab::Fragments => self.fragments_scrubber.get_hover_time(),
+                                Tab::Weenies => unreachable!("Weenies don't have time scrubbers"),
                             };
                         }
 
@@ -803,6 +831,9 @@ impl eframe::App for PcapViewerApp {
                                 Tab::Messages => {
                                     self.marked_messages.clear();
                                     self.messages_scrubber.clear_marked_timestamps();
+                                }
+                                Tab::Weenies => {
+                                    // TODO: Implement weenie marking
                                 }
                                 Tab::Fragments => {
                                     self.marked_packets.clear();
@@ -853,6 +884,10 @@ impl eframe::App for PcapViewerApp {
                     if let Some(idx) = closest_idx {
                         self.selected_packet = Some(idx);
                     }
+                }
+                Tab::Weenies => {
+                    // Weenies don't have time scrubbers, so this shouldn't happen
+                    unreachable!("Weenies don't have time scrubbers")
                 }
             }
         }
@@ -985,6 +1020,7 @@ impl eframe::App for PcapViewerApp {
                 match self.current_tab {
                     Tab::Messages => ui::packet_list::show_messages_list(self, ui, is_mobile),
                     Tab::Fragments => ui::packet_list::show_packets_list(self, ui, is_mobile),
+                    Tab::Weenies => ui::weenie_panel::show_weenie_list(self, ui, is_mobile),
                 }
             }
         });

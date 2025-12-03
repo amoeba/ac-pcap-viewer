@@ -14,14 +14,16 @@ pub fn parse_pcap_data(app: &mut PcapViewerApp, data: &[u8]) {
 
     let mut parser = PacketParser::new();
     match parser.parse_pcap_bytes(data) {
-        Ok((packets, messages)) => {
+        Ok((packets, messages, weenie_db)) => {
             app.status_message = format!(
-                "Loaded {} packets, {} messages",
+                "Loaded {} packets, {} messages, {} weenies",
                 packets.len(),
-                messages.len()
+                messages.len(),
+                weenie_db.count()
             );
             app.packets = packets;
             app.messages = messages;
+            app.weenie_db = weenie_db;
 
             // Clear any URL load errors on success
             app.url_load_error = None;
