@@ -111,7 +111,7 @@ fn extract_qualities_update_int(message: &ParsedMessage) -> Option<WeenieUpdate>
     let key = message.data.get("Key")?.as_str()?;
     let value = message.data.get("Value")?.as_i64()? as i32;
 
-    let mut update = WeenieUpdate::new(object_id, message.timestamp);
+    let mut update = WeenieUpdate::new(object_id, message.timestamp, message.id);
     update.int_properties.insert(key.to_string(), value);
     Some(update)
 }
@@ -121,7 +121,7 @@ fn extract_qualities_update_instance_id(message: &ParsedMessage) -> Option<Weeni
     let key = message.data.get("Key")?.as_str()?;
     let value = message.data.get("Value")?.as_u64()? as u32;
 
-    let mut update = WeenieUpdate::new(object_id, message.timestamp);
+    let mut update = WeenieUpdate::new(object_id, message.timestamp, message.id);
     update.instance_id_properties.insert(key.to_string(), value);
     Some(update)
 }
@@ -131,7 +131,7 @@ fn extract_qualities_update_bool(message: &ParsedMessage) -> Option<WeenieUpdate
     let key = message.data.get("Key")?.as_str()?;
     let value = message.data.get("Value")?.as_bool()?;
 
-    let mut update = WeenieUpdate::new(object_id, message.timestamp);
+    let mut update = WeenieUpdate::new(object_id, message.timestamp, message.id);
     update.bool_properties.insert(key.to_string(), value);
     Some(update)
 }
@@ -141,7 +141,7 @@ fn extract_qualities_update_float(message: &ParsedMessage) -> Option<WeenieUpdat
     let key = message.data.get("Key")?.as_str()?;
     let value = message.data.get("Value")?.as_f64()?;
 
-    let mut update = WeenieUpdate::new(object_id, message.timestamp);
+    let mut update = WeenieUpdate::new(object_id, message.timestamp, message.id);
     update.float_properties.insert(key.to_string(), value);
     Some(update)
 }
@@ -151,7 +151,7 @@ fn extract_qualities_update_string(message: &ParsedMessage) -> Option<WeenieUpda
     let key = message.data.get("Key")?.as_str()?;
     let value = message.data.get("Value")?.as_str()?;
 
-    let mut update = WeenieUpdate::new(object_id, message.timestamp);
+    let mut update = WeenieUpdate::new(object_id, message.timestamp, message.id);
     update
         .string_properties
         .insert(key.to_string(), value.to_string());
@@ -163,7 +163,7 @@ fn extract_qualities_update_int64(message: &ParsedMessage) -> Option<WeenieUpdat
     let key = message.data.get("Key")?.as_str()?;
     let value = message.data.get("Value")?.as_i64()?;
 
-    let mut update = WeenieUpdate::new(object_id, message.timestamp);
+    let mut update = WeenieUpdate::new(object_id, message.timestamp, message.id);
     update.int64_properties.insert(key.to_string(), value);
     Some(update)
 }
@@ -173,7 +173,7 @@ fn extract_qualities_update_data_id(message: &ParsedMessage) -> Option<WeenieUpd
     let key = message.data.get("Key")?.as_str()?;
     let value = message.data.get("Value")?.as_u64()? as u32;
 
-    let mut update = WeenieUpdate::new(object_id, message.timestamp);
+    let mut update = WeenieUpdate::new(object_id, message.timestamp, message.id);
     update.data_id_properties.insert(key.to_string(), value);
     Some(update)
 }
@@ -186,7 +186,7 @@ fn extract_appraise_info(message: &ParsedMessage) -> Option<WeenieUpdate> {
         .or_else(|| message.data.get("ObjectId"))?
         .as_u64()? as u32;
 
-    let mut update = WeenieUpdate::new(object_id, message.timestamp);
+    let mut update = WeenieUpdate::new(object_id, message.timestamp, message.id);
 
     // Extract properties from all property dictionaries (they're directly in message.data)
     if let Some(int_props) = message
@@ -275,7 +275,7 @@ fn extract_contain_id(message: &ParsedMessage) -> Option<WeenieUpdate> {
     let object_id = message.data.get("ObjectId")?.as_u64()? as u32;
     let container_id = message.data.get("ContainerId")?.as_u64()? as u32;
 
-    let mut update = WeenieUpdate::new(object_id, message.timestamp);
+    let mut update = WeenieUpdate::new(object_id, message.timestamp, message.id);
     update
         .instance_id_properties
         .insert("Container".to_string(), container_id);
@@ -285,38 +285,38 @@ fn extract_contain_id(message: &ParsedMessage) -> Option<WeenieUpdate> {
 fn extract_wear_item(message: &ParsedMessage) -> Option<WeenieUpdate> {
     let object_id = message.data.get("ObjectId")?.as_u64()? as u32;
 
-    let update = WeenieUpdate::new(object_id, message.timestamp);
+    let update = WeenieUpdate::new(object_id, message.timestamp, message.id);
     Some(update)
 }
 
 fn extract_enchantment(message: &ParsedMessage) -> Option<WeenieUpdate> {
     let caster_id = message.data.get("CasterId")?.as_u64()? as u32;
 
-    let update = WeenieUpdate::new(caster_id, message.timestamp);
+    let update = WeenieUpdate::new(caster_id, message.timestamp, message.id);
     Some(update)
 }
 
 fn extract_movement_object(message: &ParsedMessage) -> Option<WeenieUpdate> {
     let object_id = message.data.get("ObjectId")?.as_u64()? as u32;
-    let update = WeenieUpdate::new(object_id, message.timestamp);
+    let update = WeenieUpdate::new(object_id, message.timestamp, message.id);
     Some(update)
 }
 
 fn extract_pickup_event(message: &ParsedMessage) -> Option<WeenieUpdate> {
     let object_id = message.data.get("ObjectId")?.as_u64()? as u32;
-    let update = WeenieUpdate::new(object_id, message.timestamp);
+    let update = WeenieUpdate::new(object_id, message.timestamp, message.id);
     Some(update)
 }
 
 fn extract_obj_desc_event(message: &ParsedMessage) -> Option<WeenieUpdate> {
     let object_id = message.data.get("ObjectId")?.as_u64()? as u32;
-    let update = WeenieUpdate::new(object_id, message.timestamp);
+    let update = WeenieUpdate::new(object_id, message.timestamp, message.id);
     Some(update)
 }
 
 fn extract_hear_speech(message: &ParsedMessage) -> Option<WeenieUpdate> {
     let sender_id = message.data.get("SenderId")?.as_u64()? as u32;
-    let update = WeenieUpdate::new(sender_id, message.timestamp);
+    let update = WeenieUpdate::new(sender_id, message.timestamp, message.id);
     Some(update)
 }
 

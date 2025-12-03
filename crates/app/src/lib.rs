@@ -30,6 +30,7 @@ pub struct PcapViewerApp {
     pub current_tab: Tab,
     pub selected_message: Option<usize>,
     pub selected_packet: Option<usize>,
+    pub selected_weenie: Option<usize>,
     pub search_query: String,
     pub sort_field: SortField,
     pub sort_ascending: bool,
@@ -95,6 +96,7 @@ impl Default for PcapViewerApp {
             current_tab: Tab::Messages,
             selected_message: None,
             selected_packet: None,
+            selected_weenie: None,
             search_query: String::new(),
             sort_field: SortField::Id,
             sort_ascending: true,
@@ -1020,7 +1022,7 @@ impl eframe::App for PcapViewerApp {
                 match self.current_tab {
                     Tab::Messages => ui::packet_list::show_messages_list(self, ui, is_mobile),
                     Tab::Fragments => ui::packet_list::show_packets_list(self, ui, is_mobile),
-                    Tab::Weenies => ui::weenie_panel::show_weenie_list(self, ui, is_mobile),
+                    Tab::Weenies => ui::weenie_panel::show_weenie_panel(self, ui, is_mobile),
                 }
             }
         });

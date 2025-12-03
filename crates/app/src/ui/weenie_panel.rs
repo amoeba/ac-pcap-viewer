@@ -1,338 +1,288 @@
-//! Weenie (game object) list and detail display
-//!
-//! This module provides UI components for displaying weenies (game objects)
-//! aggregated from PCAP messages.
-
 use crate::PcapViewerApp;
 use eframe::egui;
-use lib::weenie::Weenie;
+use egui::ScrollArea;
+use egui_extras::{Column, TableBuilder};
+use lib::Tab;
 
-/// Show the weenie list with search and detail panel
-pub fn show_weenie_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: bool) {
-    let weenies = app.weenie_db.sorted_weenies();
+pub fn show_weenie_panel(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: bool) {
+    // Clone weenies to avoid borrow checker issues
+    let weenies: Vec<lib::weenie::Weenie> = app
+        .weenie_db
+        .sorted_weenies()
+        .into_iter()
+        .cloned()
+        .collect();
 
-    if weenies.is_empty() {
-        ui.centered_and_justified(|ui| {
-            ui.label("No weenies found in PCAP");
-        });
-        return;
-    }
+    ui.horizontal(|ui| {
+        ui.heading("Weenies");
+        ui.label(format!("({} objects)", weenies.len()));
+    });
 
-    // Filter weenies based on search query
-    let search = app.search_query.to_lowercase();
-    let filtered_weenies: Vec<&Weenie> = if search.is_empty() {
-        weenies
-    } else {
-        weenies
-            .into_iter()
-            .filter(|w| {
-                // Search by object ID
-                if w.object_id.to_string().contains(&search) {
-                    return true;
-                }
+    ui.separator();
 
-                // Search by name
-                if let Some(ref name) = w.name {
-                    if name.to_lowercase().contains(&search) {
-                        return true;
-                    }
-                }
+    // Filter input
+    ui.horizontal(|ui| {
+        ui.label("Filter:");
+        ui.text_edit_singleline(&mut app.search_query);
+        if ui.button("Clear").clicked() {
+            app.search_query.clear();
+        }
+    });
 
-                // Search in properties (convert to JSON and search)
-                let json = serde_json::to_string(w).unwrap_or_default();
-                json.to_lowercase().contains(&search)
-            })
-            .collect()
-    };
+    ui.separator();
 
-    // Create a table with weenie information
-    egui::ScrollArea::vertical()
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            // Header
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 10.0;
-
-                if is_mobile {
-                    ui.label(egui::RichText::new("ID").strong());
-                    ui.separator();
-                    ui.label(egui::RichText::new("Name").strong());
-                } else {
-                    ui.label(
-                        egui::RichText::new(format!("{:>10}", "Object ID"))
-                            .strong()
-                            .monospace(),
-                    );
-                    ui.separator();
-                    ui.label(egui::RichText::new("Name").strong());
-                    ui.separator();
-                    ui.label(
-                        egui::RichText::new(format!("{:>6}", "Props"))
-                            .strong()
-                            .monospace(),
-                    );
-                    ui.separator();
-                    ui.label(
-                        egui::RichText::new(format!("{:>6}", "Msgs"))
-                            .strong()
-                            .monospace(),
-                    );
-                }
-            });
-
-            ui.separator();
-
-            // Rows
-            for (idx, weenie) in filtered_weenies.iter().enumerate() {
-                let is_selected = app.selected_message == Some(idx); // Reuse selected_message for weenie selection
-
-                let response = ui
-                    .horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 10.0;
-
-                        if is_mobile {
-                            // Mobile: compact layout
-                            ui.selectable_label(
-                                is_selected,
-                                format!(
-                                    "{} - {}",
-                                    weenie.object_id,
-                                    weenie.name.as_deref().unwrap_or("<unknown>")
-                                ),
-                            )
-                        } else {
-                            // Desktop: full layout
-                            // Count total properties
-                            let prop_count = weenie.int_properties.len()
-                                + weenie.int64_properties.len()
-                                + weenie.bool_properties.len()
-                                + weenie.float_properties.len()
-                                + weenie.string_properties.len()
-                                + weenie.data_id_properties.len()
-                                + weenie.instance_id_properties.len();
-
-                            let label_text = format!(
-                                "{:>10}  {:40}  {:>6}  {:>6}",
-                                weenie.object_id,
-                                truncate_string(weenie.name.as_deref().unwrap_or("<unknown>"), 40),
-                                prop_count,
-                                weenie.message_count
-                            );
-
-                            ui.selectable_label(
-                                is_selected,
-                                egui::RichText::new(label_text).monospace(),
-                            )
-                        }
-                    })
-                    .inner;
-
-                if response.clicked() {
-                    app.selected_message = Some(idx);
-                    if is_mobile {
-                        app.show_detail_panel = true;
-                    }
-                }
+    // Filter weenies
+    let filter_lower = app.search_query.to_lowercase();
+    let filtered_weenies: Vec<&lib::weenie::Weenie> = weenies
+        .iter()
+        .filter(|w| {
+            if filter_lower.is_empty() {
+                true
+            } else {
+                w.object_id.to_string().contains(&filter_lower)
+                    || w.name
+                        .as_ref()
+                        .map(|n| n.to_lowercase().contains(&filter_lower))
+                        .unwrap_or(false)
             }
+        })
+        .collect();
+
+    if is_mobile {
+        show_mobile_weenie_list(app, ui, &filtered_weenies);
+    } else {
+        show_desktop_weenie_table(app, ui, &filtered_weenies);
+    }
+}
+
+fn show_mobile_weenie_list(
+    app: &mut PcapViewerApp,
+    ui: &mut egui::Ui,
+    weenies: &[&lib::weenie::Weenie],
+) {
+    ScrollArea::vertical().show(ui, |ui| {
+        for (idx, weenie) in weenies.iter().enumerate() {
+            let is_selected = app.selected_weenie == Some(idx);
+
+            if ui
+                .selectable_label(
+                    is_selected,
+                    format!(
+                        "{} - {}",
+                        weenie.object_id,
+                        weenie.name.as_deref().unwrap_or("<unknown>")
+                    ),
+                )
+                .clicked()
+            {
+                app.selected_weenie = Some(idx);
+            }
+        }
+    });
+}
+
+fn show_desktop_weenie_table(
+    app: &mut PcapViewerApp,
+    ui: &mut egui::Ui,
+    weenies: &[&lib::weenie::Weenie],
+) {
+    TableBuilder::new(ui)
+        .striped(true)
+        .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+        .column(Column::auto().at_least(100.0)) // ObjectID
+        .column(Column::remainder().at_least(200.0)) // Name
+        .column(Column::auto().at_least(60.0)) // Props
+        .column(Column::auto().at_least(60.0)) // Msgs
+        .header(20.0, |mut header| {
+            header.col(|ui| {
+                ui.strong("ObjectID");
+            });
+            header.col(|ui| {
+                ui.strong("Name");
+            });
+            header.col(|ui| {
+                ui.strong("Props");
+            });
+            header.col(|ui| {
+                ui.strong("Msgs");
+            });
+        })
+        .body(|body| {
+            body.rows(20.0, weenies.len(), |mut row| {
+                let row_index = row.index();
+                let weenie = weenies[row_index];
+                let is_selected = app.selected_weenie == Some(row_index);
+
+                let prop_count = weenie.int_properties.len()
+                    + weenie.int64_properties.len()
+                    + weenie.bool_properties.len()
+                    + weenie.float_properties.len()
+                    + weenie.string_properties.len()
+                    + weenie.data_id_properties.len()
+                    + weenie.instance_id_properties.len();
+
+                row.set_selected(is_selected);
+
+                row.col(|ui| {
+                    if ui
+                        .selectable_label(is_selected, format!("{}", weenie.object_id))
+                        .clicked()
+                    {
+                        app.selected_weenie = Some(row_index);
+                    }
+                });
+
+                row.col(|ui| {
+                    let name = weenie.name.as_deref().unwrap_or("<unknown>");
+                    if ui.selectable_label(is_selected, name).clicked() {
+                        app.selected_weenie = Some(row_index);
+                    }
+                });
+
+                row.col(|ui| {
+                    if ui
+                        .selectable_label(is_selected, format!("{}", prop_count))
+                        .clicked()
+                    {
+                        app.selected_weenie = Some(row_index);
+                    }
+                });
+
+                row.col(|ui| {
+                    if ui
+                        .selectable_label(is_selected, format!("{}", weenie.message_count))
+                        .clicked()
+                    {
+                        app.selected_weenie = Some(row_index);
+                    }
+                });
+            });
         });
 }
 
-/// Show detailed information about the selected weenie
-pub fn show_weenie_detail(app: &PcapViewerApp, ui: &mut egui::Ui) {
-    if let Some(selected_idx) = app.selected_message {
-        let weenies = app.weenie_db.sorted_weenies();
+pub fn show_weenie_detail(app: &mut PcapViewerApp, ui: &mut egui::Ui) {
+    // Clone weenies to avoid borrow checker issues
+    let weenies: Vec<lib::weenie::Weenie> = app
+        .weenie_db
+        .sorted_weenies()
+        .into_iter()
+        .cloned()
+        .collect();
 
-        // Apply search filter
-        let search = app.search_query.to_lowercase();
-        let filtered_weenies: Vec<&Weenie> = if search.is_empty() {
-            weenies
-        } else {
-            weenies
-                .into_iter()
-                .filter(|w| {
-                    if w.object_id.to_string().contains(&search) {
-                        return true;
-                    }
-                    if let Some(ref name) = w.name {
-                        if name.to_lowercase().contains(&search) {
-                            return true;
-                        }
-                    }
-                    let json = serde_json::to_string(w).unwrap_or_default();
-                    json.to_lowercase().contains(&search)
-                })
-                .collect()
-        };
+    // Filter weenies
+    let filter_lower = app.search_query.to_lowercase();
+    let filtered_weenies: Vec<&lib::weenie::Weenie> = weenies
+        .iter()
+        .filter(|w| {
+            if filter_lower.is_empty() {
+                true
+            } else {
+                w.object_id.to_string().contains(&filter_lower)
+                    || w.name
+                        .as_ref()
+                        .map(|n| n.to_lowercase().contains(&filter_lower))
+                        .unwrap_or(false)
+            }
+        })
+        .collect();
 
-        if let Some(weenie) = filtered_weenies.get(selected_idx) {
-            egui::ScrollArea::vertical()
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    ui.heading("Weenie Details");
-                    ui.separator();
+    if let Some(idx) = app.selected_weenie {
+        if let Some(weenie) = filtered_weenies.get(idx) {
+            ScrollArea::vertical().show(ui, |ui| {
+                ui.heading(format!(
+                    "Weenie: {}",
+                    weenie.name.as_deref().unwrap_or("<unknown>")
+                ));
+                ui.separator();
 
-                    // Basic info
-                    ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("Object ID:").strong());
-                        ui.label(egui::RichText::new(format!("{}", weenie.object_id)).monospace());
-                    });
+                egui::Grid::new("weenie_detail_grid")
+                    .num_columns(2)
+                    .spacing([10.0, 4.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        ui.label("Object ID:");
+                        ui.label(format!("{}", weenie.object_id));
+                        ui.end_row();
 
-                    if let Some(ref name) = weenie.name {
-                        ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new("Name:").strong());
+                        if let Some(name) = &weenie.name {
+                            ui.label("Name:");
                             ui.label(name);
-                        });
-                    }
+                            ui.end_row();
+                        }
 
-                    ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("Messages:").strong());
+                        ui.label("First Seen:");
+                        ui.label(format!("{:.3}s", weenie.first_seen));
+                        ui.end_row();
+
+                        ui.label("Last Updated:");
+                        ui.label(format!("{:.3}s", weenie.last_updated));
+                        ui.end_row();
+
+                        ui.label("Message Count:");
                         ui.label(format!("{}", weenie.message_count));
+                        ui.end_row();
                     });
 
-                    ui.separator();
+                ui.separator();
 
-                    // Properties sections
-                    if !weenie.int_properties.is_empty() {
-                        ui.collapsing(
-                            format!("Int Properties ({})", weenie.int_properties.len()),
-                            |ui| {
-                                for (key, value) in &weenie.int_properties {
-                                    ui.horizontal(|ui| {
-                                        ui.label(egui::RichText::new(format!("{key}:")).weak());
-                                        ui.label(
-                                            egui::RichText::new(format!("{value}")).monospace(),
-                                        );
-                                    });
-                                }
-                            },
-                        );
-                    }
-
-                    if !weenie.int64_properties.is_empty() {
-                        ui.collapsing(
-                            format!("Int64 Properties ({})", weenie.int64_properties.len()),
-                            |ui| {
-                                for (key, value) in &weenie.int64_properties {
-                                    ui.horizontal(|ui| {
-                                        ui.label(egui::RichText::new(format!("{key}:")).weak());
-                                        ui.label(
-                                            egui::RichText::new(format!("{value}")).monospace(),
-                                        );
-                                    });
-                                }
-                            },
-                        );
-                    }
-
-                    if !weenie.bool_properties.is_empty() {
-                        ui.collapsing(
-                            format!("Bool Properties ({})", weenie.bool_properties.len()),
-                            |ui| {
-                                for (key, value) in &weenie.bool_properties {
-                                    ui.horizontal(|ui| {
-                                        ui.label(egui::RichText::new(format!("{key}:")).weak());
-                                        ui.label(
-                                            egui::RichText::new(format!("{value}")).monospace(),
-                                        );
-                                    });
-                                }
-                            },
-                        );
-                    }
-
-                    if !weenie.float_properties.is_empty() {
-                        ui.collapsing(
-                            format!("Float Properties ({})", weenie.float_properties.len()),
-                            |ui| {
-                                for (key, value) in &weenie.float_properties {
-                                    ui.horizontal(|ui| {
-                                        ui.label(egui::RichText::new(format!("{key}:")).weak());
-                                        ui.label(
-                                            egui::RichText::new(format!("{value}")).monospace(),
-                                        );
-                                    });
-                                }
-                            },
-                        );
-                    }
-
-                    if !weenie.string_properties.is_empty() {
-                        ui.collapsing(
-                            format!("String Properties ({})", weenie.string_properties.len()),
-                            |ui| {
-                                for (key, value) in &weenie.string_properties {
-                                    ui.horizontal(|ui| {
-                                        ui.label(egui::RichText::new(format!("{key}:")).weak());
-                                        ui.label(value);
-                                    });
-                                }
-                            },
-                        );
-                    }
-
-                    if !weenie.data_id_properties.is_empty() {
-                        ui.collapsing(
-                            format!("DataId Properties ({})", weenie.data_id_properties.len()),
-                            |ui| {
-                                for (key, value) in &weenie.data_id_properties {
-                                    ui.horizontal(|ui| {
-                                        ui.label(egui::RichText::new(format!("{key}:")).weak());
-                                        ui.label(
-                                            egui::RichText::new(format!("0x{:08X}", value))
-                                                .monospace(),
-                                        );
-                                    });
-                                }
-                            },
-                        );
-                    }
-
-                    if !weenie.instance_id_properties.is_empty() {
-                        ui.collapsing(
-                            format!(
-                                "InstanceId Properties ({})",
-                                weenie.instance_id_properties.len()
-                            ),
-                            |ui| {
-                                for (key, value) in &weenie.instance_id_properties {
-                                    ui.horizontal(|ui| {
-                                        ui.label(egui::RichText::new(format!("{key}:")).weak());
-                                        ui.label(
-                                            egui::RichText::new(format!("0x{:08X}", value))
-                                                .monospace(),
-                                        );
-                                    });
-                                }
-                            },
-                        );
-                    }
-
-                    ui.separator();
-
-                    // Metadata
-                    ui.collapsing("Metadata", |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new("First Seen:").weak());
-                            ui.label(format!("{:.3}s", weenie.first_seen));
-                        });
-                        ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new("Last Updated:").weak());
-                            ui.label(format!("{:.3}s", weenie.last_updated));
-                        });
+                // Message IDs section with clickable links
+                if !weenie.message_ids.is_empty() {
+                    ui.heading("Referenced in Messages:");
+                    ui.horizontal_wrapped(|ui| {
+                        for &msg_id in &weenie.message_ids {
+                            if ui.link(format!("#{}", msg_id)).clicked() {
+                                // Switch to Messages tab and select this message
+                                app.current_tab = Tab::Messages;
+                                app.selected_message = Some(msg_id);
+                            }
+                        }
                     });
-                });
+                    ui.separator();
+                }
+
+                // Properties sections
+                show_property_section(ui, "Int Properties", &weenie.int_properties);
+                show_property_section(ui, "Int64 Properties", &weenie.int64_properties);
+                show_property_section(ui, "Bool Properties", &weenie.bool_properties);
+                show_property_section(ui, "Float Properties", &weenie.float_properties);
+                show_property_section(ui, "String Properties", &weenie.string_properties);
+                show_property_section(ui, "DataId Properties", &weenie.data_id_properties);
+                show_property_section(ui, "InstanceId Properties", &weenie.instance_id_properties);
+            });
         }
     } else {
-        ui.centered_and_justified(|ui| {
+        ui.vertical_centered(|ui| {
             ui.label("Select a weenie to view details");
         });
     }
 }
 
-fn truncate_string(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max_len.saturating_sub(3)])
+fn show_property_section<K, V>(
+    ui: &mut egui::Ui,
+    title: &str,
+    properties: &std::collections::HashMap<K, V>,
+) where
+    K: std::fmt::Display + std::cmp::Ord,
+    V: std::fmt::Display,
+{
+    if !properties.is_empty() {
+        ui.heading(title);
+
+        egui::Grid::new(title)
+            .num_columns(2)
+            .spacing([10.0, 4.0])
+            .striped(true)
+            .show(ui, |ui| {
+                let mut sorted: Vec<_> = properties.iter().collect();
+                sorted.sort_by(|a, b| a.0.cmp(b.0));
+
+                for (key, value) in sorted {
+                    ui.label(format!("{}", key));
+                    ui.label(format!("{}", value));
+                    ui.end_row();
+                }
+            });
+
+        ui.separator();
     }
 }

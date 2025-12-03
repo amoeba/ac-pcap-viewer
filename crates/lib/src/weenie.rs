@@ -61,11 +61,15 @@ pub struct Weenie {
     /// Metadata: number of messages that referenced this object
     #[serde(rename = "MessageCount")]
     pub message_count: usize,
+
+    /// Metadata: IDs of messages that referenced this object
+    #[serde(rename = "MessageIds", skip_serializing_if = "Vec::is_empty")]
+    pub message_ids: Vec<usize>,
 }
 
 impl Weenie {
-    /// Create a new weenie with the given object ID and timestamp
-    pub fn new(object_id: u32, timestamp: f64) -> Self {
+    /// Create a new weenie with the given object ID, timestamp, and message ID
+    pub fn new(object_id: u32, timestamp: f64, message_id: usize) -> Self {
         Self {
             object_id,
             name: None,
@@ -79,6 +83,7 @@ impl Weenie {
             first_seen: timestamp,
             last_updated: timestamp,
             message_count: 1,
+            message_ids: vec![message_id],
         }
     }
 
@@ -86,6 +91,7 @@ impl Weenie {
     pub fn update(&mut self, update: WeenieUpdate) {
         self.last_updated = update.timestamp;
         self.message_count += 1;
+        self.message_ids.push(update.message_id);
 
         if let Some(name) = update.name {
             self.name = Some(name);
@@ -126,6 +132,7 @@ impl Weenie {
 pub struct WeenieUpdate {
     pub object_id: u32,
     pub timestamp: f64,
+    pub message_id: usize,
     pub name: Option<String>,
     pub int_properties: HashMap<String, i32>,
     pub int64_properties: HashMap<String, i64>,
@@ -137,11 +144,12 @@ pub struct WeenieUpdate {
 }
 
 impl WeenieUpdate {
-    /// Create a new update for the given object ID
-    pub fn new(object_id: u32, timestamp: f64) -> Self {
+    /// Create a new update for the given object ID, timestamp, and message ID
+    pub fn new(object_id: u32, timestamp: f64, message_id: usize) -> Self {
         Self {
             object_id,
             timestamp,
+            message_id,
             ..Default::default()
         }
     }
@@ -165,12 +173,13 @@ impl WeenieDatabase {
     pub fn add_or_update(&mut self, update: WeenieUpdate) {
         let object_id = update.object_id;
         let timestamp = update.timestamp;
+        let message_id = update.message_id;
 
         self.weenies
             .entry(object_id)
             .and_modify(|w| w.update(update.clone()))
             .or_insert_with(|| {
-                let mut weenie = Weenie::new(object_id, timestamp);
+                let mut weenie = Weenie::new(object_id, timestamp, message_id);
                 weenie.update(update);
                 weenie
             });

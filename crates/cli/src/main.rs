@@ -453,7 +453,7 @@ fn output_weenies(
                 "{:>10}  {:40}  {:>6}  {:>6}",
                 "ObjectID", "Name", "Props", "Msgs"
             );
-            println!("{}", "-".repeat(70));
+            println!("{}", "-".repeat(68));
             for weenie in weenies {
                 let prop_count = weenie.int_properties.len()
                     + weenie.int64_properties.len()
