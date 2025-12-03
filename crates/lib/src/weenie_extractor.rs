@@ -50,32 +50,25 @@ pub fn extract_weenie_updates(message: &ParsedMessage) -> Vec<WeenieUpdate> {
             }
         }
 
-        // Game events with object data
-        "Ordered_GameEvent" => {
-            if let Some(event_type) = message.data.get("Type").and_then(|v| v.as_str()) {
-                match event_type {
-                    "Item_SetAppraiseInfo" => {
-                        if let Some(update) = extract_appraise_info(message) {
-                            updates.push(update);
-                        }
-                    }
-                    "Item_ServerSaysContainId" => {
-                        if let Some(update) = extract_contain_id(message) {
-                            updates.push(update);
-                        }
-                    }
-                    "Item_WearItem" => {
-                        if let Some(update) = extract_wear_item(message) {
-                            updates.push(update);
-                        }
-                    }
-                    "Magic_UpdateEnchantment" => {
-                        if let Some(update) = extract_enchantment(message) {
-                            updates.push(update);
-                        }
-                    }
-                    _ => {}
-                }
+        // Game events with object data - handled at top level
+        "Item_SetAppraiseInfo" => {
+            if let Some(update) = extract_appraise_info(message) {
+                updates.push(update);
+            }
+        }
+        "Item_ServerSaysContainId" => {
+            if let Some(update) = extract_contain_id(message) {
+                updates.push(update);
+            }
+        }
+        "Item_WearItem" => {
+            if let Some(update) = extract_wear_item(message) {
+                updates.push(update);
+            }
+        }
+        "Magic_UpdateEnchantment" => {
+            if let Some(update) = extract_enchantment(message) {
+                updates.push(update);
             }
         }
 
@@ -186,13 +179,21 @@ fn extract_qualities_update_data_id(message: &ParsedMessage) -> Option<WeenieUpd
 }
 
 fn extract_appraise_info(message: &ParsedMessage) -> Option<WeenieUpdate> {
-    let data = message.data.get("Data")?;
-    let object_id = data.get("ObjectId")?.as_u64()? as u32;
+    // For Item_SetAppraiseInfo, the ObjectId is at the root as "OrderedObjectId"
+    let object_id = message
+        .data
+        .get("OrderedObjectId")
+        .or_else(|| message.data.get("ObjectId"))?
+        .as_u64()? as u32;
 
     let mut update = WeenieUpdate::new(object_id, message.timestamp);
 
-    // Extract properties from all property dictionaries
-    if let Some(int_props) = data.get("IntProperties").and_then(|v| v.as_object()) {
+    // Extract properties from all property dictionaries (they're directly in message.data)
+    if let Some(int_props) = message
+        .data
+        .get("IntProperties")
+        .and_then(|v| v.as_object())
+    {
         for (key, value) in int_props {
             if let Some(v) = value.as_i64() {
                 update.int_properties.insert(key.clone(), v as i32);
@@ -200,7 +201,11 @@ fn extract_appraise_info(message: &ParsedMessage) -> Option<WeenieUpdate> {
         }
     }
 
-    if let Some(int64_props) = data.get("Int64Properties").and_then(|v| v.as_object()) {
+    if let Some(int64_props) = message
+        .data
+        .get("Int64Properties")
+        .and_then(|v| v.as_object())
+    {
         for (key, value) in int64_props {
             if let Some(v) = value.as_i64() {
                 update.int64_properties.insert(key.clone(), v);
@@ -208,7 +213,11 @@ fn extract_appraise_info(message: &ParsedMessage) -> Option<WeenieUpdate> {
         }
     }
 
-    if let Some(bool_props) = data.get("BoolProperties").and_then(|v| v.as_object()) {
+    if let Some(bool_props) = message
+        .data
+        .get("BoolProperties")
+        .and_then(|v| v.as_object())
+    {
         for (key, value) in bool_props {
             if let Some(v) = value.as_bool() {
                 update.bool_properties.insert(key.clone(), v);
@@ -216,7 +225,11 @@ fn extract_appraise_info(message: &ParsedMessage) -> Option<WeenieUpdate> {
         }
     }
 
-    if let Some(float_props) = data.get("FloatProperties").and_then(|v| v.as_object()) {
+    if let Some(float_props) = message
+        .data
+        .get("FloatProperties")
+        .and_then(|v| v.as_object())
+    {
         for (key, value) in float_props {
             if let Some(v) = value.as_f64() {
                 update.float_properties.insert(key.clone(), v);
@@ -224,7 +237,11 @@ fn extract_appraise_info(message: &ParsedMessage) -> Option<WeenieUpdate> {
         }
     }
 
-    if let Some(string_props) = data.get("StringProperties").and_then(|v| v.as_object()) {
+    if let Some(string_props) = message
+        .data
+        .get("StringProperties")
+        .and_then(|v| v.as_object())
+    {
         for (key, value) in string_props {
             if let Some(v) = value.as_str() {
                 update.string_properties.insert(key.clone(), v.to_string());
@@ -232,7 +249,11 @@ fn extract_appraise_info(message: &ParsedMessage) -> Option<WeenieUpdate> {
         }
     }
 
-    if let Some(did_props) = data.get("DataIdProperties").and_then(|v| v.as_object()) {
+    if let Some(did_props) = message
+        .data
+        .get("DataIdProperties")
+        .and_then(|v| v.as_object())
+    {
         for (key, value) in did_props {
             if let Some(v) = value.as_u64() {
                 update.data_id_properties.insert(key.clone(), v as u32);
@@ -240,8 +261,10 @@ fn extract_appraise_info(message: &ParsedMessage) -> Option<WeenieUpdate> {
         }
     }
 
-    // Extract name if present
+    // Extract name if present (try Name first, then LongDesc)
     if let Some(name) = string_props_get(&update.string_properties, "Name") {
+        update.name = Some(name);
+    } else if let Some(name) = string_props_get(&update.string_properties, "LongDesc") {
         update.name = Some(name);
     }
 
@@ -249,9 +272,8 @@ fn extract_appraise_info(message: &ParsedMessage) -> Option<WeenieUpdate> {
 }
 
 fn extract_contain_id(message: &ParsedMessage) -> Option<WeenieUpdate> {
-    let data = message.data.get("Data")?;
-    let object_id = data.get("ObjectId")?.as_u64()? as u32;
-    let container_id = data.get("ContainerId")?.as_u64()? as u32;
+    let object_id = message.data.get("ObjectId")?.as_u64()? as u32;
+    let container_id = message.data.get("ContainerId")?.as_u64()? as u32;
 
     let mut update = WeenieUpdate::new(object_id, message.timestamp);
     update
@@ -261,16 +283,14 @@ fn extract_contain_id(message: &ParsedMessage) -> Option<WeenieUpdate> {
 }
 
 fn extract_wear_item(message: &ParsedMessage) -> Option<WeenieUpdate> {
-    let data = message.data.get("Data")?;
-    let object_id = data.get("ObjectId")?.as_u64()? as u32;
+    let object_id = message.data.get("ObjectId")?.as_u64()? as u32;
 
     let update = WeenieUpdate::new(object_id, message.timestamp);
     Some(update)
 }
 
 fn extract_enchantment(message: &ParsedMessage) -> Option<WeenieUpdate> {
-    let data = message.data.get("Data")?;
-    let caster_id = data.get("CasterId")?.as_u64()? as u32;
+    let caster_id = message.data.get("CasterId")?.as_u64()? as u32;
 
     let update = WeenieUpdate::new(caster_id, message.timestamp);
     Some(update)

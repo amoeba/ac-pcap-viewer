@@ -86,58 +86,46 @@ pub fn show_weenie_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: b
             for (idx, weenie) in filtered_weenies.iter().enumerate() {
                 let is_selected = app.selected_message == Some(idx); // Reuse selected_message for weenie selection
 
-                let response = ui.selectable_label(is_selected, "");
+                let response = ui
+                    .horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 10.0;
 
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 10.0;
+                        if is_mobile {
+                            // Mobile: compact layout
+                            ui.selectable_label(
+                                is_selected,
+                                format!(
+                                    "{} - {}",
+                                    weenie.object_id,
+                                    weenie.name.as_deref().unwrap_or("<unknown>")
+                                ),
+                            )
+                        } else {
+                            // Desktop: full layout
+                            // Count total properties
+                            let prop_count = weenie.int_properties.len()
+                                + weenie.int64_properties.len()
+                                + weenie.bool_properties.len()
+                                + weenie.float_properties.len()
+                                + weenie.string_properties.len()
+                                + weenie.data_id_properties.len()
+                                + weenie.instance_id_properties.len();
 
-                    if is_mobile {
-                        // Mobile: compact layout
-                        ui.label(
-                            egui::RichText::new(format!("{}", weenie.object_id))
-                                .monospace()
-                                .color(if is_selected {
-                                    ui.visuals().strong_text_color()
-                                } else {
-                                    ui.visuals().text_color()
-                                }),
-                        );
-                        ui.separator();
-                        ui.label(weenie.name.as_deref().unwrap_or("<unknown>").to_string());
-                    } else {
-                        // Desktop: full layout
-                        ui.label(
-                            egui::RichText::new(format!("{:>10}", weenie.object_id))
-                                .monospace()
-                                .color(if is_selected {
-                                    ui.visuals().strong_text_color()
-                                } else {
-                                    ui.visuals().text_color()
-                                }),
-                        );
-                        ui.separator();
+                            let label_text = format!(
+                                "{:>10}  {:40}  {:>6}  {:>6}",
+                                weenie.object_id,
+                                truncate_string(weenie.name.as_deref().unwrap_or("<unknown>"), 40),
+                                prop_count,
+                                weenie.message_count
+                            );
 
-                        let name = weenie.name.as_deref().unwrap_or("<unknown>");
-                        ui.label(truncate_string(name, 40));
-                        ui.separator();
-
-                        // Count total properties
-                        let prop_count = weenie.int_properties.len()
-                            + weenie.int64_properties.len()
-                            + weenie.bool_properties.len()
-                            + weenie.float_properties.len()
-                            + weenie.string_properties.len()
-                            + weenie.data_id_properties.len()
-                            + weenie.instance_id_properties.len();
-
-                        ui.label(egui::RichText::new(format!("{:>6}", prop_count)).monospace());
-                        ui.separator();
-
-                        ui.label(
-                            egui::RichText::new(format!("{:>6}", weenie.message_count)).monospace(),
-                        );
-                    }
-                });
+                            ui.selectable_label(
+                                is_selected,
+                                egui::RichText::new(label_text).monospace(),
+                            )
+                        }
+                    })
+                    .inner;
 
                 if response.clicked() {
                     app.selected_message = Some(idx);
