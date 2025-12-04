@@ -882,7 +882,7 @@ impl eframe::App for PcapViewerApp {
                     ui.label("or");
                     ui.add_space(10.0);
 
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         // Get current origin for constructing example URL
                         #[cfg(target_arch = "wasm32")]
                         let origin = web_sys::window()
@@ -910,7 +910,7 @@ impl eframe::App for PcapViewerApp {
                         });
                         let available_width = ui.available_width();
 
-                        // Add left padding to center
+                        // Add left padding to center only if content fits
                         if total_width < available_width {
                             let left_padding = (available_width - total_width) / 2.0;
                             ui.add_space(left_padding);
