@@ -878,12 +878,24 @@ impl eframe::App for PcapViewerApp {
                     });
 
                     // Show example URL link
-                    ui.add_space(5.0);
-                    ui.horizontal(|ui| {
-                        // Get the full absolute URL for the example
-                        let example_url = "./example.pcap".to_string();
+                    ui.add_space(10.0);
+                    ui.label("or");
+                    ui.add_space(10.0);
 
-                        let prefix_text = "Example: ";
+                    ui.horizontal_wrapped(|ui| {
+                        // Get current origin for constructing example URL
+                        #[cfg(target_arch = "wasm32")]
+                        let origin = web_sys::window()
+                            .and_then(|w| w.location().origin().ok())
+                            .unwrap_or_else(|| "https://pcap.treestats.net".to_string());
+                        #[cfg(not(target_arch = "wasm32"))]
+                        let origin = "https://pcap.treestats.net".to_string();
+
+                        // Construct example URL - demonstrates loading from absolute URL
+                        let example_pcap_url = format!("{}/example.pcap", origin);
+                        let example_url = format!("{}/?url={}", origin, example_pcap_url);
+
+                        let prefix_text = "Create your own link ";
                         let full_text = format!("{prefix_text}{example_url}");
 
                         // Calculate width for centering the entire line
@@ -898,19 +910,19 @@ impl eframe::App for PcapViewerApp {
                         });
                         let available_width = ui.available_width();
 
-                        // Add left padding to center
+                        // Add left padding to center only if content fits
                         if total_width < available_width {
                             let left_padding = (available_width - total_width) / 2.0;
                             ui.add_space(left_padding);
                         }
 
-                        // Show "Example: " as plain text
+                        // Show "Create your own link " as plain text
                         ui.label(prefix_text);
 
-                        // Show the URL as a clickable link
+                        // Show the URL as a clickable link and load from absolute URL
                         if ui.link(&example_url).clicked() {
-                            self.url_input = example_url.clone();
-                            ui::file_panel::load_from_url(self, example_url, ctx);
+                            self.url_input = example_pcap_url.clone();
+                            ui::file_panel::load_from_url(self, example_pcap_url, ctx);
                         }
                     });
 
