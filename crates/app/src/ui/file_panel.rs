@@ -1,6 +1,6 @@
 //! File loading and management UI components
 
-use crate::{PcapViewerApp, Tab};
+use crate::PcapViewerApp;
 use eframe::egui;
 use lib::PacketParser;
 
@@ -365,21 +365,7 @@ pub fn show_settings_dialog(app: &mut PcapViewerApp, ctx: &egui::Context) {
             ui.heading("Default View");
             ui.separator();
 
-            ui.horizontal(|ui| {
-                ui.label("Default Tab:");
-                if ui
-                    .selectable_label(app.current_tab == Tab::Messages, "Messages")
-                    .clicked()
-                {
-                    app.current_tab = Tab::Messages;
-                }
-                if ui
-                    .selectable_label(app.current_tab == Tab::Fragments, "Fragments")
-                    .clicked()
-                {
-                    app.current_tab = Tab::Fragments;
-                }
-            });
+            // Default tab is always Messages (no selection needed)
 
             ui.horizontal(|ui| {
                 ui.label("Sort Order:");

@@ -46,7 +46,6 @@ impl Serialize for Direction {
 pub enum Tab {
     #[default]
     Messages,
-    Fragments,
     Weenies,
 }
 

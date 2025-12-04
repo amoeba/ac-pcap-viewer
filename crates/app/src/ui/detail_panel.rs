@@ -3,7 +3,7 @@
 use crate::ui::hyper_tree::AcJsonTree;
 use crate::{PcapViewerApp, Tab, ViewMode};
 use eframe::egui;
-use lib::{messages::ParsedMessage, ParsedPacket};
+use lib::messages::ParsedMessage;
 
 /// Show detail content in the detail panel
 pub fn show_detail_content(app: &mut PcapViewerApp, ui: &mut egui::Ui) {
@@ -25,106 +25,43 @@ pub fn show_detail_content(app: &mut PcapViewerApp, ui: &mut egui::Ui) {
     let mut filter_value: Option<String> = None;
 
     match app.view_mode {
-        ViewMode::JSON => match app.current_tab {
-            Tab::Messages => {
-                if let Some(idx) = app.selected_message {
-                    if idx < app.messages.len() {
-                        show_pretty_json(ui, &app.messages[idx].data);
-                    } else {
-                        ui.label("No message selected");
+        ViewMode::JSON => {
+            if let Some(idx) = app.selected_message {
+                if idx < app.messages.len() {
+                    show_pretty_json(ui, &app.messages[idx].data);
+                } else {
+                    ui.label("No message selected");
+                }
+            } else {
+                ui.label("No message selected");
+            }
+        }
+        ViewMode::Tree => {
+            if let Some(idx) = app.selected_message {
+                if idx < app.messages.len() {
+                    let tree_id = format!("message_tree_{idx}");
+                    let response = AcJsonTree::new(&tree_id).show(ui, &app.messages[idx].data);
+                    if let Some(value) = response.filter_clicked {
+                        filter_value = Some(value);
                     }
                 } else {
                     ui.label("No message selected");
                 }
+            } else {
+                ui.label("No message selected");
             }
-            Tab::Fragments => {
-                if let Some(idx) = app.selected_packet {
-                    if idx < app.packets.len() {
-                        if let Ok(value) = serde_json::to_value(&app.packets[idx]) {
-                            show_pretty_json(ui, &value);
-                        } else {
-                            ui.label("Error displaying packet");
-                        }
-                    } else {
-                        ui.label("No packet selected");
-                    }
-                } else {
-                    ui.label("No packet selected");
-                }
-            }
-            Tab::Weenies => {
-                // Handled at top of function
-                unreachable!("Weenies tab should be handled above")
-            }
-        },
-        ViewMode::Tree => match app.current_tab {
-            Tab::Messages => {
-                if let Some(idx) = app.selected_message {
-                    if idx < app.messages.len() {
-                        let tree_id = format!("message_tree_{idx}");
-                        let response = AcJsonTree::new(&tree_id).show(ui, &app.messages[idx].data);
-                        if let Some(value) = response.filter_clicked {
-                            filter_value = Some(value);
-                        }
-                    } else {
-                        ui.label("No message selected");
-                    }
+        }
+        ViewMode::Binary => {
+            if let Some(idx) = app.selected_message {
+                if idx < app.messages.len() {
+                    show_hex_dump(ui, &app.messages[idx]);
                 } else {
                     ui.label("No message selected");
                 }
+            } else {
+                ui.label("No message selected");
             }
-            Tab::Fragments => {
-                if let Some(idx) = app.selected_packet {
-                    if idx < app.packets.len() {
-                        if let Ok(value) = serde_json::to_value(&app.packets[idx]) {
-                            let tree_id = format!("packet_tree_{idx}");
-                            let response = AcJsonTree::new(&tree_id).show(ui, &value);
-                            if let Some(value) = response.filter_clicked {
-                                filter_value = Some(value);
-                            }
-                        } else {
-                            ui.label("Error displaying packet");
-                        }
-                    } else {
-                        ui.label("No packet selected");
-                    }
-                } else {
-                    ui.label("No packet selected");
-                }
-            }
-            Tab::Weenies => {
-                // Handled at top of function
-                unreachable!("Weenies tab should be handled above")
-            }
-        },
-        ViewMode::Binary => match app.current_tab {
-            Tab::Messages => {
-                if let Some(idx) = app.selected_message {
-                    if idx < app.messages.len() {
-                        show_hex_dump(ui, &app.messages[idx]);
-                    } else {
-                        ui.label("No message selected");
-                    }
-                } else {
-                    ui.label("No message selected");
-                }
-            }
-            Tab::Fragments => {
-                if let Some(idx) = app.selected_packet {
-                    if idx < app.packets.len() {
-                        show_hex_dump_packet(ui, &app.packets[idx]);
-                    } else {
-                        ui.label("No packet selected");
-                    }
-                } else {
-                    ui.label("No packet selected");
-                }
-            }
-            Tab::Weenies => {
-                // Handled at top of function
-                unreachable!("Weenies tab should be handled above")
-            }
-        },
+        }
     }
 
     // Handle filter click - update search query
@@ -142,39 +79,12 @@ fn extract_message_binary(message: &ParsedMessage) -> Option<Vec<u8>> {
     None
 }
 
-/// Extract binary data from a packet fragment
-fn extract_packet_binary(packet: &ParsedPacket) -> Option<Vec<u8>> {
-    // First, try to use the raw payload which has all packet data
-    if !packet.raw_payload.is_empty() {
-        return Some(packet.raw_payload.clone());
-    }
-
-    // Fall back to fragment data (base64-encoded) if available
-    if let Some(ref fragment) = packet.fragment {
-        use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-        if let Ok(bytes) = BASE64.decode(&fragment.data) {
-            return Some(bytes);
-        }
-    }
-
-    None
-}
-
 /// Display hex dump for a message
 fn show_hex_dump(ui: &mut egui::Ui, message: &ParsedMessage) {
     if let Some(data) = extract_message_binary(message) {
         render_hex_dump(ui, &data);
     } else {
         ui.label("No binary data available for this message");
-    }
-}
-
-/// Display hex dump for a packet
-fn show_hex_dump_packet(ui: &mut egui::Ui, packet: &ParsedPacket) {
-    if let Some(data) = extract_packet_binary(packet) {
-        render_hex_dump(ui, &data);
-    } else {
-        ui.label("No binary data available for this packet");
     }
 }
 

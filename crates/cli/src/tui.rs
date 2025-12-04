@@ -8,23 +8,19 @@ use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState, Tabs},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState},
     Frame, Terminal,
 };
 use std::io::{self, Stdout};
 
-use lib::{messages::ParsedMessage, Direction as PktDirection, ParsedPacket, Tab};
+use lib::{messages::ParsedMessage, ParsedPacket};
 
 use crate::filter;
 
 pub struct App {
     pub messages: Vec<ParsedMessage>,
-    pub packets: Vec<ParsedPacket>,
-    pub current_tab: Tab,
     pub message_state: TableState,
-    pub packet_state: TableState,
     pub message_sort: MessageSort,
-    pub packet_sort: PacketSort,
     pub sort_ascending: bool,
     pub show_detail: bool,
     pub search_query: String,
@@ -47,33 +43,18 @@ pub enum MessageSort {
     Direction,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum PacketSort {
-    Id,
-    Sequence,
-    Direction,
-}
-
 impl App {
-    pub fn new(messages: Vec<ParsedMessage>, packets: Vec<ParsedPacket>) -> Self {
+    pub fn new(messages: Vec<ParsedMessage>, _packets: Vec<ParsedPacket>) -> Self {
         let mut message_state = TableState::default();
-        let mut packet_state = TableState::default();
 
         if !messages.is_empty() {
             message_state.select(Some(0));
         }
-        if !packets.is_empty() {
-            packet_state.select(Some(0));
-        }
 
         Self {
             messages,
-            packets,
-            current_tab: Tab::Messages,
             message_state,
-            packet_state,
             message_sort: MessageSort::Id,
-            packet_sort: PacketSort::Id,
             sort_ascending: true,
             show_detail: false,
             search_query: String::new(),
@@ -135,151 +116,52 @@ impl App {
         msgs
     }
 
-    pub fn filtered_packets(&self) -> Vec<&ParsedPacket> {
-        let mut pkts: Vec<&ParsedPacket> = self.packets.iter().collect();
-
-        pkts.sort_by(|a, b| {
-            let cmp = match self.packet_sort {
-                PacketSort::Id => a.id.cmp(&b.id),
-                PacketSort::Sequence => a.header.sequence.cmp(&b.header.sequence),
-                PacketSort::Direction => {
-                    format!("{:?}", a.direction).cmp(&format!("{:?}", b.direction))
-                }
-            };
-            if self.sort_ascending {
-                cmp
-            } else {
-                cmp.reverse()
-            }
-        });
-
-        pkts
-    }
-
     pub fn next(&mut self) {
-        match self.current_tab {
-            Tab::Messages => {
-                let msgs = self.filtered_messages();
-                if msgs.is_empty() {
-                    return;
-                }
-                let i = match self.message_state.selected() {
-                    Some(i) => (i + 1).min(msgs.len() - 1),
-                    None => 0,
-                };
-                self.message_state.select(Some(i));
-            }
-            Tab::Fragments => {
-                let pkts = self.filtered_packets();
-                if pkts.is_empty() {
-                    return;
-                }
-                let i = match self.packet_state.selected() {
-                    Some(i) => (i + 1).min(pkts.len() - 1),
-                    None => 0,
-                };
-                self.packet_state.select(Some(i));
-            }
-            Tab::Weenies => {
-                // TODO: Implement weenie navigation
-            }
+        let msgs = self.filtered_messages();
+        if msgs.is_empty() {
+            return;
         }
+        let i = match self.message_state.selected() {
+            Some(i) => (i + 1).min(msgs.len() - 1),
+            None => 0,
+        };
+        self.message_state.select(Some(i));
     }
 
     pub fn previous(&mut self) {
-        match self.current_tab {
-            Tab::Messages => {
-                let i = match self.message_state.selected() {
-                    Some(i) => i.saturating_sub(1),
-                    None => 0,
-                };
-                self.message_state.select(Some(i));
-            }
-            Tab::Fragments => {
-                let i = match self.packet_state.selected() {
-                    Some(i) => i.saturating_sub(1),
-                    None => 0,
-                };
-                self.packet_state.select(Some(i));
-            }
-            Tab::Weenies => {
-                // TODO: Implement weenie navigation
-            }
-        }
+        let i = match self.message_state.selected() {
+            Some(i) => i.saturating_sub(1),
+            None => 0,
+        };
+        self.message_state.select(Some(i));
     }
 
     pub fn page_down(&mut self) {
-        match self.current_tab {
-            Tab::Messages => {
-                let msgs = self.filtered_messages();
-                if msgs.is_empty() {
-                    return;
-                }
-                let i = match self.message_state.selected() {
-                    Some(i) => (i + 20).min(msgs.len() - 1),
-                    None => 0,
-                };
-                self.message_state.select(Some(i));
-            }
-            Tab::Fragments => {
-                let pkts = self.filtered_packets();
-                if pkts.is_empty() {
-                    return;
-                }
-                let i = match self.packet_state.selected() {
-                    Some(i) => (i + 20).min(pkts.len() - 1),
-                    None => 0,
-                };
-                self.packet_state.select(Some(i));
-            }
-            Tab::Weenies => {
-                // TODO: Implement weenie pagination
-            }
+        let msgs = self.filtered_messages();
+        if msgs.is_empty() {
+            return;
         }
+        let i = match self.message_state.selected() {
+            Some(i) => (i + 20).min(msgs.len() - 1),
+            None => 0,
+        };
+        self.message_state.select(Some(i));
     }
 
     pub fn page_up(&mut self) {
-        match self.current_tab {
-            Tab::Messages => {
-                let i = match self.message_state.selected() {
-                    Some(i) => i.saturating_sub(20),
-                    None => 0,
-                };
-                self.message_state.select(Some(i));
-            }
-            Tab::Fragments => {
-                let i = match self.packet_state.selected() {
-                    Some(i) => i.saturating_sub(20),
-                    None => 0,
-                };
-                self.packet_state.select(Some(i));
-            }
-            Tab::Weenies => {
-                // TODO: Implement weenie pagination
-            }
-        }
+        let i = match self.message_state.selected() {
+            Some(i) => i.saturating_sub(20),
+            None => 0,
+        };
+        self.message_state.select(Some(i));
     }
 
     pub fn cycle_sort(&mut self) {
-        match self.current_tab {
-            Tab::Messages => {
-                self.message_sort = match self.message_sort {
-                    MessageSort::Id => MessageSort::Type,
-                    MessageSort::Type => MessageSort::Direction,
-                    MessageSort::Direction => MessageSort::Id,
-                };
-            }
-            Tab::Weenies => {
-                // TODO: Implement weenie sorting
-            }
-            Tab::Fragments => {
-                self.packet_sort = match self.packet_sort {
-                    PacketSort::Id => PacketSort::Sequence,
-                    PacketSort::Sequence => PacketSort::Direction,
-                    PacketSort::Direction => PacketSort::Id,
-                };
-            }
-        }
+        self.message_sort = match self.message_sort {
+            MessageSort::Id => MessageSort::Type,
+            MessageSort::Type => MessageSort::Direction,
+            MessageSort::Direction => MessageSort::Id,
+        };
     }
 
     pub fn toggle_sort_order(&mut self) {
@@ -353,13 +235,6 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
 
             match key.code {
                 KeyCode::Char('q') => return Ok(()),
-                KeyCode::Tab => {
-                    app.current_tab = match app.current_tab {
-                        Tab::Messages => Tab::Fragments,
-                        Tab::Fragments => Tab::Weenies,
-                        Tab::Weenies => Tab::Messages,
-                    };
-                }
                 KeyCode::Down | KeyCode::Char('j') => app.next(),
                 KeyCode::Up | KeyCode::Char('k') => app.previous(),
                 KeyCode::PageDown | KeyCode::Char('d') => app.page_down(),
@@ -368,24 +243,9 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
                 KeyCode::Char('r') => app.toggle_sort_order(),
                 KeyCode::Enter => {
                     // Ensure something is selected before showing detail
-                    match app.current_tab {
-                        Tab::Messages => {
-                            if app.message_state.selected().is_none()
-                                && !app.filtered_messages().is_empty()
-                            {
-                                app.message_state.select(Some(0));
-                            }
-                        }
-                        Tab::Fragments => {
-                            if app.packet_state.selected().is_none()
-                                && !app.filtered_packets().is_empty()
-                            {
-                                app.packet_state.select(Some(0));
-                            }
-                        }
-                        Tab::Weenies => {
-                            // TODO: Implement weenie selection state
-                        }
+                    if app.message_state.selected().is_none() && !app.filtered_messages().is_empty()
+                    {
+                        app.message_state.select(Some(0));
                     }
                     app.show_detail = !app.show_detail;
                 }
@@ -415,30 +275,13 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
                     app.search_query.clear();
                     app.show_detail = false;
                 }
-                KeyCode::Home => match app.current_tab {
-                    Tab::Messages => app.message_state.select(Some(0)),
-                    Tab::Fragments => app.packet_state.select(Some(0)),
-                    Tab::Weenies => {
-                        // TODO: Implement weenie navigation
+                KeyCode::Home => app.message_state.select(Some(0)),
+                KeyCode::End => {
+                    let len = app.filtered_messages().len();
+                    if len > 0 {
+                        app.message_state.select(Some(len - 1));
                     }
-                },
-                KeyCode::End => match app.current_tab {
-                    Tab::Messages => {
-                        let len = app.filtered_messages().len();
-                        if len > 0 {
-                            app.message_state.select(Some(len - 1));
-                        }
-                    }
-                    Tab::Fragments => {
-                        let len = app.filtered_packets().len();
-                        if len > 0 {
-                            app.packet_state.select(Some(len - 1));
-                        }
-                    }
-                    Tab::Weenies => {
-                        // TODO: Implement weenie navigation
-                    }
-                },
+                }
                 _ => {}
             }
         }
@@ -455,40 +298,15 @@ fn ui(f: &mut Frame, app: &mut App) {
         ])
         .split(f.area());
 
-    let titles = vec!["Messages", "Fragments", "Weenies"];
-    let tabs = Tabs::new(titles)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("AC PCAP Parser"),
-        )
-        .select(match app.current_tab {
-            Tab::Messages => 0,
-            Tab::Fragments => 1,
-            Tab::Weenies => 2,
-        })
-        .style(Style::default().fg(Color::White))
-        .highlight_style(
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        );
-    f.render_widget(tabs, chunks[0]);
+    let title_block = Block::default()
+        .borders(Borders::ALL)
+        .title("AC PCAP Parser - Messages");
+    f.render_widget(title_block, chunks[0]);
 
     if app.show_detail {
         render_detail(f, app, chunks[1]);
     } else {
-        match app.current_tab {
-            Tab::Messages => render_messages_table(f, app, chunks[1]),
-            Tab::Fragments => render_packets_table(f, app, chunks[1]),
-            Tab::Weenies => {
-                // TODO: Implement weenie table rendering
-                let block = Block::default()
-                    .borders(Borders::ALL)
-                    .title("Weenies (Not implemented in TUI mode)");
-                f.render_widget(block, chunks[1]);
-            }
-        }
+        render_messages_table(f, app, chunks[1]);
     }
 
     let help = if app.searching {
@@ -502,18 +320,10 @@ fn ui(f: &mut Frame, app: &mut App) {
         )
     } else {
         let sort_indicator = if app.sort_ascending { "↑" } else { "↓" };
-        let sort_field = match app.current_tab {
-            Tab::Messages => match app.message_sort {
-                MessageSort::Id => "ID",
-                MessageSort::Type => "Type",
-                MessageSort::Direction => "Dir",
-            },
-            Tab::Fragments => match app.packet_sort {
-                PacketSort::Id => "ID",
-                PacketSort::Sequence => "Seq",
-                PacketSort::Direction => "Dir",
-            },
-            Tab::Weenies => "ID", // TODO: Implement weenie sorting
+        let sort_field = match app.message_sort {
+            MessageSort::Id => "ID",
+            MessageSort::Type => "Type",
+            MessageSort::Direction => "Dir",
         };
 
         let dir_filter = match app.filter_direction.as_deref() {
@@ -529,7 +339,7 @@ fn ui(f: &mut Frame, app: &mut App) {
         };
 
         format!(
-            "q:Quit Tab:Switch ↑↓/jk:Nav PgUp/PgDn:Page s:Sort({sort_field}{sort_indicator}) r:Reverse Enter:Detail /:Search f:Dir({dir_filter}) o:OpCode({opcode_filter})"
+            "q:Quit ↑↓/jk:Nav PgUp/PgDn:Page s:Sort({sort_field}{sort_indicator}) r:Reverse Enter:Detail /:Search f:Dir({dir_filter}) o:OpCode({opcode_filter})"
         )
     };
 
@@ -591,87 +401,17 @@ fn render_messages_table(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_stateful_widget(table, area, &mut app.message_state);
 }
 
-fn render_packets_table(f: &mut Frame, app: &mut App, area: Rect) {
-    let pkts = app.filtered_packets();
-
-    let header = Row::new(vec![
-        Cell::from("ID").style(Style::default().fg(Color::Yellow)),
-        Cell::from("Seq").style(Style::default().fg(Color::Yellow)),
-        Cell::from("Dir").style(Style::default().fg(Color::Yellow)),
-        Cell::from("Flags").style(Style::default().fg(Color::Yellow)),
-        Cell::from("Size").style(Style::default().fg(Color::Yellow)),
-    ])
-    .style(Style::default().add_modifier(Modifier::BOLD))
-    .height(1);
-
-    let rows: Vec<Row> = pkts
-        .iter()
-        .map(|p| {
-            let dir_color = match p.direction {
-                PktDirection::Send => Color::Cyan,
-                PktDirection::Recv => Color::Green,
-            };
-            Row::new(vec![
-                Cell::from(p.id.to_string()),
-                Cell::from(p.header.sequence.to_string()),
-                Cell::from(format!("{:?}", p.direction)).style(Style::default().fg(dir_color)),
-                Cell::from(format!("{:08X}", p.header.flags.bits())),
-                Cell::from(p.header.size.to_string()),
-            ])
-        })
-        .collect();
-
-    let title = format!("Fragments/Packets ({} total)", pkts.len());
-    let table = Table::new(
-        rows,
-        [
-            Constraint::Length(6),
-            Constraint::Length(10),
-            Constraint::Length(6),
-            Constraint::Length(12),
-            Constraint::Length(8),
-        ],
-    )
-    .header(header)
-    .block(Block::default().borders(Borders::ALL).title(title))
-    .highlight_style(
-        Style::default()
-            .bg(Color::DarkGray)
-            .add_modifier(Modifier::BOLD),
-    );
-
-    f.render_stateful_widget(table, area, &mut app.packet_state);
-}
-
 fn render_detail(f: &mut Frame, app: &App, area: Rect) {
-    let content = match app.current_tab {
-        Tab::Messages => {
-            let msgs = app.filtered_messages();
-            if let Some(idx) = app.message_state.selected() {
-                if idx < msgs.len() {
-                    let msg = msgs[idx];
-                    serde_json::to_string_pretty(&msg.data).unwrap_or_else(|_| "Error".to_string())
-                } else {
-                    "No message selected".to_string()
-                }
-            } else {
-                "No message selected".to_string()
-            }
+    let msgs = app.filtered_messages();
+    let content = if let Some(idx) = app.message_state.selected() {
+        if idx < msgs.len() {
+            let msg = msgs[idx];
+            serde_json::to_string_pretty(&msg.data).unwrap_or_else(|_| "Error".to_string())
+        } else {
+            "No message selected".to_string()
         }
-        Tab::Fragments => {
-            let pkts = app.filtered_packets();
-            if let Some(idx) = app.packet_state.selected() {
-                if idx < pkts.len() {
-                    let pkt = pkts[idx];
-                    serde_json::to_string_pretty(&pkt).unwrap_or_else(|_| "Error".to_string())
-                } else {
-                    "No packet selected".to_string()
-                }
-            } else {
-                "No packet selected".to_string()
-            }
-        }
-        Tab::Weenies => "Weenie detail view not implemented in TUI mode".to_string(),
+    } else {
+        "No message selected".to_string()
     };
 
     let paragraph = Paragraph::new(content)

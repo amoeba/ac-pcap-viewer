@@ -225,42 +225,6 @@ impl PcapViewerApp {
                 self.messages_scrubber
                     .set_marked_timestamps(marked_timestamps);
             }
-            Tab::Fragments => {
-                // Clear previous marks before setting new ones
-                self.marked_packets.clear();
-
-                let time_filter = self.fragments_scrubber.get_selected_range().cloned();
-
-                // Filter packets based on time (fragments don't have search yet)
-                let filtered_indices: Vec<usize> = self
-                    .packets
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, p)| {
-                        // Apply time filter
-                        if let Some(ref range) = time_filter {
-                            range.contains(p.timestamp)
-                        } else {
-                            true
-                        }
-                    })
-                    .map(|(idx, _)| idx)
-                    .collect();
-
-                // Set marked_packets to only the filtered indices
-                self.marked_packets = filtered_indices.into_iter().collect();
-
-                // Update scrubber with marked timestamps
-                let marked_timestamps: Vec<f64> = self
-                    .packets
-                    .iter()
-                    .enumerate()
-                    .filter(|(idx, _)| self.marked_packets.contains(idx))
-                    .map(|(_, p)| p.timestamp)
-                    .collect();
-                self.fragments_scrubber
-                    .set_marked_timestamps(marked_timestamps);
-            }
             Tab::Weenies => {
                 // TODO: Implement weenie marking (weenies don't have timestamps yet)
             }
@@ -476,12 +440,6 @@ impl eframe::App for PcapViewerApp {
                             self.current_tab = Tab::Messages;
                         }
                         if ui
-                            .selectable_label(self.current_tab == Tab::Fragments, "Frag")
-                            .clicked()
-                        {
-                            self.current_tab = Tab::Fragments;
-                        }
-                        if ui
                             .selectable_label(self.current_tab == Tab::Weenies, "Obj")
                             .clicked()
                         {
@@ -523,7 +481,6 @@ impl eframe::App for PcapViewerApp {
                         // Reset marks button (enabled when there are marks)
                         let has_marks = match self.current_tab {
                             Tab::Messages => !self.marked_messages.is_empty(),
-                            Tab::Fragments => !self.marked_packets.is_empty(),
                             Tab::Weenies => false, // TODO: Implement weenie marking
                         };
                         ui.add_enabled_ui(has_marks, |ui| {
@@ -532,10 +489,6 @@ impl eframe::App for PcapViewerApp {
                                     Tab::Messages => {
                                         self.marked_messages.clear();
                                         self.messages_scrubber.clear_marked_timestamps();
-                                    }
-                                    Tab::Fragments => {
-                                        self.marked_packets.clear();
-                                        self.fragments_scrubber.clear_marked_timestamps();
                                     }
                                     Tab::Weenies => {
                                         // TODO: Implement weenie marking
@@ -575,12 +528,6 @@ impl eframe::App for PcapViewerApp {
                         .clicked()
                     {
                         self.current_tab = Tab::Messages;
-                    }
-                    if ui
-                        .selectable_label(self.current_tab == Tab::Fragments, "Fragments")
-                        .clicked()
-                    {
-                        self.current_tab = Tab::Fragments;
                     }
                     if ui
                         .selectable_label(self.current_tab == Tab::Weenies, "Weenies")
@@ -627,7 +574,6 @@ impl eframe::App for PcapViewerApp {
                     // Reset marks button (enabled when there are marks)
                     let has_marks = match self.current_tab {
                         Tab::Messages => !self.marked_messages.is_empty(),
-                        Tab::Fragments => !self.marked_packets.is_empty(),
                         Tab::Weenies => false, // TODO: Implement weenie marking
                     };
                     ui.add_enabled_ui(has_marks, |ui| {
@@ -636,10 +582,6 @@ impl eframe::App for PcapViewerApp {
                                 Tab::Messages => {
                                     self.marked_messages.clear();
                                     self.messages_scrubber.clear_marked_timestamps();
-                                }
-                                Tab::Fragments => {
-                                    self.marked_packets.clear();
-                                    self.fragments_scrubber.clear_marked_timestamps();
                                 }
                                 Tab::Weenies => {
                                     // TODO: Implement weenie marking
@@ -796,14 +738,12 @@ impl eframe::App for PcapViewerApp {
         }
 
         // Time scrubber panel (only show if we have data)
-        // Show appropriate scrubber based on current tab
         // This panel is shown BELOW the central panel (list/detail pane)
         let mut clicked_time: Option<f64> = None;
         if has_data {
             // Check which scrubber has data
             let scrubber_has_data = match self.current_tab {
                 Tab::Messages => self.messages_scrubber.has_data(),
-                Tab::Fragments => self.fragments_scrubber.has_data(),
                 Tab::Weenies => false, // Weenies don't have time scrubbers
             };
 
@@ -814,7 +754,6 @@ impl eframe::App for PcapViewerApp {
                         // Show appropriate scrubber
                         let result = match self.current_tab {
                             Tab::Messages => self.messages_scrubber.show(ui),
-                            Tab::Fragments => self.fragments_scrubber.show(ui),
                             Tab::Weenies => unreachable!("Weenies don't have time scrubbers"),
                         };
 
@@ -822,7 +761,6 @@ impl eframe::App for PcapViewerApp {
                         if result.clicked_index.is_some() {
                             clicked_time = match self.current_tab {
                                 Tab::Messages => self.messages_scrubber.get_hover_time(),
-                                Tab::Fragments => self.fragments_scrubber.get_hover_time(),
                                 Tab::Weenies => unreachable!("Weenies don't have time scrubbers"),
                             };
                         }
@@ -837,10 +775,6 @@ impl eframe::App for PcapViewerApp {
                                 Tab::Weenies => {
                                     // TODO: Implement weenie marking
                                 }
-                                Tab::Fragments => {
-                                    self.marked_packets.clear();
-                                    self.fragments_scrubber.clear_marked_timestamps();
-                                }
                             }
                         }
                     });
@@ -849,48 +783,22 @@ impl eframe::App for PcapViewerApp {
 
         // Handle click-to-scroll from time scrubber
         if let Some(time) = clicked_time {
-            // Find the closest packet/message to the clicked time
-            match self.current_tab {
-                Tab::Messages => {
-                    let closest_idx = self
-                        .messages
-                        .iter()
-                        .enumerate()
-                        .min_by(|(_, a), (_, b)| {
-                            let dist_a = (a.timestamp - time).abs();
-                            let dist_b = (b.timestamp - time).abs();
-                            dist_a
-                                .partial_cmp(&dist_b)
-                                .unwrap_or(std::cmp::Ordering::Equal)
-                        })
-                        .map(|(idx, _)| idx);
+            // Find the closest message to the clicked time
+            let closest_idx = self
+                .messages
+                .iter()
+                .enumerate()
+                .min_by(|(_, a), (_, b)| {
+                    let dist_a = (a.timestamp - time).abs();
+                    let dist_b = (b.timestamp - time).abs();
+                    dist_a
+                        .partial_cmp(&dist_b)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .map(|(idx, _)| idx);
 
-                    if let Some(idx) = closest_idx {
-                        self.selected_message = Some(idx);
-                    }
-                }
-                Tab::Fragments => {
-                    let closest_idx = self
-                        .packets
-                        .iter()
-                        .enumerate()
-                        .min_by(|(_, a), (_, b)| {
-                            let dist_a = (a.timestamp - time).abs();
-                            let dist_b = (b.timestamp - time).abs();
-                            dist_a
-                                .partial_cmp(&dist_b)
-                                .unwrap_or(std::cmp::Ordering::Equal)
-                        })
-                        .map(|(idx, _)| idx);
-
-                    if let Some(idx) = closest_idx {
-                        self.selected_packet = Some(idx);
-                    }
-                }
-                Tab::Weenies => {
-                    // Weenies don't have time scrubbers, so this shouldn't happen
-                    unreachable!("Weenies don't have time scrubbers")
-                }
+            if let Some(idx) = closest_idx {
+                self.selected_message = Some(idx);
             }
         }
 
@@ -1021,7 +929,6 @@ impl eframe::App for PcapViewerApp {
                 // On mobile, auto-show detail when selecting an item
                 match self.current_tab {
                     Tab::Messages => ui::packet_list::show_messages_list(self, ui, is_mobile),
-                    Tab::Fragments => ui::packet_list::show_packets_list(self, ui, is_mobile),
                     Tab::Weenies => ui::weenie_panel::show_weenie_panel(self, ui, is_mobile),
                 }
             }
