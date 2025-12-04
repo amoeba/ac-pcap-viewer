@@ -888,12 +888,12 @@ impl eframe::App for PcapViewerApp {
                         #[cfg(not(target_arch = "wasm32"))]
                         let origin = "https://pcap.treestats.net".to_string();
 
-                        // Construct example URLs - use relative path for actual load to avoid CORS
-                        let display_url = format!("{}/?url={}/example.pcap", origin, origin);
-                        let actual_url = "./example.pcap".to_string();
+                        // Construct example URL - demonstrates loading from absolute URL
+                        let example_pcap_url = format!("{}/example.pcap", origin);
+                        let example_url = format!("{}/?url={}", origin, example_pcap_url);
 
                         let prefix_text = "Example: ";
-                        let full_text = format!("{prefix_text}{display_url}");
+                        let full_text = format!("{prefix_text}{example_url}");
 
                         // Calculate width for centering the entire line
                         let total_width = ui.fonts(|f| {
@@ -916,10 +916,10 @@ impl eframe::App for PcapViewerApp {
                         // Show "Example: " as plain text
                         ui.label(prefix_text);
 
-                        // Show the URL as a clickable link (displays full format)
-                        if ui.link(&display_url).clicked() {
-                            self.url_input = actual_url.clone();
-                            ui::file_panel::load_from_url(self, actual_url, ctx);
+                        // Show the URL as a clickable link and load from absolute URL
+                        if ui.link(&example_url).clicked() {
+                            self.url_input = example_pcap_url.clone();
+                            ui::file_panel::load_from_url(self, example_pcap_url, ctx);
                         }
                     });
 
