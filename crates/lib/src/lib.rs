@@ -203,6 +203,8 @@ impl PacketParser {
                 }
                 Err(PcapError::Eof) => break,
                 Err(PcapError::Incomplete(_)) => {
+                    // When reading from a byte slice (as in WASM), refill is not needed
+                    // since the entire buffer is already in memory
                     reader.refill().ok();
                     continue;
                 }
