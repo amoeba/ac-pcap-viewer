@@ -5,7 +5,7 @@ edition.workspace = true
 description = "AC PCAP parser library with shared types"
 
 [dependencies]
-acprotocol.workspace = true
+acprotocol = { workspace = true, default-features = false }
 anyhow.workspace = true
 thiserror.workspace = true
 serde = { workspace = true }
