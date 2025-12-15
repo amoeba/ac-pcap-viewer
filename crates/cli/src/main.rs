@@ -461,7 +461,9 @@ fn main() -> Result<()> {
 
     let mut parser = PacketParser::new();
 
-    let file_path = cli.file.unwrap_or_else(|| "pkt_2025-11-18_1763490291_log.pcap".to_string());
+    let file_path = cli
+        .file
+        .unwrap_or_else(|| "pkt_2025-11-18_1763490291_log.pcap".to_string());
     eprintln!("Parsing PCAP file: {}", file_path);
 
     let file = File::open(&file_path).context("Failed to open pcap file")?;

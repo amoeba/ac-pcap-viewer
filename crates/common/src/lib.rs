@@ -3,8 +3,8 @@
 //! This library provides functionality to parse PCAP files containing
 //! Asheron's Call network traffic.
 
-pub use acprotocol::network::packet::PacketHeaderFlags;
 use acprotocol::network::packet::PacketHeader;
+pub use acprotocol::network::packet::PacketHeaderFlags;
 use acprotocol::network::reader::BinaryReader;
 use acprotocol::unified::Direction;
 use anyhow::{Context, Result};
