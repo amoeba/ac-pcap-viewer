@@ -2,8 +2,8 @@
 
 use crate::ui::hyper_tree::AcJsonTree;
 use crate::{PcapViewerApp, Tab, ViewMode};
-use eframe::egui;
 use common::messages::ParsedMessage;
+use eframe::egui;
 
 /// Show detail content in the detail panel
 pub fn show_detail_content(app: &mut PcapViewerApp, ui: &mut egui::Ui) {

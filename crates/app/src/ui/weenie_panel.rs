@@ -1,8 +1,8 @@
 use crate::PcapViewerApp;
+use common::Tab;
 use eframe::egui;
 use egui::ScrollArea;
 use egui_extras::{Column, TableBuilder};
-use common::Tab;
 
 pub fn show_weenie_panel(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: bool) {
     // Clone weenies to avoid borrow checker issues

@@ -1,8 +1,8 @@
 //! File loading and management UI components
 
 use crate::PcapViewerApp;
-use eframe::egui;
 use common::PacketParser;
+use eframe::egui;
 
 #[allow(dead_code)]
 static BOT_BASE_URL: &str = env!("BOT_BASE_URL");
