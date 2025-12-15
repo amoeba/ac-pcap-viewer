@@ -3,8 +3,8 @@
 //! This library provides functionality to parse PCAP files containing
 //! Asheron's Call network traffic.
 
+pub use acprotocol::network::packet::PacketHeaderFlags;
 use acprotocol::network::packet::PacketHeader;
-use acprotocol::network::packet::PacketHeaderFlags;
 use acprotocol::network::reader::BinaryReader;
 use acprotocol::unified::Direction;
 use anyhow::{Context, Result};
@@ -16,7 +16,9 @@ use std::collections::HashMap;
 use std::io::Read;
 
 pub mod messages;
+pub mod packet_flags;
 pub mod serialization;
+pub mod tree;
 pub mod weenie;
 pub mod weenie_extractor;
 

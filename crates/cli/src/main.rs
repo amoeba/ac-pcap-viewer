@@ -13,8 +13,8 @@ mod tui;
 #[command(about = "Parse Asheron's Call PCAP files", long_about = None)]
 pub struct Cli {
     /// PCAP file to parse
-    #[arg(short, long, default_value = "pkt_2025-11-18_1763490291_log.pcap")]
-    pub file: String,
+    #[arg(value_name = "FILE")]
+    pub file: Option<String>,
 
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -461,9 +461,10 @@ fn main() -> Result<()> {
 
     let mut parser = PacketParser::new();
 
-    eprintln!("Parsing PCAP file: {}", cli.file);
+    let file_path = cli.file.unwrap_or_else(|| "pkt_2025-11-18_1763490291_log.pcap".to_string());
+    eprintln!("Parsing PCAP file: {}", file_path);
 
-    let file = File::open(&cli.file).context("Failed to open pcap file")?;
+    let file = File::open(&file_path).context("Failed to open pcap file")?;
     let (packets, messages, weenie_db) = parser
         .parse_pcap(file)
         .context("Failed to parse pcap file")?;
