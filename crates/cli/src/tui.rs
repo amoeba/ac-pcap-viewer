@@ -13,7 +13,7 @@ use ratatui::{
 };
 use std::io::{self, Stdout};
 
-use lib::{ParsedPacket, messages::ParsedMessage};
+use common::{ParsedPacket, messages::ParsedMessage};
 
 use crate::filter;
 

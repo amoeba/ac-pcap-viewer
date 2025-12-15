@@ -1,5 +1,5 @@
-use lib::PacketParser;
-use lib::messages::ParsedMessage;
+use common::PacketParser;
+use common::messages::ParsedMessage;
 use std::fs::File;
 
 /// Recursively search for a string within a JSON value (case-insensitive)

@@ -16,7 +16,7 @@ wasm-opt = ["-Oz", "--enable-bulk-memory", "--enable-sign-ext", "--enable-nontra
 # (file dialogs and native logging aren't used on web)
 # All UI features and parsing code are included
 app = { path = "../app", default-features = false }
-lib = { path = "../lib" }
+common = { path = "../common" }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

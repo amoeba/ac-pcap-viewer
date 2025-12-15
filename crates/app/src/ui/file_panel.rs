@@ -2,7 +2,7 @@
 
 use crate::PcapViewerApp;
 use eframe::egui;
-use lib::PacketParser;
+use common::PacketParser;
 
 #[allow(dead_code)]
 static BOT_BASE_URL: &str = env!("BOT_BASE_URL");

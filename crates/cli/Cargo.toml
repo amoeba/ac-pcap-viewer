@@ -9,7 +9,7 @@ name = "cli"
 path = "src/main.rs"
 
 [dependencies]
-lib = { path = "../lib" }
+common = { path = "../common" }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

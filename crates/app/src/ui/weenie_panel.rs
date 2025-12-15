@@ -2,11 +2,11 @@ use crate::PcapViewerApp;
 use eframe::egui;
 use egui::ScrollArea;
 use egui_extras::{Column, TableBuilder};
-use lib::Tab;
+use common::Tab;
 
 pub fn show_weenie_panel(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: bool) {
     // Clone weenies to avoid borrow checker issues
-    let weenies: Vec<lib::weenie::Weenie> = app
+    let weenies: Vec<common::weenie::Weenie> = app
         .weenie_db
         .sorted_weenies()
         .into_iter()
@@ -33,7 +33,7 @@ pub fn show_weenie_panel(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: 
 
     // Filter weenies
     let filter_lower = app.search_query.to_lowercase();
-    let filtered_weenies: Vec<&lib::weenie::Weenie> = weenies
+    let filtered_weenies: Vec<&common::weenie::Weenie> = weenies
         .iter()
         .filter(|w| {
             if filter_lower.is_empty() {
@@ -58,7 +58,7 @@ pub fn show_weenie_panel(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: 
 fn show_mobile_weenie_list(
     app: &mut PcapViewerApp,
     ui: &mut egui::Ui,
-    weenies: &[&lib::weenie::Weenie],
+    weenies: &[&common::weenie::Weenie],
 ) {
     ScrollArea::vertical().show(ui, |ui| {
         for (idx, weenie) in weenies.iter().enumerate() {
@@ -84,7 +84,7 @@ fn show_mobile_weenie_list(
 fn show_desktop_weenie_table(
     app: &mut PcapViewerApp,
     ui: &mut egui::Ui,
-    weenies: &[&lib::weenie::Weenie],
+    weenies: &[&common::weenie::Weenie],
 ) {
     TableBuilder::new(ui)
         .striped(true)
@@ -162,7 +162,7 @@ fn show_desktop_weenie_table(
 
 pub fn show_weenie_detail(app: &mut PcapViewerApp, ui: &mut egui::Ui) {
     // Clone weenies to avoid borrow checker issues
-    let weenies: Vec<lib::weenie::Weenie> = app
+    let weenies: Vec<common::weenie::Weenie> = app
         .weenie_db
         .sorted_weenies()
         .into_iter()
@@ -171,7 +171,7 @@ pub fn show_weenie_detail(app: &mut PcapViewerApp, ui: &mut egui::Ui) {
 
     // Filter weenies
     let filter_lower = app.search_query.to_lowercase();
-    let filtered_weenies: Vec<&lib::weenie::Weenie> = weenies
+    let filtered_weenies: Vec<&common::weenie::Weenie> = weenies
         .iter()
         .filter(|w| {
             if filter_lower.is_empty() {

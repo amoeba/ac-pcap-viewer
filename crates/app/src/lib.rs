@@ -8,12 +8,12 @@ pub mod time_scrubber;
 pub mod ui;
 
 use eframe::egui;
-use lib::{ParsedPacket, messages::ParsedMessage};
+use common::{ParsedPacket, messages::ParsedMessage};
 use std::sync::{Arc, Mutex};
 use time_scrubber::TimeScrubber;
 
 // Re-export state types for convenience
-pub use lib::{SortField, Tab, ViewMode};
+pub use common::{SortField, Tab, ViewMode};
 use state::{MOBILE_BREAKPOINT, MOBILE_SCALE, TABLET_BREAKPOINT};
 
 // Shared state for async loading
@@ -24,7 +24,7 @@ pub struct PcapViewerApp {
     // Data
     pub messages: Vec<ParsedMessage>,
     pub packets: Vec<ParsedPacket>,
-    pub weenie_db: lib::weenie::WeenieDatabase,
+    pub weenie_db: common::weenie::WeenieDatabase,
 
     // UI State
     pub current_tab: Tab,
@@ -92,7 +92,7 @@ impl Default for PcapViewerApp {
         Self {
             messages: Vec::new(),
             packets: Vec::new(),
-            weenie_db: lib::weenie::WeenieDatabase::new(),
+            weenie_db: common::weenie::WeenieDatabase::new(),
             current_tab: Tab::Messages,
             selected_message: None,
             selected_packet: None,

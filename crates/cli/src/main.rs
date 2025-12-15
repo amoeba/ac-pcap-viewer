@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use std::collections::HashMap;
 use std::fs::File;
 
-use lib::{PacketParser, ParsedPacket, messages::ParsedMessage};
+use common::{PacketParser, ParsedPacket, messages::ParsedMessage};
 
 mod filter;
 mod tui;
@@ -148,7 +148,7 @@ pub enum OutputFormat {
 fn print_summary(
     packets: &[ParsedPacket],
     messages: &[ParsedMessage],
-    weenie_db: &lib::weenie::WeenieDatabase,
+    weenie_db: &common::weenie::WeenieDatabase,
 ) {
     println!("=== PCAP Summary ===\n");
 
@@ -357,7 +357,7 @@ fn truncate(s: &str, max_len: usize) -> String {
 
 #[allow(clippy::too_many_arguments)]
 fn output_weenies(
-    weenie_db: &lib::weenie::WeenieDatabase,
+    weenie_db: &common::weenie::WeenieDatabase,
     object_id_filter: Option<&str>,
     name_filter: Option<&str>,
     sort: WeenieSortField,
