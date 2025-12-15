@@ -250,10 +250,13 @@ impl PacketParser {
         }
 
         // Extract weenie updates from all messages
-        let mut type_counts: std::collections::HashMap<String, (usize, usize)> = std::collections::HashMap::new();
+        let mut type_counts: std::collections::HashMap<String, (usize, usize)> =
+            std::collections::HashMap::new();
         for msg in &all_messages {
             let updates = weenie_extractor::extract_weenie_updates(msg);
-            let entry = type_counts.entry(msg.message_type.clone()).or_insert((0, 0));
+            let entry = type_counts
+                .entry(msg.message_type.clone())
+                .or_insert((0, 0));
             entry.0 += 1; // total messages
             entry.1 += updates.len(); // successful extractions
             for update in updates {
@@ -267,10 +270,16 @@ impl PacketParser {
         types.sort_by_key(|(_, (_, extracted))| std::cmp::Reverse(*extracted));
         for (msg_type, (total, extracted)) in types.iter().take(20) {
             if *extracted > 0 {
-                eprintln!("{}: {} extracted from {} messages", msg_type, extracted, total);
+                eprintln!(
+                    "{}: {} extracted from {} messages",
+                    msg_type, extracted, total
+                );
             }
         }
-        eprintln!("Total message types with 0 extractions: {}", types.iter().filter(|(_, (_, e))| *e == 0).count());
+        eprintln!(
+            "Total message types with 0 extractions: {}",
+            types.iter().filter(|(_, (_, e))| *e == 0).count()
+        );
         eprintln!("Final weenie count: {}\n", weenie_db.count());
 
         Ok((packets, all_messages, weenie_db))

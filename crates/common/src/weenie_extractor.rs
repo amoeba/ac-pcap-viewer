@@ -15,37 +15,53 @@ pub fn extract_weenie_updates(message: &ParsedMessage) -> Vec<WeenieUpdate> {
         // ===== Direct S2C Messages (Pattern B) =====
         // Quality updates with ObjectId
         "Qualities_UpdateInt" => {
-            if let Some(update) = extract_s2c_direct(message, "QualitiesUpdateInt", extract_int_property) {
+            if let Some(update) =
+                extract_s2c_direct(message, "QualitiesUpdateInt", extract_int_property)
+            {
                 updates.push(update);
             }
         }
         "Qualities_UpdateInstanceId" => {
-            if let Some(update) = extract_s2c_direct(message, "QualitiesUpdateInstanceId", extract_instance_id_property) {
+            if let Some(update) = extract_s2c_direct(
+                message,
+                "QualitiesUpdateInstanceId",
+                extract_instance_id_property,
+            ) {
                 updates.push(update);
             }
         }
         "Qualities_UpdateBool" => {
-            if let Some(update) = extract_s2c_direct(message, "QualitiesUpdateBool", extract_bool_property) {
+            if let Some(update) =
+                extract_s2c_direct(message, "QualitiesUpdateBool", extract_bool_property)
+            {
                 updates.push(update);
             }
         }
         "Qualities_UpdateFloat" => {
-            if let Some(update) = extract_s2c_direct(message, "QualitiesUpdateFloat", extract_float_property) {
+            if let Some(update) =
+                extract_s2c_direct(message, "QualitiesUpdateFloat", extract_float_property)
+            {
                 updates.push(update);
             }
         }
         "Qualities_UpdateString" => {
-            if let Some(update) = extract_s2c_direct(message, "QualitiesUpdateString", extract_string_property) {
+            if let Some(update) =
+                extract_s2c_direct(message, "QualitiesUpdateString", extract_string_property)
+            {
                 updates.push(update);
             }
         }
         "Qualities_UpdateInt64" => {
-            if let Some(update) = extract_s2c_direct(message, "QualitiesUpdateInt64", extract_int64_property) {
+            if let Some(update) =
+                extract_s2c_direct(message, "QualitiesUpdateInt64", extract_int64_property)
+            {
                 updates.push(update);
             }
         }
         "Qualities_UpdateDataId" => {
-            if let Some(update) = extract_s2c_direct(message, "QualitiesUpdateDataId", extract_data_id_property) {
+            if let Some(update) =
+                extract_s2c_direct(message, "QualitiesUpdateDataId", extract_data_id_property)
+            {
                 updates.push(update);
             }
         }
@@ -84,9 +100,9 @@ pub fn extract_weenie_updates(message: &ParsedMessage) -> Vec<WeenieUpdate> {
         }
 
         // Messages without ObjectId - skip these
-        "Qualities_PrivateUpdateAttribute2ndLevel" |
-        "Qualities_PrivateUpdateInt" |
-        "Communication_TextboxString" => {
+        "Qualities_PrivateUpdateAttribute2ndLevel"
+        | "Qualities_PrivateUpdateInt"
+        | "Communication_TextboxString" => {
             // These don't have ObjectId, they're player-specific or text-only
         }
 
@@ -97,17 +113,23 @@ pub fn extract_weenie_updates(message: &ParsedMessage) -> Vec<WeenieUpdate> {
             }
         }
         "Item_ServerSaysContainId" => {
-            if let Some(update) = extract_ordered_event(message, "ItemServerSaysContainId", extract_contain_id_data) {
+            if let Some(update) =
+                extract_ordered_event(message, "ItemServerSaysContainId", extract_contain_id_data)
+            {
                 updates.push(update);
             }
         }
         "Item_WearItem" => {
-            if let Some(update) = extract_ordered_event(message, "ItemWearItem", extract_wear_item_data) {
+            if let Some(update) =
+                extract_ordered_event(message, "ItemWearItem", extract_wear_item_data)
+            {
                 updates.push(update);
             }
         }
         "Magic_UpdateEnchantment" => {
-            if let Some(update) = extract_ordered_event(message, "MagicUpdateEnchantment", extract_enchantment_data) {
+            if let Some(update) =
+                extract_ordered_event(message, "MagicUpdateEnchantment", extract_enchantment_data)
+            {
                 updates.push(update);
             }
         }
@@ -242,7 +264,9 @@ fn extract_instance_id_property(msg_data: &serde_json::Value, update: &mut Weeni
         msg_data.get("Key").and_then(|v| v.as_str()),
         msg_data.get("Value").and_then(|v| v.as_u64()),
     ) {
-        update.instance_id_properties.insert(key.to_string(), value as u32);
+        update
+            .instance_id_properties
+            .insert(key.to_string(), value as u32);
     }
 }
 
@@ -269,7 +293,9 @@ fn extract_string_property(msg_data: &serde_json::Value, update: &mut WeenieUpda
         msg_data.get("Key").and_then(|v| v.as_str()),
         msg_data.get("Value").and_then(|v| v.as_str()),
     ) {
-        update.string_properties.insert(key.to_string(), value.to_string());
+        update
+            .string_properties
+            .insert(key.to_string(), value.to_string());
     }
 }
 
@@ -287,7 +313,9 @@ fn extract_data_id_property(msg_data: &serde_json::Value, update: &mut WeenieUpd
         msg_data.get("Key").and_then(|v| v.as_str()),
         msg_data.get("Value").and_then(|v| v.as_u64()),
     ) {
-        update.data_id_properties.insert(key.to_string(), value as u32);
+        update
+            .data_id_properties
+            .insert(key.to_string(), value as u32);
     }
 }
 
@@ -306,65 +334,71 @@ fn extract_appraise_info(message: &ParsedMessage) -> Option<WeenieUpdate> {
     let mut update = WeenieUpdate::new(object_id, message.timestamp, message.id);
 
     // Extract properties from all property dictionaries in appraise_info
-    if let Some(int_props_obj) = appraise_data.get("IntProperties").and_then(|v| v.as_object()) {
-        if let Some(table) = int_props_obj.get("Table").and_then(|v| v.as_object()) {
+    if let Some(int_props_obj) = appraise_data
+        .get("IntProperties")
+        .and_then(|v| v.as_object())
+        && let Some(table) = int_props_obj.get("Table").and_then(|v| v.as_object()) {
             for (key, value) in table {
                 if let Some(v) = value.as_i64() {
                     update.int_properties.insert(key.clone(), v as i32);
                 }
             }
         }
-    }
 
-    if let Some(int64_props_obj) = appraise_data.get("Int64Properties").and_then(|v| v.as_object()) {
-        if let Some(table) = int64_props_obj.get("Table").and_then(|v| v.as_object()) {
+    if let Some(int64_props_obj) = appraise_data
+        .get("Int64Properties")
+        .and_then(|v| v.as_object())
+        && let Some(table) = int64_props_obj.get("Table").and_then(|v| v.as_object()) {
             for (key, value) in table {
                 if let Some(v) = value.as_i64() {
                     update.int64_properties.insert(key.clone(), v);
                 }
             }
         }
-    }
 
-    if let Some(bool_props_obj) = appraise_data.get("BoolProperties").and_then(|v| v.as_object()) {
-        if let Some(table) = bool_props_obj.get("Table").and_then(|v| v.as_object()) {
+    if let Some(bool_props_obj) = appraise_data
+        .get("BoolProperties")
+        .and_then(|v| v.as_object())
+        && let Some(table) = bool_props_obj.get("Table").and_then(|v| v.as_object()) {
             for (key, value) in table {
                 if let Some(v) = value.as_bool() {
                     update.bool_properties.insert(key.clone(), v);
                 }
             }
         }
-    }
 
-    if let Some(float_props_obj) = appraise_data.get("FloatProperties").and_then(|v| v.as_object()) {
-        if let Some(table) = float_props_obj.get("Table").and_then(|v| v.as_object()) {
+    if let Some(float_props_obj) = appraise_data
+        .get("FloatProperties")
+        .and_then(|v| v.as_object())
+        && let Some(table) = float_props_obj.get("Table").and_then(|v| v.as_object()) {
             for (key, value) in table {
                 if let Some(v) = value.as_f64() {
                     update.float_properties.insert(key.clone(), v);
                 }
             }
         }
-    }
 
-    if let Some(string_props_obj) = appraise_data.get("StringProperties").and_then(|v| v.as_object()) {
-        if let Some(table) = string_props_obj.get("Table").and_then(|v| v.as_object()) {
+    if let Some(string_props_obj) = appraise_data
+        .get("StringProperties")
+        .and_then(|v| v.as_object())
+        && let Some(table) = string_props_obj.get("Table").and_then(|v| v.as_object()) {
             for (key, value) in table {
                 if let Some(v) = value.as_str() {
                     update.string_properties.insert(key.clone(), v.to_string());
                 }
             }
         }
-    }
 
-    if let Some(did_props_obj) = appraise_data.get("DataIdProperties").and_then(|v| v.as_object()) {
-        if let Some(table) = did_props_obj.get("Table").and_then(|v| v.as_object()) {
+    if let Some(did_props_obj) = appraise_data
+        .get("DataIdProperties")
+        .and_then(|v| v.as_object())
+        && let Some(table) = did_props_obj.get("Table").and_then(|v| v.as_object()) {
             for (key, value) in table {
                 if let Some(v) = value.as_u64() {
                     update.data_id_properties.insert(key.clone(), v as u32);
                 }
             }
         }
-    }
 
     // Extract name if present (try Name first, then LongDesc)
     if let Some(name) = update.string_properties.get("Name").cloned() {
@@ -376,12 +410,17 @@ fn extract_appraise_info(message: &ParsedMessage) -> Option<WeenieUpdate> {
     Some(update)
 }
 
-fn extract_contain_id_data(event_data: &serde_json::Value, update: &mut WeenieUpdate) -> Option<()> {
+fn extract_contain_id_data(
+    event_data: &serde_json::Value,
+    update: &mut WeenieUpdate,
+) -> Option<()> {
     let object_id = event_data.get("ObjectId")?.as_u64()? as u32;
     let container_id = event_data.get("ContainerId")?.as_u64()? as u32;
 
     update.object_id = object_id;
-    update.instance_id_properties.insert("Container".to_string(), container_id);
+    update
+        .instance_id_properties
+        .insert("Container".to_string(), container_id);
     Some(())
 }
 
@@ -391,7 +430,10 @@ fn extract_wear_item_data(event_data: &serde_json::Value, update: &mut WeenieUpd
     Some(())
 }
 
-fn extract_enchantment_data(event_data: &serde_json::Value, update: &mut WeenieUpdate) -> Option<()> {
+fn extract_enchantment_data(
+    event_data: &serde_json::Value,
+    update: &mut WeenieUpdate,
+) -> Option<()> {
     let enchantment = event_data.get("Enchantment")?;
     let caster_id = enchantment.get("CasterId")?.as_u64()? as u32;
     update.object_id = caster_id;
