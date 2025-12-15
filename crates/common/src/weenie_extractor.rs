@@ -337,68 +337,74 @@ fn extract_appraise_info(message: &ParsedMessage) -> Option<WeenieUpdate> {
     if let Some(int_props_obj) = appraise_data
         .get("IntProperties")
         .and_then(|v| v.as_object())
-        && let Some(table) = int_props_obj.get("Table").and_then(|v| v.as_object()) {
-            for (key, value) in table {
-                if let Some(v) = value.as_i64() {
-                    update.int_properties.insert(key.clone(), v as i32);
-                }
+        && let Some(table) = int_props_obj.get("Table").and_then(|v| v.as_object())
+    {
+        for (key, value) in table {
+            if let Some(v) = value.as_i64() {
+                update.int_properties.insert(key.clone(), v as i32);
             }
         }
+    }
 
     if let Some(int64_props_obj) = appraise_data
         .get("Int64Properties")
         .and_then(|v| v.as_object())
-        && let Some(table) = int64_props_obj.get("Table").and_then(|v| v.as_object()) {
-            for (key, value) in table {
-                if let Some(v) = value.as_i64() {
-                    update.int64_properties.insert(key.clone(), v);
-                }
+        && let Some(table) = int64_props_obj.get("Table").and_then(|v| v.as_object())
+    {
+        for (key, value) in table {
+            if let Some(v) = value.as_i64() {
+                update.int64_properties.insert(key.clone(), v);
             }
         }
+    }
 
     if let Some(bool_props_obj) = appraise_data
         .get("BoolProperties")
         .and_then(|v| v.as_object())
-        && let Some(table) = bool_props_obj.get("Table").and_then(|v| v.as_object()) {
-            for (key, value) in table {
-                if let Some(v) = value.as_bool() {
-                    update.bool_properties.insert(key.clone(), v);
-                }
+        && let Some(table) = bool_props_obj.get("Table").and_then(|v| v.as_object())
+    {
+        for (key, value) in table {
+            if let Some(v) = value.as_bool() {
+                update.bool_properties.insert(key.clone(), v);
             }
         }
+    }
 
     if let Some(float_props_obj) = appraise_data
         .get("FloatProperties")
         .and_then(|v| v.as_object())
-        && let Some(table) = float_props_obj.get("Table").and_then(|v| v.as_object()) {
-            for (key, value) in table {
-                if let Some(v) = value.as_f64() {
-                    update.float_properties.insert(key.clone(), v);
-                }
+        && let Some(table) = float_props_obj.get("Table").and_then(|v| v.as_object())
+    {
+        for (key, value) in table {
+            if let Some(v) = value.as_f64() {
+                update.float_properties.insert(key.clone(), v);
             }
         }
+    }
 
     if let Some(string_props_obj) = appraise_data
         .get("StringProperties")
         .and_then(|v| v.as_object())
-        && let Some(table) = string_props_obj.get("Table").and_then(|v| v.as_object()) {
-            for (key, value) in table {
-                if let Some(v) = value.as_str() {
-                    update.string_properties.insert(key.clone(), v.to_string());
-                }
+        && let Some(table) = string_props_obj.get("Table").and_then(|v| v.as_object())
+    {
+        for (key, value) in table {
+            if let Some(v) = value.as_str() {
+                update.string_properties.insert(key.clone(), v.to_string());
             }
         }
+    }
 
     if let Some(did_props_obj) = appraise_data
         .get("DataIdProperties")
         .and_then(|v| v.as_object())
-        && let Some(table) = did_props_obj.get("Table").and_then(|v| v.as_object()) {
-            for (key, value) in table {
-                if let Some(v) = value.as_u64() {
-                    update.data_id_properties.insert(key.clone(), v as u32);
-                }
+        && let Some(table) = did_props_obj.get("Table").and_then(|v| v.as_object())
+    {
+        for (key, value) in table {
+            if let Some(v) = value.as_u64() {
+                update.data_id_properties.insert(key.clone(), v as u32);
             }
         }
+    }
 
     // Extract name if present (try Name first, then LongDesc)
     if let Some(name) = update.string_properties.get("Name").cloned() {
