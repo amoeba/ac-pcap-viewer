@@ -1,4 +1,4 @@
-use lib::PacketParser;
+use common::PacketParser;
 use std::fs::File;
 
 fn main() {

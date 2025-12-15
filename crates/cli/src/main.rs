@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use std::collections::HashMap;
 use std::fs::File;
 
-use lib::{messages::ParsedMessage, Direction, PacketParser, ParsedPacket};
+use common::{PacketParser, ParsedPacket, messages::ParsedMessage};
 
 mod filter;
 mod tui;
@@ -148,7 +148,7 @@ pub enum OutputFormat {
 fn print_summary(
     packets: &[ParsedPacket],
     messages: &[ParsedMessage],
-    weenie_db: &lib::weenie::WeenieDatabase,
+    weenie_db: &common::weenie::WeenieDatabase,
 ) {
     println!("=== PCAP Summary ===\n");
 
@@ -156,14 +156,8 @@ fn print_summary(
     println!("Messages: {}", messages.len());
     println!("Weenies: {}", weenie_db.count());
 
-    let send_packets = packets
-        .iter()
-        .filter(|p| matches!(p.direction, Direction::Send))
-        .count();
-    let recv_packets = packets
-        .iter()
-        .filter(|p| matches!(p.direction, Direction::Recv))
-        .count();
+    let send_packets = packets.iter().filter(|p| p.direction == "Send").count();
+    let recv_packets = packets.iter().filter(|p| p.direction == "Recv").count();
     println!("\nPackets by Direction:");
     println!("  Send (C→S): {send_packets}");
     println!("  Recv (S→C): {recv_packets}");
@@ -210,10 +204,10 @@ fn output_messages(
     let mut filtered: Vec<&ParsedMessage> = messages
         .iter()
         .filter(|m| {
-            if let Some(ft) = filter_type {
-                if !m.message_type.to_lowercase().contains(&ft.to_lowercase()) {
-                    return false;
-                }
+            if let Some(ft) = filter_type
+                && !m.message_type.to_lowercase().contains(&ft.to_lowercase())
+            {
+                return false;
             }
             if let Some(oc) = opcode_filter {
                 if let Some(msg_opcode) = filter::opcode_str_to_u32(&m.opcode) {
@@ -248,11 +242,7 @@ fn output_messages(
             SortField::Type => a.message_type.cmp(&b.message_type),
             SortField::Direction => a.direction.cmp(&b.direction),
         };
-        if reverse {
-            cmp.reverse()
-        } else {
-            cmp
-        }
+        if reverse { cmp.reverse() } else { cmp }
     });
 
     if let Some(lim) = limit {
@@ -298,12 +288,12 @@ fn output_fragments(
             if let Some(d) = direction {
                 match d {
                     DirectionFilter::Send => {
-                        if !matches!(p.direction, Direction::Send) {
+                        if p.direction != "Send" {
                             return false;
                         }
                     }
                     DirectionFilter::Recv => {
-                        if !matches!(p.direction, Direction::Recv) {
+                        if p.direction != "Recv" {
                             return false;
                         }
                     }
@@ -321,11 +311,7 @@ fn output_fragments(
                 format!("{:?}", a.direction).cmp(&format!("{:?}", b.direction))
             }
         };
-        if reverse {
-            cmp.reverse()
-        } else {
-            cmp
-        }
+        if reverse { cmp.reverse() } else { cmp }
     });
 
     if let Some(lim) = limit {
@@ -371,7 +357,7 @@ fn truncate(s: &str, max_len: usize) -> String {
 
 #[allow(clippy::too_many_arguments)]
 fn output_weenies(
-    weenie_db: &lib::weenie::WeenieDatabase,
+    weenie_db: &common::weenie::WeenieDatabase,
     object_id_filter: Option<&str>,
     name_filter: Option<&str>,
     sort: WeenieSortField,
@@ -383,10 +369,10 @@ fn output_weenies(
 
     // Apply filters
     weenies.retain(|w| {
-        if let Some(id_filter) = object_id_filter {
-            if !w.object_id.to_string().contains(id_filter) {
-                return false;
-            }
+        if let Some(id_filter) = object_id_filter
+            && !w.object_id.to_string().contains(id_filter)
+        {
+            return false;
         }
         if let Some(name_filter) = name_filter {
             if let Some(ref name) = w.name {
@@ -428,11 +414,7 @@ fn output_weenies(
             }
             WeenieSortField::Messages => a.message_count.cmp(&b.message_count),
         };
-        if reverse {
-            cmp.reverse()
-        } else {
-            cmp
-        }
+        if reverse { cmp.reverse() } else { cmp }
     });
 
     if let Some(lim) = limit {

@@ -1,5 +1,4 @@
 use anyhow::Result;
-use core::panic;
 use serde::Serialize;
 use std::io::Cursor;
 
@@ -35,7 +34,7 @@ pub fn parse_message(data: &[u8], id: usize) -> Result<ParsedMessage> {
     let opcode = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
 
     // Determine direction based on opcode
-    let direction = determine_direction(opcode);
+    let direction = determine_direction(opcode)?;
     let direction_str = match direction {
         Direction::ClientToServer => "Send",
         Direction::ServerToClient => "Recv",
@@ -75,15 +74,18 @@ pub fn parse_message(data: &[u8], id: usize) -> Result<ParsedMessage> {
 }
 
 /// Determine message direction based on opcode
-fn determine_direction(opcode: u32) -> Direction {
+fn determine_direction(opcode: u32) -> Result<Direction> {
     use acprotocol::enums::{C2SMessage, S2CMessage};
 
     if C2SMessage::try_from(opcode).is_ok() {
-        Direction::ClientToServer
+        Ok(Direction::ClientToServer)
     } else if S2CMessage::try_from(opcode).is_ok() {
-        Direction::ServerToClient
+        Ok(Direction::ServerToClient)
     } else {
-        panic!("Unhandled opcode, couldn't determine C2S or S2C.")
+        anyhow::bail!(
+            "Unhandled opcode 0x{:04X}, couldn't determine C2S or S2C",
+            opcode
+        )
     }
 }
 

@@ -5,8 +5,8 @@
 #![cfg(target_arch = "wasm32")]
 
 use app::PcapViewerApp;
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::*;
 
 /// Query parameter variants
 enum QueryParams {

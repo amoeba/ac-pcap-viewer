@@ -1,8 +1,8 @@
 //! File loading and management UI components
 
 use crate::PcapViewerApp;
+use common::PacketParser;
 use eframe::egui;
-use lib::PacketParser;
 
 #[allow(dead_code)]
 static BOT_BASE_URL: &str = env!("BOT_BASE_URL");
@@ -48,7 +48,7 @@ pub fn parse_pcap_data(app: &mut PcapViewerApp, data: &[u8]) {
             app.fragments_scrubber.update_density(&packet_timestamps);
         }
         Err(e) => {
-            app.status_message = format!("Error parsing PCAP: {e}");
+            app.show_error(format!("Error parsing PCAP: {e}"));
         }
     }
     app.is_loading = false;
@@ -63,9 +63,9 @@ pub fn load_example(app: &mut PcapViewerApp, ctx: &egui::Context) {
 /// Load example PCAP file (native)
 #[cfg(not(target_arch = "wasm32"))]
 pub fn load_example(app: &mut PcapViewerApp, _ctx: &egui::Context) {
-    // Native: just read from file
-    if let Ok(data) = std::fs::read("pkt_2025-11-18_1763490291_log.pcap") {
-        parse_pcap_data(app, &data);
+    match std::fs::read("static/example.pcap") {
+        Ok(data) => parse_pcap_data(app, &data),
+        Err(e) => app.show_error(format!("Failed to load example PCAP: {e}")),
     }
 }
 
@@ -196,7 +196,7 @@ async fn fetch_discord_pcap(channel_id: &str, message_id: &str) -> Result<Vec<u8
         BOT_BASE_URL, channel_id, message_id
     );
 
-    let mut opts = RequestInit::new();
+    let opts = RequestInit::new();
     opts.set_method("GET");
 
     let request = Request::new_with_str_and_init(&url, &opts)
@@ -231,7 +231,7 @@ async fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {
     use wasm_bindgen_futures::JsFuture;
     use web_sys::{Request, RequestInit, Response};
 
-    let mut opts = RequestInit::new();
+    let opts = RequestInit::new();
     opts.set_method("GET");
 
     let request = Request::new_with_str_and_init(url, &opts)

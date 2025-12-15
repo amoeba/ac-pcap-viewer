@@ -3,14 +3,14 @@ resolver = "2"
 members = [
   "crates/app",
   "crates/cli",
-  "crates/lib",
+  "crates/common",
   "crates/web",
   "crates/xtask",
 ]
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [workspace.dependencies]
 acprotocol = { git = "https://github.com/amoeba/asheron-rs", default-features = false }

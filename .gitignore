@@ -2,6 +2,5 @@
 /crates/web/pkg/
 /crates/web/dist/
 /crates/app/pkg/
-/dist/*.wasm
-/dist/*.js
+/dist
 .envrc.local

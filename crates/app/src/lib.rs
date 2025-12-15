@@ -7,13 +7,13 @@ pub mod state;
 pub mod time_scrubber;
 pub mod ui;
 
+use common::{ParsedPacket, messages::ParsedMessage};
 use eframe::egui;
-use lib::{messages::ParsedMessage, ParsedPacket};
 use std::sync::{Arc, Mutex};
 use time_scrubber::TimeScrubber;
 
 // Re-export state types for convenience
-pub use lib::{SortField, Tab, ViewMode};
+pub use common::{SortField, Tab, ViewMode};
 use state::{MOBILE_BREAKPOINT, MOBILE_SCALE, TABLET_BREAKPOINT};
 
 // Shared state for async loading
@@ -24,7 +24,7 @@ pub struct PcapViewerApp {
     // Data
     pub messages: Vec<ParsedMessage>,
     pub packets: Vec<ParsedPacket>,
-    pub weenie_db: lib::weenie::WeenieDatabase,
+    pub weenie_db: common::weenie::WeenieDatabase,
 
     // UI State
     pub current_tab: Tab,
@@ -74,6 +74,10 @@ pub struct PcapViewerApp {
     pub discord_message_id: String,
     pub discord_load_error: Option<String>,
 
+    // Error dialog state
+    pub show_error_dialog: bool,
+    pub error_dialog_message: String,
+
     // Time scrubbers (separate for messages and fragments)
     pub messages_scrubber: TimeScrubber,
     pub fragments_scrubber: TimeScrubber,
@@ -92,7 +96,7 @@ impl Default for PcapViewerApp {
         Self {
             messages: Vec::new(),
             packets: Vec::new(),
-            weenie_db: lib::weenie::WeenieDatabase::new(),
+            weenie_db: common::weenie::WeenieDatabase::new(),
             current_tab: Tab::Messages,
             selected_message: None,
             selected_packet: None,
@@ -119,6 +123,8 @@ impl Default for PcapViewerApp {
             discord_channel_id: String::new(),
             discord_message_id: String::new(),
             discord_load_error: None,
+            show_error_dialog: false,
+            error_dialog_message: String::new(),
             messages_scrubber: TimeScrubber::new(),
             fragments_scrubber: TimeScrubber::new(),
             marked_messages: std::collections::HashSet::new(),
@@ -135,6 +141,12 @@ impl PcapViewerApp {
         let mut app = Self::default();
 
         app
+    }
+
+    /// Show an error dialog with the given message
+    pub fn show_error(&mut self, message: impl Into<String>) {
+        self.error_dialog_message = message.into();
+        self.show_error_dialog = true;
     }
 
     /// Mark all currently filtered items for visual tracking (replaces previous marks)
@@ -256,7 +268,7 @@ impl eframe::App for PcapViewerApp {
             self.status_message = format!("Loading {}...", path.display());
             match std::fs::read(&path) {
                 Ok(data) => ui::file_panel::parse_pcap_data(self, &data),
-                Err(e) => self.status_message = format!("Error reading file: {e}"),
+                Err(e) => self.show_error(format!("Error reading file: {e}")),
             }
         }
 
@@ -960,6 +972,9 @@ impl eframe::App for PcapViewerApp {
         if self.show_about {
             ui::file_panel::show_about_dialog(self, ctx);
         }
+
+        // Error dialog
+        ui::error_dialog::show_error_dialog(self, ctx);
     }
 }
 

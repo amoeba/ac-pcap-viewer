@@ -346,11 +346,7 @@ pub fn show_messages_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile:
             SortField::Direction => a.3.cmp(&b.3),
             SortField::OpCode => a.4.cmp(&b.4),
         };
-        if sort_ascending {
-            cmp
-        } else {
-            cmp.reverse()
-        }
+        if sort_ascending { cmp } else { cmp.reverse() }
     });
 
     ui.horizontal(|ui| {
@@ -620,11 +616,7 @@ pub fn show_packets_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: 
             // Packets don't have OpCode, fall back to Id
             SortField::OpCode => a.1.cmp(&b.1),
         };
-        if sort_ascending {
-            cmp
-        } else {
-            cmp.reverse()
-        }
+        if sort_ascending { cmp } else { cmp.reverse() }
     });
 
     ui.horizontal(|ui| {

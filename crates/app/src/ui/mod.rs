@@ -3,6 +3,7 @@
 //! This module contains all UI-related components and panels.
 
 pub mod detail_panel;
+pub mod error_dialog;
 pub mod file_panel;
 pub mod hyper_tree;
 pub mod packet_list;

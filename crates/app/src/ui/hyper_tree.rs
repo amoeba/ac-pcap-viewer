@@ -359,11 +359,11 @@ impl AcJsonTree {
         }
 
         // Check if value is large enough to warrant hex display
-        if let Some(num) = value.as_u64() {
-            if num > 0xFFFF {
-                // Large numbers likely IDs
-                return DisplayFormat::Auto;
-            }
+        if let Some(num) = value.as_u64()
+            && num > 0xFFFF
+        {
+            // Large numbers likely IDs
+            return DisplayFormat::Auto;
         }
 
         DisplayFormat::Decimal
