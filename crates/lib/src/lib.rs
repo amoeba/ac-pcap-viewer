@@ -3,41 +3,86 @@
 //! This library provides functionality to parse PCAP files containing
 //! Asheron's Call network traffic.
 
+use acprotocol::network::packet::PacketHeader;
+use acprotocol::network::packet::PacketHeaderFlags;
+use acprotocol::unified::Direction;
+use acprotocol::network::reader::BinaryReader;
 use anyhow::{Context, Result};
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use pcap_parser::traits::PcapReaderIterator;
 use pcap_parser::*;
-use serde::{Serialize, Serializer};
+use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Read;
 
 pub mod messages;
-pub mod properties;
-pub mod protocol;
 pub mod serialization;
 pub mod weenie;
 pub mod weenie_extractor;
 
-use protocol::{BinaryReader, Fragment, FragmentHeader, PacketHeader, PacketHeaderFlags};
-
-/// Direction of packet flow
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Direction {
-    Send, // Client to Server
-    Recv, // Server to Client
+// Fragment and FragmentHeader structures for managing packet fragments
+#[derive(Clone, Debug)]
+struct Fragment {
+    header: FragmentHeader,
+    data: Vec<u8>,
+    length: usize,
+    received: usize,
 }
 
-impl Serialize for Direction {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            Direction::Send => serializer.serialize_str("Send"),
-            Direction::Recv => serializer.serialize_str("Recv"),
+#[derive(Clone, Debug)]
+struct FragmentHeader {
+    #[allow(dead_code)]
+    sequence: u32,
+    #[allow(dead_code)]
+    id: u32,
+    count: u16,
+    #[allow(dead_code)]
+    size: u16,
+    #[allow(dead_code)]
+    index: u16,
+    #[allow(dead_code)]
+    group: Option<u16>,
+}
+
+impl Fragment {
+    fn new(sequence: u32, count: u16) -> Self {
+        const CHUNK_SIZE: usize = 448;
+        Self {
+            header: FragmentHeader {
+                sequence,
+                id: 0,
+                count,
+                size: 0,
+                index: 0,
+                group: None,
+            },
+            data: vec![0; count as usize * CHUNK_SIZE],
+            length: 0,
+            received: 0,
         }
     }
+
+    fn add_chunk(&mut self, data: &[u8], index: usize) {
+        const CHUNK_SIZE: usize = 448;
+        let start = index * CHUNK_SIZE;
+        let end = start + data.len();
+        if end <= self.data.len() {
+            self.data[start..end].copy_from_slice(data);
+            if end > self.length {
+                self.length = end;
+            }
+            if index >= self.received {
+                self.received = index + 1;
+            }
+        }
+    }
+
+    fn is_complete(&self) -> bool {
+        self.received >= self.header.count as usize
+    }
 }
+
+// Re-export properties from acprotocol via protocol module
 
 /// UI tab selection
 #[derive(Default, PartialEq, Eq, Clone, Copy)]
@@ -87,7 +132,7 @@ pub struct ParsedPacket {
     #[serde(rename = "Header")]
     pub header: PacketHeader,
     #[serde(rename = "Direction")]
-    pub direction: Direction,
+    pub direction: String,
     #[serde(rename = "Messages")]
     pub messages: Vec<serde_json::Value>,
     #[serde(rename = "Fragment")]
@@ -164,9 +209,9 @@ impl PacketParser {
                                 // Determine direction from port
                                 let src_port = u16::from_be_bytes([data[34], data[35]]);
                                 let direction = if (9000..=9013).contains(&src_port) {
-                                    Direction::Recv // From server
+                                    Direction::ServerToClient // From server
                                 } else {
-                                    Direction::Send // To server
+                                    Direction::ClientToServer // To server
                                 };
 
                                 match self.parse_packet(
@@ -245,9 +290,14 @@ impl PacketParser {
                 Vec::new()
             };
 
+            let direction_str = match direction {
+                Direction::ClientToServer => "Send".to_string(),
+                Direction::ServerToClient => "Recv".to_string(),
+            };
+
             let mut parsed_packet = ParsedPacket {
                 header: header.clone(),
-                direction,
+                direction: direction_str,
                 messages: Vec::new(),
                 fragment: None,
                 id: *packet_id,
@@ -347,8 +397,8 @@ impl PacketParser {
             match messages::parse_message(&frag_data, *message_id) {
                 Ok(mut parsed) => {
                     parsed.direction = match direction {
-                        Direction::Send => "Send".to_string(),
-                        Direction::Recv => "Recv".to_string(),
+                        Direction::ClientToServer => "Send".to_string(),
+                        Direction::ServerToClient => "Recv".to_string(),
                     };
                     parsed.timestamp = timestamp;
                     parsed_messages.push(parsed);

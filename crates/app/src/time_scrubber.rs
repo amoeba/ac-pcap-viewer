@@ -322,18 +322,18 @@ impl TimeScrubber {
             }
 
             // Handle dragging for range selection
-            if egui_response.drag_started() {
-                if let Some(hover) = self.hover_time {
-                    self.drag_start = Some(hover);
-                }
+            if egui_response.drag_started()
+                && let Some(hover) = self.hover_time
+            {
+                self.drag_start = Some(hover);
             }
 
-            if egui_response.dragged() {
-                if let (Some(start), Some(current)) = (self.drag_start, self.hover_time) {
-                    let min = start.min(current);
-                    let max = start.max(current);
-                    self.selected_range = Some(TimeRange::new(min, max));
-                }
+            if egui_response.dragged()
+                && let (Some(start), Some(current)) = (self.drag_start, self.hover_time)
+            {
+                let min = start.min(current);
+                let max = start.max(current);
+                self.selected_range = Some(TimeRange::new(min, max));
             }
 
             if egui_response.drag_stopped() {
@@ -341,16 +341,16 @@ impl TimeScrubber {
             }
 
             // Handle single click
-            if egui_response.clicked() {
-                if let Some(clicked_time) = self.hover_time {
-                    // If there's a selection active, clear it
-                    if !selected_range.is_full_range(data_range.min, data_range.max) {
-                        self.reset_selection();
-                    } else {
-                        // Otherwise scroll to time
-                        response.clicked_index = Some(0); // Placeholder - will be computed by caller
-                        self.hover_time = Some(clicked_time);
-                    }
+            if egui_response.clicked()
+                && let Some(clicked_time) = self.hover_time
+            {
+                // If there's a selection active, clear it
+                if !selected_range.is_full_range(data_range.min, data_range.max) {
+                    self.reset_selection();
+                } else {
+                    // Otherwise scroll to time
+                    response.clicked_index = Some(0); // Placeholder - will be computed by caller
+                    self.hover_time = Some(clicked_time);
                 }
             }
 

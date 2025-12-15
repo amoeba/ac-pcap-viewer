@@ -25,11 +25,11 @@ pub fn parse_filter_string(s: &str) -> Vec<Filter> {
     }
 
     // Try to parse as hex with 0x prefix
-    if (s.starts_with("0x") || s.starts_with("0X")) && s.len() > 2 {
-        if let Ok(value) = u32::from_str_radix(&s[2..], 16) {
-            // Return both hex and decimal representations
-            return vec![Filter::HexValue(value), Filter::DecimalValue(value)];
-        }
+    if (s.starts_with("0x") || s.starts_with("0X")) && s.len() > 2
+        && let Ok(value) = u32::from_str_radix(&s[2..], 16)
+    {
+        // Return both hex and decimal representations
+        return vec![Filter::HexValue(value), Filter::DecimalValue(value)];
     }
 
     // Try to parse as decimal number
@@ -53,10 +53,10 @@ fn matches_filter(filter: &Filter, value: &str) -> bool {
         Filter::StringValue(s) => value.to_lowercase().contains(s),
         Filter::HexValue(num) => {
             // First try to parse the entire value as hex (e.g., "F7B1")
-            if let Ok(parsed) = u32::from_str_radix(value, 16) {
-                if parsed == *num {
-                    return true;
-                }
+            if let Ok(parsed) = u32::from_str_radix(value, 16)
+                && parsed == *num
+            {
+                return true;
             }
 
             // Also try substring matching (e.g., "F7B1" in JSON data)
@@ -67,10 +67,10 @@ fn matches_filter(filter: &Filter, value: &str) -> bool {
         }
         Filter::DecimalValue(num) => {
             // First try to parse the entire value as decimal
-            if let Ok(parsed) = value.parse::<u32>() {
-                if parsed == *num {
-                    return true;
-                }
+            if let Ok(parsed) = value.parse::<u32>()
+                && parsed == *num
+            {
+                return true;
             }
 
             // Also try substring matching (e.g., "2151762794" in JSON data)

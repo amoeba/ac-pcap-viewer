@@ -90,10 +90,10 @@ impl App {
                 }
 
                 // Direction filter
-                if let Some(ref dir) = self.filter_direction {
-                    if m.direction != *dir {
-                        return false;
-                    }
+                if let Some(ref dir) = self.filter_direction
+                    && m.direction != *dir
+                {
+                    return false;
                 }
 
                 true

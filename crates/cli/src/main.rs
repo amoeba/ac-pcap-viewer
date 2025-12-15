@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use std::collections::HashMap;
 use std::fs::File;
 
-use lib::{messages::ParsedMessage, Direction, PacketParser, ParsedPacket};
+use lib::{messages::ParsedMessage, PacketParser, ParsedPacket};
 
 mod filter;
 mod tui;
@@ -158,11 +158,11 @@ fn print_summary(
 
     let send_packets = packets
         .iter()
-        .filter(|p| matches!(p.direction, Direction::Send))
+        .filter(|p| p.direction == "Send")
         .count();
     let recv_packets = packets
         .iter()
-        .filter(|p| matches!(p.direction, Direction::Recv))
+        .filter(|p| p.direction == "Recv")
         .count();
     println!("\nPackets by Direction:");
     println!("  Send (C→S): {send_packets}");
@@ -210,10 +210,10 @@ fn output_messages(
     let mut filtered: Vec<&ParsedMessage> = messages
         .iter()
         .filter(|m| {
-            if let Some(ft) = filter_type {
-                if !m.message_type.to_lowercase().contains(&ft.to_lowercase()) {
-                    return false;
-                }
+            if let Some(ft) = filter_type
+                && !m.message_type.to_lowercase().contains(&ft.to_lowercase())
+            {
+                return false;
             }
             if let Some(oc) = opcode_filter {
                 if let Some(msg_opcode) = filter::opcode_str_to_u32(&m.opcode) {
@@ -298,12 +298,12 @@ fn output_fragments(
             if let Some(d) = direction {
                 match d {
                     DirectionFilter::Send => {
-                        if !matches!(p.direction, Direction::Send) {
+                        if p.direction != "Send" {
                             return false;
                         }
                     }
                     DirectionFilter::Recv => {
-                        if !matches!(p.direction, Direction::Recv) {
+                        if p.direction != "Recv" {
                             return false;
                         }
                     }
@@ -383,10 +383,10 @@ fn output_weenies(
 
     // Apply filters
     weenies.retain(|w| {
-        if let Some(id_filter) = object_id_filter {
-            if !w.object_id.to_string().contains(id_filter) {
-                return false;
-            }
+        if let Some(id_filter) = object_id_filter
+            && !w.object_id.to_string().contains(id_filter)
+        {
+            return false;
         }
         if let Some(name_filter) = name_filter {
             if let Some(ref name) = w.name {
