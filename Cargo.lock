@@ -31,6 +31,7 @@ dependencies = [
 [[package]]
 name = "acprotocol"
 version = "0.1.0"
+source = "git+https://github.com/amoeba/asheron-rs#c7c8fe0c34d092e3913dfc29374b30e4b9e93cef"
 dependencies = [
  "anyhow",
  "bitflags 2.10.0",
@@ -583,6 +584,7 @@ dependencies = [
 [[package]]
 name = "codegen"
 version = "0.1.0"
+source = "git+https://github.com/amoeba/asheron-rs#c7c8fe0c34d092e3913dfc29374b30e4b9e93cef"
 dependencies = [
  "env_logger",
  "log",

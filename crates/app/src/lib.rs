@@ -254,7 +254,7 @@ impl eframe::App for PcapViewerApp {
                     {
                         if let Some(path) = &file.path {
                             self.status_message = format!("Loading {}...", path.display());
-                            match std::fs::read(&path) {
+                            match std::fs::read(path) {
                                 Ok(data) => self.dropped_file_data = Some(data),
                                 Err(e) => self.show_error(format!("Error reading file: {e}")),
                             }
