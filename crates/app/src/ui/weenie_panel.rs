@@ -48,116 +48,125 @@ pub fn show_weenie_panel(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: 
         })
         .collect();
 
+    show_weenie_table(app, ui, is_mobile, &filtered_weenies);
+}
+
+fn show_weenie_table(
+    app: &mut PcapViewerApp,
+    ui: &mut egui::Ui,
+    is_mobile: bool,
+    weenies: &[&common::weenie::Weenie],
+) {
     if is_mobile {
-        show_mobile_weenie_list(app, ui, &filtered_weenies);
-    } else {
-        show_desktop_weenie_table(app, ui, &filtered_weenies);
-    }
-}
+        // Mobile table with single column
+        TableBuilder::new(ui)
+            .striped(true)
+            .resizable(false)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::remainder().at_least(200.0))
+            .min_scrolled_height(0.0)
+            .body(|body| {
+        body.rows(20.0, weenies.len(), |mut row| {
+            let row_index = row.index();
+            let weenie = weenies[row_index];
+            let is_selected = app.selected_weenie == Some(row_index);
 
-fn show_mobile_weenie_list(
-    app: &mut PcapViewerApp,
-    ui: &mut egui::Ui,
-    weenies: &[&common::weenie::Weenie],
-) {
-    ScrollArea::vertical().show(ui, |ui| {
-        for (idx, weenie) in weenies.iter().enumerate() {
-            let is_selected = app.selected_weenie == Some(idx);
+            row.set_selected(is_selected);
 
-            if ui
-                .selectable_label(
-                    is_selected,
-                    format!(
-                        "{} - {}",
-                        weenie.object_id,
-                        weenie.name.as_deref().unwrap_or("<unknown>")
-                    ),
-                )
-                .clicked()
-            {
-                app.selected_weenie = Some(idx);
-            }
-        }
-    });
-}
-
-fn show_desktop_weenie_table(
-    app: &mut PcapViewerApp,
-    ui: &mut egui::Ui,
-    weenies: &[&common::weenie::Weenie],
-) {
-    TableBuilder::new(ui)
-        .striped(true)
-        .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-        .column(Column::auto().at_least(100.0)) // ObjectID
-        .column(Column::remainder().at_least(200.0)) // Name
-        .column(Column::auto().at_least(60.0)) // Props
-        .column(Column::auto().at_least(60.0)) // Msgs
-        .header(20.0, |mut header| {
-            header.col(|ui| {
-                ui.strong("ObjectID");
-            });
-            header.col(|ui| {
-                ui.strong("Name");
-            });
-            header.col(|ui| {
-                ui.strong("Props");
-            });
-            header.col(|ui| {
-                ui.strong("Msgs");
-            });
-        })
-        .body(|body| {
-            body.rows(20.0, weenies.len(), |mut row| {
-                let row_index = row.index();
-                let weenie = weenies[row_index];
-                let is_selected = app.selected_weenie == Some(row_index);
-
-                let prop_count = weenie.int_properties.len()
-                    + weenie.int64_properties.len()
-                    + weenie.bool_properties.len()
-                    + weenie.float_properties.len()
-                    + weenie.string_properties.len()
-                    + weenie.data_id_properties.len()
-                    + weenie.instance_id_properties.len();
-
-                row.set_selected(is_selected);
-
-                row.col(|ui| {
-                    if ui
-                        .selectable_label(is_selected, format!("{}", weenie.object_id))
-                        .clicked()
-                    {
-                        app.selected_weenie = Some(row_index);
-                    }
-                });
-
-                row.col(|ui| {
-                    let name = weenie.name.as_deref().unwrap_or("<unknown>");
-                    if ui.selectable_label(is_selected, name).clicked() {
-                        app.selected_weenie = Some(row_index);
-                    }
-                });
-
-                row.col(|ui| {
-                    if ui
-                        .selectable_label(is_selected, format!("{}", prop_count))
-                        .clicked()
-                    {
-                        app.selected_weenie = Some(row_index);
-                    }
-                });
-
-                row.col(|ui| {
-                    if ui
-                        .selectable_label(is_selected, format!("{}", weenie.message_count))
-                        .clicked()
-                    {
-                        app.selected_weenie = Some(row_index);
-                    }
-                });
+            row.col(|ui| {
+                if ui
+                    .selectable_label(
+                        is_selected,
+                        format!(
+                            "{} - {}",
+                            weenie.object_id,
+                            weenie.name.as_deref().unwrap_or("<unknown>")
+                        ),
+                    )
+                    .clicked()
+                {
+                    app.selected_weenie = Some(row_index);
+                }
             });
         });
+            });
+    } else {
+        // Desktop table with four columns
+        TableBuilder::new(ui)
+            .striped(true)
+            .resizable(true)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::auto().at_least(100.0)) // ObjectID
+            .column(Column::remainder().at_least(200.0)) // Name
+            .column(Column::auto().at_least(60.0)) // Props
+            .column(Column::auto().at_least(60.0)) // Msgs
+            .min_scrolled_height(0.0)
+            .header(20.0, |mut header| {
+                header.col(|ui| {
+                    ui.strong("ObjectID");
+                });
+                header.col(|ui| {
+                    ui.strong("Name");
+                });
+                header.col(|ui| {
+                    ui.strong("Props");
+                });
+                header.col(|ui| {
+                    ui.strong("Msgs");
+                });
+            })
+            .body(|body| {
+                body.rows(20.0, weenies.len(), |mut row| {
+                    let row_index = row.index();
+                    let weenie = weenies[row_index];
+                    let is_selected = app.selected_weenie == Some(row_index);
+
+                    row.set_selected(is_selected);
+
+                    row.col(|ui| {
+                        if ui
+                            .selectable_label(is_selected, format!("{}", weenie.object_id))
+                            .clicked()
+                        {
+                            app.selected_weenie = Some(row_index);
+                        }
+                    });
+
+                    row.col(|ui| {
+                        let name = weenie.name.as_deref().unwrap_or("<unknown>");
+                        if ui.selectable_label(is_selected, name).clicked() {
+                            app.selected_weenie = Some(row_index);
+                        }
+                    });
+
+                    let prop_count = weenie.int_properties.len()
+                        + weenie.int64_properties.len()
+                        + weenie.bool_properties.len()
+                        + weenie.float_properties.len()
+                        + weenie.string_properties.len()
+                        + weenie.data_id_properties.len()
+                        + weenie.instance_id_properties.len();
+
+                    row.col(|ui| {
+                        if ui
+                            .selectable_label(is_selected, format!("{}", prop_count))
+                            .clicked()
+                        {
+                            app.selected_weenie = Some(row_index);
+                        }
+                    });
+
+                    row.col(|ui| {
+                        if ui
+                            .selectable_label(is_selected, format!("{}", weenie.message_count))
+                            .clicked()
+                        {
+                            app.selected_weenie = Some(row_index);
+                        }
+                    });
+                });
+            });
+    }
 }
 
 pub fn show_weenie_detail(app: &mut PcapViewerApp, ui: &mut egui::Ui) {

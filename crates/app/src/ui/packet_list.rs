@@ -6,6 +6,7 @@ use crate::{PcapViewerApp, SortField};
 // TODO: Re-enable this import when needed
 // use ac_parser::messages::ParsedMessage;
 use eframe::egui;
+use egui_extras::Column;
 
 /// Draw sort button
 pub fn draw_sort_button(app: &mut PcapViewerApp, ui: &mut egui::Ui) -> bool {
@@ -212,7 +213,7 @@ fn mobile_header_cell(
     .inner
 }
 
-/// Show messages list
+/// Show messages list with virtual scrolling for performance
 pub fn show_messages_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: bool) {
     // Pre-collect data to avoid borrow issues
     let search = app.search_query.to_lowercase();
@@ -354,229 +355,217 @@ pub fn show_messages_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile:
     });
     ui.separator();
 
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        let available_width = ui.available_width();
+    show_messages_table(app, ui, is_mobile, &filtered, sort_field, sort_ascending);
+}
 
-        if is_mobile {
-            ui.set_min_width(available_width);
-            // Column widths as percentages: ID (12%), Type (76%), Dir (12%)
-            let widths = [
-                available_width * 0.12,
-                available_width * 0.76,
-                available_width * 0.12,
-            ];
+fn show_messages_table(
+    app: &mut PcapViewerApp,
+    ui: &mut egui::Ui,
+    is_mobile: bool,
+    filtered: &[(usize, usize, String, String, String)],
+    sort_field: SortField,
+    sort_ascending: bool,
+) {
+    let available_width = ui.available_width();
+    
+    if is_mobile {
+        let widths = [
+            available_width * 0.12,
+            available_width * 0.76,
+            available_width * 0.12,
+        ];
 
-            egui::Grid::new("messages_grid")
-                .num_columns(3)
-                .striped(true)
-                .spacing(egui::vec2(4.0, 4.0))
-                .show(ui, |ui| {
-                    // Clickable headers
-                    if mobile_header_cell(
-                        ui,
-                        widths[0],
-                        false,
-                        "ID",
-                        SortField::Id,
-                        sort_field,
-                        sort_ascending,
-                    )
-                    .clicked()
+        ui.set_min_width(available_width);
+
+        // Mobile header
+        ui.horizontal(|ui| {
+            if mobile_header_cell(ui, widths[0], false, "ID", SortField::Id, sort_field, sort_ascending).clicked() {
+                if sort_field == SortField::Id {
+                    app.sort_ascending = !app.sort_ascending;
+                } else {
+                    app.sort_field = SortField::Id;
+                    app.sort_ascending = true;
+                }
+            }
+            if mobile_header_cell(ui, widths[1], false, "Type", SortField::Type, sort_field, sort_ascending).clicked() {
+                if sort_field == SortField::Type {
+                    app.sort_ascending = !app.sort_ascending;
+                } else {
+                    app.sort_field = SortField::Type;
+                    app.sort_ascending = true;
+                }
+            }
+            if mobile_header_cell(ui, widths[2], true, "Dir", SortField::Direction, sort_field, sort_ascending).clicked() {
+                if sort_field == SortField::Direction {
+                    app.sort_ascending = !app.sort_ascending;
+                } else {
+                    app.sort_field = SortField::Direction;
+                    app.sort_ascending = true;
+                }
+            }
+        });
+        ui.separator();
+
+        // Mobile table
+        let table = egui_extras::TableBuilder::new(ui)
+            .striped(true)
+            .resizable(false)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::auto())
+            .column(Column::auto())
+            .column(Column::auto())
+            .min_scrolled_height(0.0);
+
+        table.body(|body| {
+            body.rows(20.0, filtered.len(), |mut row| {
+                let idx = row.index();
+                let (original_idx, id, msg_type, direction, _opcode) = &filtered[idx];
+                let is_selected = app.selected_message == Some(*original_idx);
+                let is_marked = app.marked_messages.contains(original_idx);
+
+                row.col(|ui| {
+                    if mobile_cell(ui, widths[0], false, is_selected, is_marked, id.to_string())
+                        .clicked()
                     {
-                        if sort_field == SortField::Id {
-                            app.sort_ascending = !app.sort_ascending;
-                        } else {
-                            app.sort_field = SortField::Id;
-                            app.sort_ascending = true;
-                        }
+                        app.selected_message = Some(*original_idx);
+                        app.show_detail_panel = true;
                     }
-                    if mobile_header_cell(
-                        ui,
-                        widths[1],
-                        false,
-                        "Type",
-                        SortField::Type,
-                        sort_field,
-                        sort_ascending,
-                    )
-                    .clicked()
+                });
+
+                row.col(|ui| {
+                    let display_type = if msg_type.len() > 25 {
+                        format!("{}…", &msg_type[..24])
+                    } else {
+                        msg_type.clone()
+                    };
+                    if mobile_cell(ui, widths[1], false, is_selected, is_marked, display_type)
+                        .clicked()
                     {
-                        if sort_field == SortField::Type {
-                            app.sort_ascending = !app.sort_ascending;
-                        } else {
-                            app.sort_field = SortField::Type;
-                            app.sort_ascending = true;
-                        }
+                        app.selected_message = Some(*original_idx);
+                        app.show_detail_panel = true;
                     }
-                    if mobile_header_cell(
+                });
+
+                row.col(|ui| {
+                    let dir_color = if direction == "Send" {
+                        egui::Color32::from_rgb(100, 200, 255)
+                    } else {
+                        egui::Color32::from_rgb(100, 255, 150)
+                    };
+                    let dir_text = if direction == "Send" { "S" } else { "R" };
+                    if mobile_cell(
                         ui,
                         widths[2],
                         true,
-                        "Dir",
-                        SortField::Direction,
-                        sort_field,
-                        sort_ascending,
+                        is_selected,
+                        is_marked,
+                        egui::RichText::new(dir_text).color(dir_color),
                     )
                     .clicked()
                     {
-                        if sort_field == SortField::Direction {
-                            app.sort_ascending = !app.sort_ascending;
-                        } else {
-                            app.sort_field = SortField::Direction;
-                            app.sort_ascending = true;
-                        }
-                    }
-                    ui.end_row();
-
-                    for (original_idx, id, msg_type, direction, _opcode) in &filtered {
-                        let is_selected = app.selected_message == Some(*original_idx);
-                        let is_marked = app.marked_messages.contains(original_idx);
-
-                        if mobile_cell(ui, widths[0], false, is_selected, is_marked, id.to_string())
-                            .clicked()
-                        {
-                            app.selected_message = Some(*original_idx);
-                            app.show_detail_panel = true;
-                        }
-
-                        let display_type = if msg_type.len() > 25 {
-                            format!("{}…", &msg_type[..24])
-                        } else {
-                            msg_type.clone()
-                        };
-                        if mobile_cell(ui, widths[1], false, is_selected, is_marked, display_type)
-                            .clicked()
-                        {
-                            app.selected_message = Some(*original_idx);
-                            app.show_detail_panel = true;
-                        }
-
-                        let dir_color = if direction == "Send" {
-                            egui::Color32::from_rgb(100, 200, 255)
-                        } else {
-                            egui::Color32::from_rgb(100, 255, 150)
-                        };
-                        let dir_text = if direction == "Send" { "S" } else { "R" };
-                        if mobile_cell(
-                            ui,
-                            widths[2],
-                            true,
-                            is_selected,
-                            is_marked,
-                            egui::RichText::new(dir_text).color(dir_color),
-                        )
-                        .clicked()
-                        {
-                            app.selected_message = Some(*original_idx);
-                            app.show_detail_panel = true;
-                        }
-
-                        ui.end_row();
+                        app.selected_message = Some(*original_idx);
+                        app.show_detail_panel = true;
                     }
                 });
-        } else {
-            // Desktop layout
-            egui::Grid::new("messages_grid")
-                .num_columns(4)
-                .striped(true)
-                .min_col_width(50.0)
-                .show(ui, |ui| {
-                    // Clickable headers
-                    if desktop_header_cell(ui, "ID", SortField::Id, sort_field, sort_ascending)
-                        .clicked()
-                    {
-                        if sort_field == SortField::Id {
-                            app.sort_ascending = !app.sort_ascending;
-                        } else {
-                            app.sort_field = SortField::Id;
-                            app.sort_ascending = true;
-                        }
-                    }
-                    if desktop_header_cell(ui, "Type", SortField::Type, sort_field, sort_ascending)
-                        .clicked()
-                    {
-                        if sort_field == SortField::Type {
-                            app.sort_ascending = !app.sort_ascending;
-                        } else {
-                            app.sort_field = SortField::Type;
-                            app.sort_ascending = true;
-                        }
-                    }
-                    if desktop_header_cell(
-                        ui,
-                        "Dir",
-                        SortField::Direction,
-                        sort_field,
-                        sort_ascending,
-                    )
-                    .clicked()
-                    {
-                        if sort_field == SortField::Direction {
-                            app.sort_ascending = !app.sort_ascending;
-                        } else {
-                            app.sort_field = SortField::Direction;
-                            app.sort_ascending = true;
-                        }
-                    }
-                    if desktop_header_cell(
-                        ui,
-                        "OpCode",
-                        SortField::OpCode,
-                        sort_field,
-                        sort_ascending,
-                    )
-                    .clicked()
-                    {
-                        if sort_field == SortField::OpCode {
-                            app.sort_ascending = !app.sort_ascending;
-                        } else {
-                            app.sort_field = SortField::OpCode;
-                            app.sort_ascending = true;
-                        }
-                    }
-                    ui.end_row();
+            });
+        });
+    } else {
+        // Desktop header
+        ui.horizontal(|ui| {
+            if desktop_header_cell(ui, "ID", SortField::Id, sort_field, sort_ascending).clicked() {
+                if sort_field == SortField::Id {
+                    app.sort_ascending = !app.sort_ascending;
+                } else {
+                    app.sort_field = SortField::Id;
+                    app.sort_ascending = true;
+                }
+            }
+            if desktop_header_cell(ui, "Type", SortField::Type, sort_field, sort_ascending).clicked() {
+                if sort_field == SortField::Type {
+                    app.sort_ascending = !app.sort_ascending;
+                } else {
+                    app.sort_field = SortField::Type;
+                    app.sort_ascending = true;
+                }
+            }
+            if desktop_header_cell(ui, "Dir", SortField::Direction, sort_field, sort_ascending).clicked() {
+                if sort_field == SortField::Direction {
+                    app.sort_ascending = !app.sort_ascending;
+                } else {
+                    app.sort_field = SortField::Direction;
+                    app.sort_ascending = true;
+                }
+            }
+            if desktop_header_cell(ui, "OpCode", SortField::OpCode, sort_field, sort_ascending).clicked() {
+                if sort_field == SortField::OpCode {
+                    app.sort_ascending = !app.sort_ascending;
+                } else {
+                    app.sort_field = SortField::OpCode;
+                    app.sort_ascending = true;
+                }
+            }
+        });
+        ui.separator();
 
-                    for (original_idx, id, msg_type, direction, opcode) in &filtered {
-                        let is_selected = app.selected_message == Some(*original_idx);
-                        let is_marked = app.marked_messages.contains(original_idx);
+        // Desktop table
+        let table = egui_extras::TableBuilder::new(ui)
+            .striped(true)
+            .resizable(true)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::initial(60.0).range(40.0..=100.0))
+            .column(Column::initial(200.0).range(100.0..=(available_width - 200.0).max(100.0)))
+            .column(Column::initial(60.0).range(40.0..=100.0))
+            .column(Column::initial(100.0).range(60.0..=150.0))
+            .min_scrolled_height(0.0);
 
-                        if desktop_marked_cell(ui, is_selected, is_marked, id.to_string()).clicked()
-                        {
-                            app.selected_message = Some(*original_idx);
-                        }
-                        if desktop_marked_cell(ui, is_selected, is_marked, msg_type.to_string())
-                            .clicked()
-                        {
-                            app.selected_message = Some(*original_idx);
-                        }
-                        let dir_color = if direction == "Send" {
-                            egui::Color32::from_rgb(100, 200, 255)
-                        } else {
-                            egui::Color32::from_rgb(100, 255, 150)
-                        };
-                        if desktop_marked_cell(
-                            ui,
-                            is_selected,
-                            is_marked,
-                            egui::RichText::new(direction).color(dir_color),
-                        )
-                        .clicked()
-                        {
-                            app.selected_message = Some(*original_idx);
-                        }
-                        if desktop_marked_cell(ui, is_selected, is_marked, opcode.to_string())
-                            .clicked()
-                        {
-                            app.selected_message = Some(*original_idx);
-                        }
-                        ui.end_row();
+        table.body(|body| {
+            body.rows(20.0, filtered.len(), |mut row| {
+                let idx = row.index();
+                let (original_idx, id, msg_type, direction, opcode) = &filtered[idx];
+                let is_selected = app.selected_message == Some(*original_idx);
+                let is_marked = app.marked_messages.contains(original_idx);
+
+                row.col(|ui| {
+                    if desktop_marked_cell(ui, is_selected, is_marked, id.to_string()).clicked() {
+                        app.selected_message = Some(*original_idx);
                     }
                 });
-        }
-    });
+
+                row.col(|ui| {
+                    if desktop_marked_cell(ui, is_selected, is_marked, msg_type.to_string()).clicked() {
+                        app.selected_message = Some(*original_idx);
+                    }
+                });
+
+                row.col(|ui| {
+                    let dir_color = if direction == "Send" {
+                        egui::Color32::from_rgb(100, 200, 255)
+                    } else {
+                        egui::Color32::from_rgb(100, 255, 150)
+                    };
+                    if desktop_marked_cell(
+                        ui,
+                        is_selected,
+                        is_marked,
+                        egui::RichText::new(direction).color(dir_color),
+                    )
+                    .clicked()
+                    {
+                        app.selected_message = Some(*original_idx);
+                    }
+                });
+
+                row.col(|ui| {
+                    if desktop_marked_cell(ui, is_selected, is_marked, opcode.to_string()).clicked() {
+                        app.selected_message = Some(*original_idx);
+                    }
+                });
+            });
+        });
+    }
 }
 
-/// Show packets list
+/// Show packets list with virtual scrolling for performance
 pub fn show_packets_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: bool) {
     // Pre-collect data to avoid borrow issues
     let sort_field = app.sort_field;
@@ -624,278 +613,240 @@ pub fn show_packets_list(app: &mut PcapViewerApp, ui: &mut egui::Ui, is_mobile: 
     });
     ui.separator();
 
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        let available_width = ui.available_width();
+    show_packets_table(app, ui, is_mobile, &filtered, sort_field, sort_ascending);
+}
 
-        if is_mobile {
-            ui.set_min_width(available_width);
-            // Column widths as percentages: ID (15%), Seq (20%), Dir (15%), Flags (25%), Size (25%)
-            let widths = [
-                available_width * 0.15,
-                available_width * 0.20,
-                available_width * 0.15,
-                available_width * 0.25,
-                available_width * 0.25,
-            ];
+fn show_packets_table(
+    app: &mut PcapViewerApp,
+    ui: &mut egui::Ui,
+    is_mobile: bool,
+    filtered: &[(usize, usize, u32, String, u32, u16)],
+    sort_field: SortField,
+    sort_ascending: bool,
+) {
+    let available_width = ui.available_width();
+    
+    if is_mobile {
+        let widths = [
+            available_width * 0.15,
+            available_width * 0.20,
+            available_width * 0.15,
+            available_width * 0.25,
+            available_width * 0.25,
+        ];
 
-            egui::Grid::new("packets_grid")
-                .num_columns(5)
-                .striped(true)
-                .spacing(egui::vec2(4.0, 4.0))
-                .show(ui, |ui| {
-                    // Clickable headers
-                    if mobile_header_cell(
-                        ui,
-                        widths[0],
-                        false,
-                        "ID",
-                        SortField::Id,
-                        sort_field,
-                        sort_ascending,
-                    )
-                    .clicked()
+        ui.set_min_width(available_width);
+
+        // Mobile header
+        ui.horizontal(|ui| {
+            if mobile_header_cell(ui, widths[0], false, "ID", SortField::Id, sort_field, sort_ascending).clicked() {
+                if sort_field == SortField::Id {
+                    app.sort_ascending = !app.sort_ascending;
+                } else {
+                    app.sort_field = SortField::Id;
+                    app.sort_ascending = true;
+                }
+            }
+            if mobile_header_cell(ui, widths[1], false, "Seq", SortField::Type, sort_field, sort_ascending).clicked() {
+                if sort_field == SortField::Type {
+                    app.sort_ascending = !app.sort_ascending;
+                } else {
+                    app.sort_field = SortField::Type;
+                    app.sort_ascending = true;
+                }
+            }
+            if mobile_header_cell(ui, widths[2], true, "Dir", SortField::Direction, sort_field, sort_ascending).clicked() {
+                if sort_field == SortField::Direction {
+                    app.sort_ascending = !app.sort_ascending;
+                } else {
+                    app.sort_field = SortField::Direction;
+                    app.sort_ascending = true;
+                }
+            }
+            // Flags and Size are not sortable
+            mobile_header_cell(ui, widths[3], false, "Flags", SortField::Id, SortField::Id, true);
+            mobile_header_cell(ui, widths[4], false, "Size", SortField::Id, SortField::Id, true);
+        });
+        ui.separator();
+
+        // Mobile table
+        let table = egui_extras::TableBuilder::new(ui)
+            .striped(true)
+            .resizable(false)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::auto())
+            .column(Column::auto())
+            .column(Column::auto())
+            .column(Column::auto())
+            .column(Column::auto())
+            .min_scrolled_height(0.0);
+
+        table.body(|body| {
+            body.rows(20.0, filtered.len(), |mut row| {
+                let idx = row.index();
+                let (original_idx, id, seq, direction, flags, size) = &filtered[idx];
+                let is_selected = app.selected_packet == Some(*original_idx);
+                let is_marked = app.marked_packets.contains(original_idx);
+
+                row.col(|ui| {
+                    if mobile_cell(ui, widths[0], false, is_selected, is_marked, id.to_string())
+                        .clicked()
                     {
-                        if sort_field == SortField::Id {
-                            app.sort_ascending = !app.sort_ascending;
-                        } else {
-                            app.sort_field = SortField::Id;
-                            app.sort_ascending = true;
-                        }
+                        app.selected_packet = Some(*original_idx);
+                        app.show_detail_panel = true;
                     }
-                    if mobile_header_cell(
-                        ui,
-                        widths[1],
-                        false,
-                        "Seq",
-                        SortField::Type,
-                        sort_field,
-                        sort_ascending,
-                    )
-                    .clicked()
+                });
+
+                row.col(|ui| {
+                    if mobile_cell(ui, widths[1], false, is_selected, is_marked, seq.to_string())
+                        .clicked()
                     {
-                        if sort_field == SortField::Type {
-                            app.sort_ascending = !app.sort_ascending;
-                        } else {
-                            app.sort_field = SortField::Type;
-                            app.sort_ascending = true;
-                        }
+                        app.selected_packet = Some(*original_idx);
+                        app.show_detail_panel = true;
                     }
-                    if mobile_header_cell(
+                });
+
+                row.col(|ui| {
+                    let dir_color = if direction == "ClientToServer" {
+                        egui::Color32::from_rgb(100, 200, 255)
+                    } else {
+                        egui::Color32::from_rgb(100, 255, 150)
+                    };
+                    let dir_text = if direction == "ClientToServer" {
+                        "C→S"
+                    } else {
+                        "S→C"
+                    };
+                    if mobile_cell(
                         ui,
                         widths[2],
                         true,
-                        "Dir",
-                        SortField::Direction,
-                        sort_field,
-                        sort_ascending,
+                        is_selected,
+                        is_marked,
+                        egui::RichText::new(dir_text).color(dir_color),
                     )
                     .clicked()
                     {
-                        if sort_field == SortField::Direction {
-                            app.sort_ascending = !app.sort_ascending;
-                        } else {
-                            app.sort_field = SortField::Direction;
-                            app.sort_ascending = true;
-                        }
-                    }
-                    // Flags and Size are not sortable
-                    mobile_header_cell(
-                        ui,
-                        widths[3],
-                        false,
-                        "Flags",
-                        SortField::Id,
-                        SortField::Id,
-                        true,
-                    );
-                    mobile_header_cell(
-                        ui,
-                        widths[4],
-                        false,
-                        "Size",
-                        SortField::Id,
-                        SortField::Id,
-                        true,
-                    );
-                    ui.end_row();
-
-                    for (original_idx, id, seq, direction, flags, size) in &filtered {
-                        let is_selected = app.selected_packet == Some(*original_idx);
-                        let is_marked = app.marked_packets.contains(original_idx);
-
-                        if mobile_cell(ui, widths[0], false, is_selected, is_marked, id.to_string())
-                            .clicked()
-                        {
-                            app.selected_packet = Some(*original_idx);
-                            app.show_detail_panel = true;
-                        }
-
-                        if mobile_cell(
-                            ui,
-                            widths[1],
-                            false,
-                            is_selected,
-                            is_marked,
-                            seq.to_string(),
-                        )
-                        .clicked()
-                        {
-                            app.selected_packet = Some(*original_idx);
-                            app.show_detail_panel = true;
-                        }
-
-                        let dir_color = if direction == "ClientToServer" {
-                            egui::Color32::from_rgb(100, 200, 255)
-                        } else {
-                            egui::Color32::from_rgb(100, 255, 150)
-                        };
-                        let dir_text = if direction == "ClientToServer" {
-                            "C→S"
-                        } else {
-                            "S→C"
-                        };
-                        if mobile_cell(
-                            ui,
-                            widths[2],
-                            true,
-                            is_selected,
-                            is_marked,
-                            egui::RichText::new(dir_text).color(dir_color),
-                        )
-                        .clicked()
-                        {
-                            app.selected_packet = Some(*original_idx);
-                            app.show_detail_panel = true;
-                        }
-
-                        if mobile_cell(
-                            ui,
-                            widths[3],
-                            false,
-                            is_selected,
-                            is_marked,
-                            format!("{flags:08X}"),
-                        )
-                        .clicked()
-                        {
-                            app.selected_packet = Some(*original_idx);
-                            app.show_detail_panel = true;
-                        }
-
-                        if mobile_cell(
-                            ui,
-                            widths[4],
-                            false,
-                            is_selected,
-                            is_marked,
-                            size.to_string(),
-                        )
-                        .clicked()
-                        {
-                            app.selected_packet = Some(*original_idx);
-                            app.show_detail_panel = true;
-                        }
-
-                        ui.end_row();
+                        app.selected_packet = Some(*original_idx);
+                        app.show_detail_panel = true;
                     }
                 });
-        } else {
-            // Desktop layout
-            egui::Grid::new("packets_grid")
-                .num_columns(6)
-                .striped(true)
-                .min_col_width(50.0)
-                .show(ui, |ui| {
-                    // Clickable headers
-                    if desktop_header_cell(ui, "ID", SortField::Id, sort_field, sort_ascending)
+
+                row.col(|ui| {
+                    if mobile_cell(ui, widths[3], false, is_selected, is_marked, format!("{flags:08X}"))
                         .clicked()
                     {
-                        if sort_field == SortField::Id {
-                            app.sort_ascending = !app.sort_ascending;
-                        } else {
-                            app.sort_field = SortField::Id;
-                            app.sort_ascending = true;
-                        }
-                    }
-                    if desktop_header_cell(
-                        ui,
-                        "Sequence",
-                        SortField::Type,
-                        sort_field,
-                        sort_ascending,
-                    )
-                    .clicked()
-                    {
-                        if sort_field == SortField::Type {
-                            app.sort_ascending = !app.sort_ascending;
-                        } else {
-                            app.sort_field = SortField::Type;
-                            app.sort_ascending = true;
-                        }
-                    }
-                    if desktop_header_cell(
-                        ui,
-                        "Direction",
-                        SortField::Direction,
-                        sort_field,
-                        sort_ascending,
-                    )
-                    .clicked()
-                    {
-                        if sort_field == SortField::Direction {
-                            app.sort_ascending = !app.sort_ascending;
-                        } else {
-                            app.sort_field = SortField::Direction;
-                            app.sort_ascending = true;
-                        }
-                    }
-                    // Flags, Size, and Data Size are not sortable
-                    ui.strong("Flags");
-                    ui.strong("Size");
-                    ui.strong("Data Size");
-                    ui.end_row();
-
-                    for (original_idx, id, seq, direction, flags, size) in &filtered {
-                        let is_selected = app.selected_packet == Some(*original_idx);
-                        let is_marked = app.marked_packets.contains(original_idx);
-
-                        if desktop_marked_cell(ui, is_selected, is_marked, id.to_string()).clicked()
-                        {
-                            app.selected_packet = Some(*original_idx);
-                        }
-                        if desktop_marked_cell(ui, is_selected, is_marked, seq.to_string())
-                            .clicked()
-                        {
-                            app.selected_packet = Some(*original_idx);
-                        }
-                        let dir_color = if direction == "ClientToServer" {
-                            egui::Color32::from_rgb(100, 200, 255)
-                        } else {
-                            egui::Color32::from_rgb(100, 255, 150)
-                        };
-                        if desktop_marked_cell(
-                            ui,
-                            is_selected,
-                            is_marked,
-                            egui::RichText::new(direction).color(dir_color),
-                        )
-                        .clicked()
-                        {
-                            app.selected_packet = Some(*original_idx);
-                        }
-                        if desktop_marked_cell(ui, is_selected, is_marked, format!("{flags:08X}"))
-                            .clicked()
-                        {
-                            app.selected_packet = Some(*original_idx);
-                        }
-                        if desktop_marked_cell(ui, is_selected, is_marked, size.to_string())
-                            .clicked()
-                        {
-                            app.selected_packet = Some(*original_idx);
-                        }
-                        ui.end_row();
+                        app.selected_packet = Some(*original_idx);
+                        app.show_detail_panel = true;
                     }
                 });
-        }
-    });
+
+                row.col(|ui| {
+                    if mobile_cell(ui, widths[4], false, is_selected, is_marked, size.to_string())
+                        .clicked()
+                    {
+                        app.selected_packet = Some(*original_idx);
+                        app.show_detail_panel = true;
+                    }
+                });
+            });
+        });
+    } else {
+        // Desktop header
+        ui.horizontal(|ui| {
+            if desktop_header_cell(ui, "ID", SortField::Id, sort_field, sort_ascending).clicked() {
+                if sort_field == SortField::Id {
+                    app.sort_ascending = !app.sort_ascending;
+                } else {
+                    app.sort_field = SortField::Id;
+                    app.sort_ascending = true;
+                }
+            }
+            if desktop_header_cell(ui, "Sequence", SortField::Type, sort_field, sort_ascending).clicked() {
+                if sort_field == SortField::Type {
+                    app.sort_ascending = !app.sort_ascending;
+                } else {
+                    app.sort_field = SortField::Type;
+                    app.sort_ascending = true;
+                }
+            }
+            if desktop_header_cell(ui, "Direction", SortField::Direction, sort_field, sort_ascending).clicked() {
+                if sort_field == SortField::Direction {
+                    app.sort_ascending = !app.sort_ascending;
+                } else {
+                    app.sort_field = SortField::Direction;
+                    app.sort_ascending = true;
+                }
+            }
+            // Flags, Size are not sortable
+            ui.strong("Flags");
+            ui.strong("Size");
+        });
+        ui.separator();
+
+        // Desktop table
+        let table = egui_extras::TableBuilder::new(ui)
+            .striped(true)
+            .resizable(true)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::initial(60.0).range(40.0..=100.0))
+            .column(Column::initial(100.0).range(60.0..=150.0))
+            .column(Column::initial(100.0).range(60.0..=150.0))
+            .column(Column::initial(80.0).range(50.0..=120.0))
+            .column(Column::initial(60.0).range(40.0..=100.0))
+            .min_scrolled_height(0.0);
+
+        table.body(|body| {
+            body.rows(20.0, filtered.len(), |mut row| {
+                let idx = row.index();
+                let (original_idx, id, seq, direction, flags, size) = &filtered[idx];
+                let is_selected = app.selected_packet == Some(*original_idx);
+                let is_marked = app.marked_packets.contains(original_idx);
+
+                row.col(|ui| {
+                    if desktop_marked_cell(ui, is_selected, is_marked, id.to_string()).clicked() {
+                        app.selected_packet = Some(*original_idx);
+                    }
+                });
+
+                row.col(|ui| {
+                    if desktop_marked_cell(ui, is_selected, is_marked, seq.to_string()).clicked() {
+                        app.selected_packet = Some(*original_idx);
+                    }
+                });
+
+                row.col(|ui| {
+                    let dir_color = if direction == "ClientToServer" {
+                        egui::Color32::from_rgb(100, 200, 255)
+                    } else {
+                        egui::Color32::from_rgb(100, 255, 150)
+                    };
+                    if desktop_marked_cell(
+                        ui,
+                        is_selected,
+                        is_marked,
+                        egui::RichText::new(direction).color(dir_color),
+                    )
+                    .clicked()
+                    {
+                        app.selected_packet = Some(*original_idx);
+                    }
+                });
+
+                row.col(|ui| {
+                    if desktop_marked_cell(ui, is_selected, is_marked, format!("{flags:08X}"))
+                        .clicked()
+                    {
+                        app.selected_packet = Some(*original_idx);
+                    }
+                });
+
+                row.col(|ui| {
+                    if desktop_marked_cell(ui, is_selected, is_marked, size.to_string()).clicked() {
+                        app.selected_packet = Some(*original_idx);
+                    }
+                });
+            });
+        });
+    }
 }
