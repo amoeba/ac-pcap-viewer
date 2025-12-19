@@ -403,13 +403,13 @@ pub fn show_settings_dialog(app: &mut PcapViewerApp, ctx: &egui::Context) {
 pub fn show_about_dialog(app: &mut PcapViewerApp, ctx: &egui::Context) {
     let mut close_about = false;
 
-    egui::Window::new("About AC PCAP Parser")
+    egui::Window::new("About AC PCAP Viewer")
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
-                ui.heading("AC PCAP Parser");
+                ui.heading("AC PCAP Viewer");
                 ui.add_space(5.0);
 
                 let git_sha = option_env!("GIT_SHA").unwrap_or("dev");
@@ -424,12 +424,12 @@ pub fn show_about_dialog(app: &mut PcapViewerApp, ctx: &egui::Context) {
                 ui.separator();
                 ui.add_space(10.0);
 
-                ui.label("A web-based parser for Asheron's Call");
+                ui.label("A web-based viewer for Asheron's Call");
                 ui.label("PCAP network traffic files.");
 
                 ui.add_space(10.0);
 
-                ui.hyperlink_to("View on GitHub", "https://github.com/amoeba/ac-pcap-parser");
+                ui.hyperlink_to("View on GitHub", "https://github.com/amoeba/ac-pcap-viewer");
 
                 ui.add_space(10.0);
                 ui.separator();

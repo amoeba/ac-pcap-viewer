@@ -1,4 +1,4 @@
-//! UI module for AC PCAP Parser
+//! UI module for AC PCAP Viewer
 //!
 //! This module contains all UI-related components and panels.
 

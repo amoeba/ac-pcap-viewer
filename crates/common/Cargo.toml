@@ -2,7 +2,7 @@
 name = "common"
 version.workspace = true
 edition.workspace = true
-description = "AC PCAP parser library with shared types"
+description = "AC PCAP viewer library with shared types"
 
 [dependencies]
 acprotocol = { workspace = true, default-features = false }

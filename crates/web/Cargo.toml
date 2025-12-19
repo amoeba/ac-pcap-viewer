@@ -2,7 +2,7 @@
 name = "web"
 version.workspace = true
 edition.workspace = true
-description = "Web UI for Asheron's Call PCAP parser (WASM)"
+description = "Web UI for Asheron's Call PCAP viewer (WASM)"
 
 [lib]
 crate-type = ["cdylib"]

@@ -1,4 +1,4 @@
-//! Web UI for Asheron's Call PCAP Parser
+//! Web UI for Asheron's Call PCAP Viewer
 //!
 //! WASM-compiled version of the AC PCAP viewer for web deployment.
 

@@ -1,4 +1,4 @@
-//! Desktop application entry point for AC PCAP Parser
+//! Desktop application entry point for AC PCAP Viewer
 //!
 //! This binary provides a native desktop GUI with features like
 //! native file dialogs and keyboard shortcuts.
@@ -17,7 +17,7 @@ fn main() -> eframe::Result<()> {
     };
 
     eframe::run_native(
-        "AC PCAP Parser",
+        "AC PCAP Viewer",
         native_options,
         Box::new(|cc| Ok(Box::new(PcapViewerApp::new(cc)))),
     )

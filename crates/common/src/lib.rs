@@ -1,4 +1,4 @@
-//! Asheron's Call PCAP Parser Library
+//! Asheron's Call PCAP Viewer Library
 //!
 //! This library provides functionality to parse PCAP files containing
 //! Asheron's Call network traffic.

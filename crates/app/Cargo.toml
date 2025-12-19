@@ -2,7 +2,15 @@
 name = "app"
 version.workspace = true
 edition.workspace = true
-description = "Desktop UI for Asheron's Call PCAP parser"
+description = "Desktop UI for Asheron's Call PCAP viewer"
+repository = "https://github.com/amoeba/ac-pcap-viewer"
+authors = ["Bryce Mecum"]
+
+[package.metadata.wix]
+upgrade-guid = "8FBE669B-ADE6-44D6-8E50-75CBB7101FC6"
+path-guid = "AF19405C-EC3D-480A-A0B9-AC5A87594859"
+license = false
+eula = false
 
 [lib]
 crate-type = ["rlib"]

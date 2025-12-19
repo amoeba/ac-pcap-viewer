@@ -1,4 +1,4 @@
-//! UI for Asheron's Call PCAP Parser
+//! UI for Asheron's Call PCAP Viewer
 //!
 //! Shared egui-based interface for both web and desktop applications.
 
@@ -421,7 +421,7 @@ impl eframe::App for PcapViewerApp {
                 });
 
                 ui.menu_button("About", |ui| {
-                    if ui.button("About AC PCAP Parser").clicked() {
+                    if ui.button("About AC PCAP Viewer").clicked() {
                         self.show_about = true;
                         ui.close_menu();
                     }
@@ -544,7 +544,7 @@ impl eframe::App for PcapViewerApp {
                     ui.heading(if is_tablet {
                         "AC PCAP"
                     } else {
-                        "AC PCAP Parser"
+                        "AC PCAP Viewer"
                     });
                     ui.separator();
 
@@ -687,11 +687,11 @@ impl eframe::App for PcapViewerApp {
                         };
                         ui.hyperlink_to(
                             egui::RichText::new(format!("#{short_sha}")).small(),
-                            format!("https://github.com/amoeba/ac-pcap-parser/commit/{git_sha}"),
+                            format!("https://github.com/amoeba/ac-pcap-viewer/commit/{git_sha}"),
                         );
                         ui.hyperlink_to(
                             egui::RichText::new("GitHub").small(),
-                            "https://github.com/amoeba/ac-pcap-parser",
+                            "https://github.com/amoeba/ac-pcap-viewer",
                         );
                         ui.separator();
 

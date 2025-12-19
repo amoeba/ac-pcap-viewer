@@ -1,6 +1,6 @@
-# AC PCAP Parser
+# AC PCAP Viewer
 
-A parser and viewer for Asheron's Call network packet captures. Decodes PCAP files into human-readable JSON, available as a web app, desktop app, or CLI tool.
+A viewer for Asheron's Call network packet captures. Decodes PCAP files into human-readable JSON, available as a web app, desktop app, or CLI tool.
 
 ## About This Project
 
@@ -65,17 +65,17 @@ Supports native file dialogs and drag-and-drop.
 cargo build --release
 
 # Parse and output messages as JSONL
-ac-pcap-parser -f capture.pcap
+ac-pcap-viewer -f capture.pcap
 
 # Summary statistics
-ac-pcap-parser summary -f capture.pcap
+ac-pcap-viewer summary -f capture.pcap
 
 # Filter and format
-ac-pcap-parser messages -t Magic -o table
-ac-pcap-parser messages -d recv -l 10
+ac-pcap-viewer messages -t Magic -o table
+ac-pcap-viewer messages -d recv -l 10
 
 # Interactive TUI
-ac-pcap-parser tui
+ac-pcap-viewer tui
 ```
 
 CLI options:
@@ -93,7 +93,7 @@ When deploying to Dokku using pre-built Docker images (via `git:from-image`), yo
 
 ```bash
 # Deploy the image
-dokku git:from-image <app-name> ghcr.io/amoeba/ac-pcap-parser:<tag>
+dokku git:from-image <app-name> ghcr.io/amoeba/ac-pcap-viewer:<tag>
 
 # Configure port mappings (app runs on port 3000)
 dokku ports:set <app-name> http:80:3000 https:443:3000
@@ -120,8 +120,8 @@ dokku letsencrypt:enable <app-name>
 Requirements: Rust (stable)
 
 ```bash
-git clone https://github.com/amoeba/ac-pcap-parser
-cd ac-pcap-parser
+git clone https://github.com/amoeba/ac-pcap-viewer
+cd ac-pcap-viewer
 cargo build
 ```
 
