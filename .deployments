@@ -16,4 +16,4 @@ DOKKU_SERVER=znc.treestats.net
 DOKKU_USER=dokku
 
 # Docker Image
-DOCKER_REGISTRY=ghcr.io/amoeba/ac-pcap-parser
+DOCKER_REGISTRY=ghcr.io/amoeba/ac-pcap-viewer

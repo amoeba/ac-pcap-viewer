@@ -2,7 +2,7 @@
 
 > **Note:** This project was entirely vibe coded based on [Trevis's](https://github.com/trevis) work. All credit goes to Trevis and the AI researchers who made this possible.
 
-WebAssembly-based web interface for the AC PCAP parser.
+WebAssembly-based web interface for the AC PCAP viewer.
 
 ## Prerequisites
 
